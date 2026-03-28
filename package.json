@@ -1,0 +1,83 @@
+{
+  "name": "softwarephotobooth",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
+    "electron:build": "vite build && electron-builder",
+    "electron:dist": "vite build && electron-builder --mac --win --x64 --arm64",
+    "dist:mac": "vite build && electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.latarcerita.photobooth",
+    "productName": "Latarcerita Photobooth",
+    "directories": {
+      "output": "release"
+    },
+    "icon": "public/Logo.png",
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "public/**/*",
+      "package.json",
+      "!node_modules/@tailwindcss/oxide-*",
+      "!node_modules/lightningcss-*",
+      "!node_modules/tailwindcss",
+      "!node_modules/@tailwindcss",
+      "!node_modules/postcss",
+      "!node_modules/autoprefixer"
+    ],
+    "mac": {
+      "category": "public.app-category.photography",
+      "target": [
+        "dmg"
+      ],
+      "entitlements": "electron/entitlements.mac.plist",
+      "entitlementsInherit": "electron/entitlements.mac.plist",
+      "extendInfo": {
+        "NSCameraUsageDescription": "Latarcerita Photobooth requires access to your camera to take photos."
+      }
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.100.0",
+    "electron-is-dev": "^3.0.1",
+    "framer-motion": "^12.38.0",
+    "interactjs": "^1.10.27",
+    "lucide-react": "^0.577.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "react-icons": "^5.6.0",
+    "tslib": "^2.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "^10.4.27",
+    "concurrently": "^9.2.1",
+    "electron": "^41.0.4",
+    "electron-builder": "^26.8.1",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.4.0",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^4.2.2",
+    "vite": "^8.0.1",
+    "wait-on": "^9.0.4"
+  }
+}

@@ -1,0 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-brand-primary: #2563eb;
+  --color-brand-secondary: #0ea5e9;
+  
+  --font-caveat: "Caveat", cursive;
+}
+
+@layer base {
+  body {
+    @apply m-0 min-w-[320px] min-h-screen bg-slate-50 flex items-center overflow-x-hidden;
+  }
+  
+  #root {
+    @apply w-full;
+  }
+}
+
+/* Photobox Custom Utilities */
+.font-caveat { font-family: 'Caveat', cursive; }
+
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: float 8s ease-in-out infinite;
+  animation-delay: 1s;
+}
+
+/* Global Brand Gradient Text */
+.text-gradient-blue {
+  @apply text-transparent bg-clip-text bg-gradient-to-br from-blue-400 via-blue-600 to-blue-800;
+}
+
