@@ -9,12 +9,19 @@ import CaptureScreen from './components/CaptureScreen'
 import CustomizeScreen from './components/CustomizeScreen'
 import ProcessingScreen from './components/ProcessingScreen'
 import OutputScreen from './components/OutputScreen'
+import ModeSelectScreen from './components/ModeSelectScreen'
+import SelfPhotoInstructionsScreen from './components/SelfPhotoInstructionsScreen'
+import SelfPhotoTimeSelectScreen from './components/SelfPhotoTimeSelectScreen'
+import SelfPhotoCaptureScreen from './components/SelfPhotoCaptureScreen'
+import SelfPhotoPhotoSelectScreen from './components/SelfPhotoPhotoSelectScreen'
+import PrintQuantityScreen from './components/PrintQuantityScreen'
 import SettingsPage from './components/SettingsPage'
 import FramesPage from './components/FramesPage'
 import GalleryPage from './components/GalleryPage'
+import PublicGalleryScreen from './components/PublicGalleryScreen'
 import AppBackground from './components/AppBackground'
-import CreatorDashboard from './components/CreatorDashboard'
 import DeviceLogin from './components/DeviceLogin'
+import CreatorApp from './creator/App'
 import { LogOut, Monitor } from 'lucide-react'
 
 // --- Constants ---
@@ -27,7 +34,15 @@ const STEPS = {
   CUSTOMIZE_FRAME: 'CUSTOMIZE_FRAME',
   CUSTOMIZE_FILTER: 'CUSTOMIZE_FILTER',
   PROCESSING: 'PROCESSING',
-  OUTPUT: 'OUTPUT'
+  OUTPUT: 'OUTPUT',
+
+  // Self Photo Steps
+  MODE_SELECT: 'MODE_SELECT',
+  SP_INSTRUCTIONS: 'SP_INSTRUCTIONS',
+  SP_TIME_SELECT: 'SP_TIME_SELECT',
+  SP_CAPTURE: 'SP_CAPTURE',
+  SP_PHOTO_SELECT: 'SP_PHOTO_SELECT',
+  SP_PRINT_QUANTITY: 'SP_PRINT_QUANTITY'
 }
 
 function App() {
@@ -41,20 +56,41 @@ function App() {
   const [selectedFrameData, setSelectedFrameData] = useState(null)
   const [selectedFilter, setSelectedFilter] = useState('none')
   const [cameraError, setCameraError] = useState(null)
-  
+
+  // Self Photo Specific State
+  const [selfPhotoDuration, setSelfPhotoDuration] = useState(5) // minutes
+  const [printQuantity, setPrintQuantity] = useState(1)
+  const [selectedSelfPhotos, setSelectedSelfPhotos] = useState([]) // indices of selected photos
+
   const [session, setSession] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => {
+    // Skip loading state entirely if we're rendering a public gallery via QR
+    const params = new URLSearchParams(window.location.search)
+    return !params.get('gallery')
+  })
   const [isCreatorMode, setIsCreatorMode] = useState(false)
   const [deviceSession, setDeviceSession] = useState(null)
   const [step, setStep] = useState(STEPS.START)
+  const [selectedMode, setSelectedMode] = useState(null) // 'photobooth' | 'self_photo'
+  const [galleryData, setGalleryData] = useState(null)
 
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
-  const streamRef = useRef(null)
+  const streamRef = useRef(null) // Restored streamRef
+  // Read gallery param synchronously so it's available on first render
+  const [galleryId, setGalleryId] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('gallery') || null
+  })
 
-  // Auth Management
+  // Auth & URL Management
   useEffect(() => {
-    // Detect mode based on hostname
+    // If gallery param exists it was already read synchronously above — skip full init
+    if (galleryId) {
+      setLoading(false)
+      return
+    }
+
     const host = window.location.hostname
     if (host.startsWith('creator.')) {
       setIsCreatorMode(true)
@@ -65,22 +101,25 @@ function App() {
     if (savedDevice) {
       const parsed = JSON.parse(savedDevice)
       setDeviceSession(parsed)
-      
+
       // Background refresh
       supabase
         .from('devices')
-        .select('id, creator_id, name, payment_enabled, available_frames')
+        .select('id, creator_id, name, payment_enabled, available_frames, enable_photobooth, enable_self_photo, self_photo_durations')
         .eq('id', parsed.device_id)
         .single()
         .then(({ data }) => {
           if (data) {
-            const updated = { 
-              ...parsed, 
+            const updated = {
+              ...parsed,
               device_id: data.id,
               creator_id: data.creator_id,
               name: data.name,
               payment_enabled: data.payment_enabled,
-              available_frames: data.available_frames || []
+              enable_photobooth: data.enable_photobooth ?? true,
+              enable_self_photo: data.enable_self_photo ?? false,
+              available_frames: data.available_frames || [],
+              self_photo_durations: data.self_photo_durations || [5, 10, 15]
             }
             localStorage.setItem('pb_device_session', JSON.stringify(updated))
             setDeviceSession(updated)
@@ -107,13 +146,13 @@ function App() {
         throw new Error("Kamera API tidak didukung di sistem ini.")
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          width: { ideal: 1280 }, 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
           height: { ideal: 720 },
           facingMode: 'user'
-        }, 
-        audio: false 
+        },
+        audio: false
       })
       streamRef.current = stream
       if (videoRef.current) {
@@ -145,11 +184,11 @@ function App() {
 
   // Camera Management
   useEffect(() => {
-    if (step === STEPS.CAPTURE) {
+    if (step === STEPS.CAPTURE || step === STEPS.SP_CAPTURE) {
       startCamera()
-      
-      // Auto-start countdown ONLY if we have started the session and are NOT reviewing
-      if (hasStartedSession && !isReviewing) {
+
+      // Auto-start countdown ONLY if we have started the photobooth session and are NOT reviewing
+      if (step === STEPS.CAPTURE && hasStartedSession && !isReviewing) {
         const timeout = setTimeout(() => startCountdown(), 1000)
         return () => clearTimeout(timeout)
       }
@@ -177,17 +216,17 @@ function App() {
       const context = canvasRef.current.getContext('2d')
       canvasRef.current.width = videoRef.current.videoWidth
       canvasRef.current.height = videoRef.current.videoHeight
-      
+
       context.translate(canvasRef.current.width, 0)
       context.scale(-1, 1)
       context.drawImage(videoRef.current, 0, 0)
-      
+
       const dataUrl = canvasRef.current.toDataURL('image/png')
-      
+
       const newPhotos = [...photos]
       newPhotos[currentShotIndex] = dataUrl
       setPhotos(newPhotos)
-      
+
       setIsReviewing(true)
     }
   }
@@ -211,7 +250,6 @@ function App() {
 
   const handleCetak = () => {
     setStep(STEPS.PROCESSING)
-    setTimeout(() => setStep(STEPS.OUTPUT), 3000)
   }
 
   const resetSession = () => {
@@ -222,6 +260,10 @@ function App() {
     setHasStartedSession(false)
     setSelectedFrame('classic')
     setSelectedFilter('none')
+    setSelectedMode(null)
+    setSelfPhotoDuration(5)
+    setPrintQuantity(1)
+    setSelectedSelfPhotos([])
   }
 
   const handleSignOut = async () => {
@@ -238,22 +280,14 @@ function App() {
     )
   }
 
+  // --- Public Gallery Route ---
+  if (galleryId) {
+    return <PublicGalleryScreen galleryId={galleryId} />
+  }
+
   // --- Creator Mode Branch ---
   if (isCreatorMode) {
-    if (!session) {
-      const isSignupPath = window.location.pathname === '/daftar'
-      return <AuthScreen onAuthSuccess={setSession} initialIsLogin={!isSignupPath} />
-    }
-    
-    // Additional path routing for creator (optional, or just use tabs in Dashboard)
-    if (window.location.pathname === '/frames') {
-      return <FramesPage user={session?.user} />
-    }
-    if (window.location.pathname === '/gallery') {
-      return <GalleryPage user={session?.user} />
-    }
-
-    return <CreatorDashboard user={session?.user} onSignOut={handleSignOut} />
+    return <CreatorApp />
   }
 
   // --- Device Mode Branch ---
@@ -262,13 +296,39 @@ function App() {
   }
 
   // If in Device Mode, the "owner" of the content is the creator_id
-  const currentUser = { 
-    id: deviceSession.creator_id, 
-    isDevice: true, 
+  const currentUser = {
+    id: deviceSession.creator_id,
+    isDevice: true,
     deviceName: deviceSession.name,
     deviceId: deviceSession.device_id,
     availableFrames: deviceSession.available_frames || [],
-    paymentEnabled: deviceSession.payment_enabled
+    paymentEnabled: deviceSession.payment_enabled,
+    enablePhotobooth: deviceSession.enable_photobooth ?? true,
+    enableSelfPhoto: deviceSession.enable_self_photo ?? false,
+    selfPhotoDurations: deviceSession.self_photo_durations || [5, 10, 15]
+  }
+
+  // --- Handlers for Start Flow ---
+  const handleStart = () => {
+    // Determine where to go based on device config
+    if (currentUser.enablePhotobooth && currentUser.enableSelfPhoto) {
+      setStep(STEPS.MODE_SELECT)
+    } else if (currentUser.enableSelfPhoto && !currentUser.enablePhotobooth) {
+      setSelectedMode('self_photo')
+      setStep(STEPS.SP_INSTRUCTIONS)
+    } else {
+      setSelectedMode('photobooth')
+      setStep(STEPS.INSTRUCTIONS)
+    }
+  }
+
+  const handleModeSelection = (mode) => {
+    setSelectedMode(mode);
+    if (mode === 'self_photo') {
+      setStep(STEPS.SP_INSTRUCTIONS);
+    } else {
+      setStep(STEPS.INSTRUCTIONS);
+    }
   }
 
   // Path-based routing for Settings (e.g. to logout device)
@@ -278,45 +338,51 @@ function App() {
 
   return (
     <div className="min-h-screen relative overflow-x-hidden selection:bg-blue-100 selection:text-blue-900 bg-slate-50">
-      {/* Global Animated Background */}
       <AppBackground />
-      
-      {/* Device Status - Float Top Right */}
-      <div className="fixed top-8 right-8 z-[100] flex flex-col items-end gap-2">
-        <div className="flex items-center gap-2 px-4 py-2 bg-blue-600/10 backdrop-blur-md border border-blue-600/20 rounded-full text-blue-600 text-[10px] font-black uppercase tracking-widest">
-          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-          {deviceSession.name}
-        </div>
-      </div>
 
       {/* Main Content Area */}
       <div className="relative z-10 w-full min-h-screen flex flex-col">
         {step === STEPS.START && (
-          <StartScreen 
-            onStart={() => setStep(STEPS.INSTRUCTIONS)} 
+          <StartScreen
+            onStart={handleStart}
             user={currentUser}
             onLogout={() => { localStorage.removeItem('pb_device_session'); setDeviceSession(null); }}
           />
         )}
-        {step === STEPS.INSTRUCTIONS && (
-          <InstructionsScreen 
-            onNext={() => setStep(currentUser.paymentEnabled ? STEPS.PAYMENT : STEPS.SESSION_SELECT)} 
+
+        {step === STEPS.MODE_SELECT && (
+          <ModeSelectScreen
+            onSelect={handleModeSelection}
           />
         )}
-        {step === STEPS.PAYMENT && <PaymentScreen onPaymentSuccess={() => setStep(STEPS.SESSION_SELECT)} />}
+
+        {/* Photobooth Flow */}
+        {step === STEPS.INSTRUCTIONS && (
+          <InstructionsScreen
+            onNext={() => setStep(currentUser.paymentEnabled ? STEPS.PAYMENT : STEPS.SESSION_SELECT)}
+          />
+        )}
+        {step === STEPS.PAYMENT && <PaymentScreen onPaymentSuccess={() => {
+          if (selectedMode === 'self_photo') {
+            setStep(STEPS.PROCESSING)
+            setTimeout(() => setStep(STEPS.OUTPUT), 3000)
+          } else {
+            setStep(STEPS.SESSION_SELECT)
+          }
+        }} mode={selectedMode} selfPhotoDuration={selfPhotoDuration} printQuantity={printQuantity} />}
         {step === STEPS.SESSION_SELECT && (
-          <SessionSelectScreen 
-            onSelectSession={(shots) => { setMaxCaptures(shots); setStep(STEPS.CAPTURE); }} 
+          <SessionSelectScreen
+            onSelectSession={(shots) => { setMaxCaptures(shots); setStep(STEPS.CAPTURE); }}
             user={currentUser}
           />
         )}
         {step === STEPS.CAPTURE && (
-          <CaptureScreen 
-            videoRef={videoRef} 
-            countdown={countdown} 
-            currentShotIndex={currentShotIndex} 
-            maxCaptures={maxCaptures} 
-            photos={photos} 
+          <CaptureScreen
+            videoRef={videoRef}
+            countdown={countdown}
+            currentShotIndex={currentShotIndex}
+            maxCaptures={selectedMode === 'self_photo' ? maxCaptures : maxCaptures}
+            photos={photos}
             isReviewing={isReviewing}
             hasStartedSession={hasStartedSession}
             onStartSession={() => setHasStartedSession(true)}
@@ -326,45 +392,102 @@ function App() {
             user={currentUser}
           />
         )}
-        {step === STEPS.CUSTOMIZE_FRAME && (
-          <CustomizeScreen 
-            mode="frame"
-            photos={photos} 
-            selectedFrame={selectedFrame} 
-            setSelectedFrame={setSelectedFrame} 
-            setSelectedFrameData={setSelectedFrameData}
-            selectedFilter={selectedFilter} 
+
+        {/* Self Photo Flow specific screens */}
+        {step === STEPS.SP_INSTRUCTIONS && (
+          <SelfPhotoInstructionsScreen
+            onNext={() => setStep(STEPS.SP_TIME_SELECT)}
+          />
+        )}
+        {step === STEPS.SP_TIME_SELECT && (
+          <SelfPhotoTimeSelectScreen
+            durations={currentUser.selfPhotoDurations}
+            onSelectDuration={(duration) => { setSelfPhotoDuration(duration); setStep(STEPS.SP_CAPTURE); }}
+          />
+        )}
+        {step === STEPS.SP_CAPTURE && (
+          <SelfPhotoCaptureScreen
+            videoRef={videoRef}
+            durationMinutes={selfPhotoDuration}
+            photos={photos}
+            setPhotos={setPhotos}
+            onFinish={() => setStep(STEPS.CUSTOMIZE_FRAME)}
+            cameraError={cameraError}
+          />
+        )}
+        {step === STEPS.SP_PHOTO_SELECT && (
+          <SelfPhotoPhotoSelectScreen
+            photos={photos}
+            selectedFrameData={selectedFrameData}
+            selectedPhotos={selectedSelfPhotos}
+            setSelectedPhotos={setSelectedSelfPhotos}
             onNext={() => setStep(STEPS.CUSTOMIZE_FILTER)}
+          />
+        )}
+        {step === STEPS.SP_PRINT_QUANTITY && (
+          <PrintQuantityScreen
+            quantity={printQuantity}
+            setQuantity={setPrintQuantity}
+            onNext={() => setStep(currentUser.paymentEnabled ? STEPS.PAYMENT : STEPS.PROCESSING)}
+          />
+        )}
+        {step === STEPS.CUSTOMIZE_FRAME && (
+          <CustomizeScreen
+            mode="frame"
+            appMode={selectedMode}
+            photos={photos}
+            selectedFrame={selectedFrame}
+            setSelectedFrame={setSelectedFrame}
+            setSelectedFrameData={setSelectedFrameData}
+            selectedFilter={selectedFilter}
+            onNext={() => {
+              if (selectedMode === 'self_photo') {
+                setStep(STEPS.SP_PHOTO_SELECT)
+              } else {
+                setStep(STEPS.CUSTOMIZE_FILTER)
+              }
+            }}
             maxCaptures={maxCaptures}
             user={currentUser}
           />
         )}
         {step === STEPS.CUSTOMIZE_FILTER && (
-          <CustomizeScreen 
+          <CustomizeScreen
             mode="filter"
-            photos={photos} 
-            selectedFrame={selectedFrame} 
+            appMode={selectedMode}
+            photos={selectedMode === 'self_photo' ? selectedSelfPhotos.map(i => photos[i]) : photos}
+            selectedFrame={selectedFrame}
             selectedFrameData={selectedFrameData}
-            selectedFilter={selectedFilter} 
-            setSelectedFilter={setSelectedFilter} 
-            onCetak={handleCetak}
+            selectedFilter={selectedFilter}
+            setSelectedFilter={setSelectedFilter}
+            onCetak={selectedMode === 'self_photo' ? () => setStep(STEPS.SP_PRINT_QUANTITY) : handleCetak}
             maxCaptures={maxCaptures}
             user={currentUser}
           />
         )}
-        {step === STEPS.PROCESSING && <ProcessingScreen />}
+        {step === STEPS.PROCESSING && <ProcessingScreen
+          rawPhotos={photos}
+          compositePhotos={selectedMode === 'self_photo' ? selectedSelfPhotos.map(i => photos[i]) : photos}
+          selectedFrameData={selectedFrameData}
+          selectedFilter={selectedFilter}
+          user={currentUser}
+          onFinish={(data) => {
+            setGalleryData(data)
+            setStep(STEPS.OUTPUT)
+          }}
+        />}
         {step === STEPS.OUTPUT && (
-          <OutputScreen 
-            photos={photos} 
-            selectedFrame={selectedFrame} 
-            selectedFrameData={selectedFrameData} 
-            selectedFilter={selectedFilter} 
-            onReset={resetSession} 
+          <OutputScreen
+            galleryData={galleryData}
+            selectedFrame={selectedFrame}
+            selectedFrameData={selectedFrameData}
+            selectedFilter={selectedFilter}
+            onReset={resetSession}
             user={currentUser}
           />
         )}
       </div>
-      
+
       <canvas ref={canvasRef} className="hidden" />
     </div>
   )

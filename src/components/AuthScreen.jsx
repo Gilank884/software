@@ -37,10 +37,10 @@ const AuthScreen = ({ onAuthSuccess, initialIsLogin = true }) => {
         if (signUpError) throw signUpError;
         
         if (data.session) {
-          onAuthSuccess(data.user);
-        } else if (data.user) {
-          // Fallback if user is created but no session (usually means confirm is still ON in dashboard)
-          setError("Akun berhasil dibuat! Silakan cek email untuk konfirmasi (atau matikan 'Confirm Email' di Dashboard Supabase).");
+          onAuthSuccess(data.session); // ✅ kirim session (bukan hanya user)
+        } else if (data.user && !data.session) {
+          // Confirm email masih ON di Supabase Dashboard — user dibuat tapi belum aktif
+          setError("✅ Akun berhasil dibuat! Silakan cek email Anda untuk konfirmasi, lalu login.");
         }
       }
     } catch (err) {

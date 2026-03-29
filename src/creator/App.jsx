@@ -1,14 +1,36 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import FramesManager from './FramesManager'
-import CanvasManager from './CanvasManager'
-import AppBackground from './AppBackground'
-import Sidebar from './dashboard/Sidebar'
-import AnalyticsView from './dashboard/AnalyticsView'
-import DevicesView from './dashboard/DevicesView'
+import FramesManager from '../components/FramesManager'
+import CanvasManager from '../components/CanvasManager'
+import AppBackground from '../components/AppBackground'
+import Sidebar from './components/dashboard/Sidebar'
+import AnalyticsView from './components/dashboard/AnalyticsView'
+import DevicesView from './components/dashboard/DevicesView'
+import AuthScreen from '../components/AuthScreen'
 import { Monitor, LogOut } from 'lucide-react'
 
-export default function CreatorDashboard({ user, onSignOut }) {
+export default function CreatorApp() {
+  const [session, setSession] = useState(null)
+  
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  if (!session) {
+    const isSignupPath = window.location.pathname === '/daftar'
+    return <AuthScreen onAuthSuccess={setSession} initialIsLogin={!isSignupPath} />
+  }
+
+  return <CreatorDashboard user={session.user} onSignOut={() => supabase.auth.signOut()} />
+}
+
+function CreatorDashboard({ user, onSignOut }) {
   const [devices, setDevices] = useState([])
   const [frames, setFrames] = useState([])
   const [loading, setLoading] = useState(true)

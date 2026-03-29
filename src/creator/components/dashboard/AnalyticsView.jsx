@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { supabase } from '../../lib/supabaseClient'
+import { supabase } from '../../../lib/supabaseClient'
 import { TrendingUp, Monitor, Smartphone, RefreshCw, Calendar, Loader2 } from 'lucide-react'
 
 export default function AnalyticsView({ user, devices }) {

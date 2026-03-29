@@ -55,6 +55,18 @@ CREATE TABLE IF NOT EXISTS shared_captures (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- 5. Devices (perangkat photobooth milik creator)
+CREATE TABLE IF NOT EXISTS devices (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  creator_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  unique_code TEXT UNIQUE NOT NULL,
+  is_active BOOLEAN DEFAULT true,
+  selected_frame_id UUID REFERENCES frames(id) ON DELETE SET NULL,
+  config JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
 -- ==========================================
 -- BAGIAN 2: POLICIES & TRIGGERS
 -- ==========================================
@@ -64,12 +76,16 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE frames ENABLE ROW LEVEL SECURITY;
 ALTER TABLE captures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE shared_captures ENABLE ROW LEVEL SECURITY;
+ALTER TABLE devices ENABLE ROW LEVEL SECURITY;
 
 -- 6. Profiles Policies
 DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
 CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
 DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
 CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+-- ✅ Policy INSERT wajib ada agar trigger bisa menyimpan profile baru saat user daftar
+DROP POLICY IF EXISTS "Enable insert for service role" ON profiles;
+CREATE POLICY "Enable insert for service role" ON profiles FOR INSERT WITH CHECK (true);
 
 -- 7. Frames Policies
 DROP POLICY IF EXISTS "Users can view own or public frames" ON frames;
@@ -91,12 +107,20 @@ CREATE POLICY "Users can view own shared captures" ON shared_captures FOR SELECT
 DROP POLICY IF EXISTS "Users can insert shared captures" ON shared_captures;
 CREATE POLICY "Users can insert shared captures" ON shared_captures FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id IS NULL);
 
+-- 10. Devices Policies
+DROP POLICY IF EXISTS "Creators can manage own devices" ON devices;
+CREATE POLICY "Creators can manage own devices" ON devices FOR ALL USING (auth.uid() = creator_id);
+-- ✅ Device login: photobooth bisa SELECT device berdasarkan unique_code (tanpa login user)
+DROP POLICY IF EXISTS "Anyone can read device by code" ON devices;
+CREATE POLICY "Anyone can read device by code" ON devices FOR SELECT USING (true);
+
 -- 10. Signup Trigger
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
   INSERT INTO public.profiles (id, email, full_name, avatar_url)
-  VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'avatar_url');
+  VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'avatar_url')
+  ON CONFLICT (id) DO NOTHING; -- ✅ aman dari duplikat
   RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

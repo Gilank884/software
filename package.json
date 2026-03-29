@@ -6,13 +6,15 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run build:main && npm run build:creator",
     "lint": "eslint .",
     "preview": "vite preview",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
-    "electron:build": "vite build && electron-builder",
-    "electron:dist": "vite build && electron-builder --mac --win --x64 --arm64",
-    "dist:mac": "vite build && electron-builder --mac"
+    "electron:build": "npm run build && electron-builder",
+    "electron:dist": "npm run build && electron-builder --mac",
+    "dist:mac:universal": "npm run build && electron-builder --mac --universal",
+    "build:main": "export VITE_APP_TARGET=main && vite build",
+    "build:creator": "export VITE_APP_TARGET=creator && vite build && mv dist/creator/creator/index.html dist/creator/index.html && rm -rf dist/creator/creator"
   },
   "build": {
     "appId": "com.latarcerita.photobooth",
@@ -36,7 +38,12 @@
     "mac": {
       "category": "public.app-category.photography",
       "target": [
-        "dmg"
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
       ],
       "entitlements": "electron/entitlements.mac.plist",
       "entitlementsInherit": "electron/entitlements.mac.plist",
@@ -59,6 +66,7 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-icons": "^5.6.0",
+    "react-qr-code": "^2.0.18",
     "tslib": "^2.8.1"
   },
   "devDependencies": {
@@ -69,7 +77,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.4.27",
     "concurrently": "^9.2.1",
-    "electron": "^41.0.4",
+    "electron": "^28.3.3",
     "electron-builder": "^26.8.1",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",

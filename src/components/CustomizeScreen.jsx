@@ -15,7 +15,8 @@ const CustomizeScreen = ({
   onCetak,
   onNext,
   maxCaptures,
-  user
+  user,
+  appMode
 }) => {
   const [dbFrames, setDbFrames] = useState([])
   const [loadingFrames, setLoadingFrames] = useState(true)
@@ -53,7 +54,7 @@ const CustomizeScreen = ({
             return { ...f, photo_count: unique.length };
           }
           return f;
-        }).filter(f => f.photo_count === maxCaptures);
+        }).filter(f => appMode === 'self_photo' ? true : f.photo_count === maxCaptures);
 
         setDbFrames(processedFrames)
         // Auto-select first frame if none selected
@@ -65,7 +66,7 @@ const CustomizeScreen = ({
       setLoadingFrames(false)
     }
     loadFrames()
-  }, [mode, maxCaptures])
+  }, [mode, maxCaptures, appMode])
 
   const handleFrameSelect = (frame) => {
     setSelectedFrame(frame.id)

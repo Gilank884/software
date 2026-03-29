@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Plus, Monitor, Check, Copy, Trash2, Loader2, Smartphone, ShieldCheck, Layout } from 'lucide-react'
-import { supabase } from '../../lib/supabaseClient'
+import { supabase } from '../../../lib/supabaseClient'
 import DeviceDetailConfig from './DeviceDetailConfig'
 
 export default function DevicesView({ user, devices, frames, onRefresh }) {
@@ -31,7 +31,7 @@ export default function DevicesView({ user, devices, frames, onRefresh }) {
     let attempts = 0
 
     while (!isUnique && attempts < 5) {
-      const { data } = await supabase.from('devices').select('id').eq('unique_code', uniqueCode).single()
+      const { data } = await supabase.from('devices').select('id').eq('unique_code', uniqueCode).maybeSingle()
       if (!data) {
         isUnique = true
       } else {
@@ -74,6 +74,9 @@ export default function DevicesView({ user, devices, frames, onRefresh }) {
       if (selectedDevice?.id === deviceId) {
         setSelectedDevice(prev => ({ ...prev, ...updates }))
       }
+    } else {
+      console.error("Supabase Update Error Payload:", error)
+      alert("Gagal menyimpan update ke database. Pesan error: " + error.message + "\n\nCek tab Console / Network di Inspect Element untuk detail!")
     }
   }
 

@@ -3,22 +3,35 @@ import { Monitor, ShieldCheck, Palette, Smartphone, Check, Layout, Trash2, Copy,
 
 export default function DeviceDetailConfig({ device, availableFrames, onUpdate, onBack }) {
   const [localPayment, setLocalPayment] = useState(device.payment_enabled)
+  const [localPhotobooth, setLocalPhotobooth] = useState(device.enable_photobooth ?? true)
+  const [localSelfPhoto, setLocalSelfPhoto] = useState(device.enable_self_photo ?? false)
   const [localFrames, setLocalFrames] = useState(device.available_frames || [])
+  const [localDurations, setLocalDurations] = useState(device.self_photo_durations || [5, 10, 15])
+  const [newDuration, setNewDuration] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
   // Sync with device prop if it changes externally
   useEffect(() => {
     setLocalPayment(device.payment_enabled)
+    setLocalPhotobooth(device.enable_photobooth ?? true)
+    setLocalSelfPhoto(device.enable_self_photo ?? false)
     setLocalFrames(device.available_frames || [])
-  }, [device.id, device.payment_enabled, device.available_frames])
+    setLocalDurations(device.self_photo_durations || [5, 10, 15])
+  }, [device])
 
   const hasChanges = localPayment !== device.payment_enabled || 
+                     localPhotobooth !== (device.enable_photobooth ?? true) ||
+                     localSelfPhoto !== (device.enable_self_photo ?? false) ||
+                     JSON.stringify(localDurations) !== JSON.stringify(device.self_photo_durations || [5, 10, 15]) ||
                      JSON.stringify([...localFrames].sort()) !== JSON.stringify([...(device.available_frames || [])].sort())
 
   const handleSave = async () => {
     setIsSaving(true)
     await onUpdate(device.id, { 
       payment_enabled: localPayment,
+      enable_photobooth: localPhotobooth,
+      enable_self_photo: localSelfPhoto,
+      self_photo_durations: localDurations,
       available_frames: localFrames
     })
     setIsSaving(false)
@@ -91,6 +104,81 @@ export default function DeviceDetailConfig({ device, availableFrames, onUpdate, 
               <div className={`w-3 h-3 rounded-full ${localPayment ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
               {localPayment ? 'Payment Active' : 'Payment Disabled'}
             </button>
+          </div>
+          
+          {/* Mode Configuration */}
+          <div className="mt-10 border-t border-slate-100/50 pt-8">
+            <h5 className="text-sm font-black text-slate-800 tracking-tight mb-4">Device Application Modes</h5>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-white/50">
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Photobooth / Photobox</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Standard 3-shot layout mode</p>
+                </div>
+                <button 
+                  onClick={() => setLocalPhotobooth(!localPhotobooth)}
+                  className={`relative w-14 h-8 rounded-full transition-all duration-300 ${localPhotobooth ? 'bg-blue-500' : 'bg-slate-200'}`}
+                >
+                  <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all duration-300 shadow-sm ${localPhotobooth ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-white/50">
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Self Photo</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Free-roaming timer mode</p>
+                </div>
+                <button 
+                  onClick={() => setLocalSelfPhoto(!localSelfPhoto)}
+                  className={`relative w-14 h-8 rounded-full transition-all duration-300 ${localSelfPhoto ? 'bg-emerald-500' : 'bg-slate-200'}`}
+                >
+                  <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all duration-300 shadow-sm ${localSelfPhoto ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
+
+              {localSelfPhoto && (
+                <div className="mt-4 p-4 rounded-xl border border-emerald-100 bg-emerald-50/30 animate-in slide-in-from-top-2 duration-300">
+                  <p className="text-[10px] text-emerald-600 font-black uppercase tracking-widest mb-3">Self Photo Durations (Minutes)</p>
+                  
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {localDurations.map((dur, i) => (
+                      <div key={i} className="bg-white border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-2 group shadow-sm">
+                        <span className="text-sm font-black text-slate-700">{dur < 1 ? `${dur * 60}s` : `${dur}m`}</span>
+                        <button 
+                          onClick={() => setLocalDurations(localDurations.filter((_, idx) => idx !== i))}
+                          className="text-slate-300 hover:text-rose-500 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input 
+                      type="number" 
+                      step="0.1"
+                      placeholder="Min..."
+                      className="flex-1 px-3 py-2 rounded-lg border border-emerald-200 outline-none focus:ring-2 focus:ring-emerald-500/20 text-sm font-bold"
+                      value={newDuration}
+                      onChange={(e) => setNewDuration(e.target.value)}
+                    />
+                    <button 
+                      onClick={() => {
+                        if (newDuration && !isNaN(newDuration)) {
+                          setLocalDurations([...localDurations, parseFloat(newDuration)].sort((a,b) => a-b))
+                          setNewDuration('')
+                        }
+                      }}
+                      className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-emerald-600 transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                  <p className="text-[9px] text-slate-400 mt-2 italic font-medium">Use 0.5 for 30 seconds</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import interact from 'interactjs'
 
 const DraggableFrame = ({ url, x, y, width, height, onUpdate, isSelected, onSelect, isLocked = false, zoom = 1 }) => {
@@ -69,7 +69,7 @@ const DraggableFrame = ({ url, x, y, width, height, onUpdate, isSelected, onSele
     <div
       ref={frameRef}
       onClick={isLocked ? undefined : onSelect}
-      className={`absolute touch-none select-none z-10 border-2 transition-[border-color,box-shadow,background-color] duration-200 cursor-pointer pointer-events-auto ${isLocked ? 'pointer-events-none opacity-80 border-transparent' : 'pointer-events-auto cursor-pointer border-transparent hover:border-slate-200'} ${isSelected && !isLocked ? 'border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.3)] ring-4 ring-blue-500/10' : ''}`}
+      className={`absolute touch-none select-none z-10 border-2 transition-[border-color,box-shadow,background-color] duration-200 pointer-events-auto ${isLocked ? 'pointer-events-none opacity-80 border-transparent' : 'cursor-pointer border-transparent hover:border-slate-200'} ${isSelected && !isLocked ? 'border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.3)] ring-4 ring-blue-500/10' : ''}`}
       style={{
         width,
         height,
@@ -82,7 +82,8 @@ const DraggableFrame = ({ url, x, y, width, height, onUpdate, isSelected, onSele
         className={`w-full h-full object-contain pointer-events-none transition-all ${isLocked ? 'brightness-95' : ''}`} 
         alt="Draggable Frame" 
       />
-      <div className={`absolute inset-0 bg-blue-500/5 pointer-events-none transition-opacity ${isSelected && !isLocked ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`} />
+
+      <div className={`absolute inset-0 bg-blue-500/5 pointer-events-none transition-opacity ${isSelected && !isLocked ? 'opacity-100' : 'opacity-0'}`} />
     </div>
   )
 }
