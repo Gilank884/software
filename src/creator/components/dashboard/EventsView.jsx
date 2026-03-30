@@ -9,6 +9,7 @@ export default function EventsView({ user, events, devices, onRefresh }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState([])
 
   const handleSave = async (e) => {
     e.preventDefault()
@@ -16,25 +17,51 @@ export default function EventsView({ user, events, devices, onRefresh }) {
     setIsSaving(true)
 
     if (editingEvent) {
-      const { error } = await supabase
+      // 1. Update the event name/description
+      const { error: eventError } = await supabase
         .from('events')
         .update({ name, description })
         .eq('id', editingEvent.id)
       
-      if (!error) {
+      if (!eventError) {
+        // 2. Unassign devices previously assigned to this event
+        await supabase
+          .from('devices')
+          .update({ event_id: null })
+          .eq('event_id', editingEvent.id)
+          
+        // 3. Assign currently selected devices
+        if (selectedDeviceIds.length > 0) {
+           await supabase
+             .from('devices')
+             .update({ event_id: editingEvent.id })
+             .in('id', selectedDeviceIds)
+        }
+        
         setEditingEvent(null)
         onRefresh()
       }
     } else {
-      const { error } = await supabase
+      // 1. Create the event
+      const { data: newEvent, error: eventError } = await supabase
         .from('events')
         .insert([{ 
           creator_id: user.id, 
           name, 
           description 
         }])
+        .select()
+        .single()
 
-      if (!error) {
+      if (!eventError && newEvent) {
+        // 2. Assign selected devices to the new event
+        if (selectedDeviceIds.length > 0) {
+           await supabase
+             .from('devices')
+             .update({ event_id: newEvent.id })
+             .in('id', selectedDeviceIds)
+        }
+        
         setIsAdding(false)
         onRefresh()
       }
@@ -42,6 +69,7 @@ export default function EventsView({ user, events, devices, onRefresh }) {
     
     setName('')
     setDescription('')
+    setSelectedDeviceIds([])
     setIsSaving(false)
   }
 
@@ -55,6 +83,9 @@ export default function EventsView({ user, events, devices, onRefresh }) {
     setEditingEvent(event)
     setName(event.name)
     setDescription(event.description || '')
+    // Pre-select devices currently assigned to this event
+    const currentlyAssigned = devices.filter(d => d.event_id === event.id).map(d => d.id)
+    setSelectedDeviceIds(currentlyAssigned)
     setIsAdding(true)
   }
 
@@ -197,6 +228,58 @@ export default function EventsView({ user, events, devices, onRefresh }) {
                 />
               </div>
 
+              <div className="pt-4 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-widest">Assign Inventory</h4>
+                  <span className="text-[10px] font-black text-slate-400">{selectedDeviceIds.length} Selected</span>
+                </div>
+                
+                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-3 custom-scrollbar">
+                  {devices.map(device => {
+                    const isSelected = selectedDeviceIds.includes(device.id)
+                    const currentEvent = events.find(e => e.id === device.event_id)
+                    const isOtherEvent = device.event_id && device.event_id !== editingEvent?.id
+
+                    return (
+                      <div 
+                        key={device.id}
+                        onClick={() => {
+                          const next = isSelected 
+                            ? selectedDeviceIds.filter(id => id !== device.id)
+                            : [...selectedDeviceIds, device.id]
+                          setSelectedDeviceIds(next)
+                        }}
+                        className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between group ${isSelected ? 'border-blue-500/20 bg-blue-50/50' : 'border-slate-50 bg-white hover:border-slate-100'}`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm ${isSelected ? 'bg-blue-600' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200'} transition-all`}>
+                            <Activity size={18} />
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-black text-slate-800">{device.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {isOtherEvent ? (
+                                <p className="text-[9px] font-bold text-amber-500 uppercase tracking-widest">In Use: {currentEvent?.name}</p>
+                              ) : (
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                                  {device.event_id ? 'Assigned' : 'Available'}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-blue-600 border-blue-600' : 'border-slate-200'}`}>
+                           {isSelected && <Check size={12} className="text-white" strokeWidth={4} />}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {devices.length === 0 && (
+                    <p className="text-center py-8 text-xs text-slate-300 italic font-medium">No system devices detected.</p>
+                  )}
+                </div>
+              </div>
+
               <div className="flex gap-4 pt-4">
                 <button 
                   type="button"
@@ -213,7 +296,7 @@ export default function EventsView({ user, events, devices, onRefresh }) {
                   {isSaving ? (
                     <Loader2 className="animate-spin" size={18} />
                   ) : (
-                    editingEvent ? 'Update' : 'Schedule'
+                    editingEvent ? 'Update Event' : 'Initialize Event'
                   )}
                 </button>
               </div>
