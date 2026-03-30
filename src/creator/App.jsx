@@ -7,7 +7,8 @@ import Sidebar from './components/dashboard/Sidebar'
 import AnalyticsView from './components/dashboard/AnalyticsView'
 import DevicesView from './components/dashboard/DevicesView'
 import AuthScreen from '../components/AuthScreen'
-import { Monitor, LogOut } from 'lucide-react'
+import { Monitor, LogOut, Calendar } from 'lucide-react'
+import EventsView from './components/dashboard/EventsView'
 
 export default function CreatorApp() {
   const [session, setSession] = useState(null)
@@ -33,12 +34,15 @@ export default function CreatorApp() {
 function CreatorDashboard({ user, onSignOut }) {
   const [devices, setDevices] = useState([])
   const [frames, setFrames] = useState([])
+  const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   
   // Initial tab from URL or default to 'devices'
   const getInitialTab = () => {
     const path = window.location.pathname
     if (path.includes('/analytics')) return 'analytics'
+    if (path.includes('/events')) return 'events'
+    if (path.includes('/devices')) return 'devices'
     if (path.includes('/frames')) return 'frames'
     if (path.includes('/canvas')) return 'canvas'
     if (path.includes('/settings')) return 'settings'
@@ -65,6 +69,7 @@ function CreatorDashboard({ user, onSignOut }) {
     if (user?.id) {
       fetchDevices()
       fetchFrames()
+      fetchEvents()
     }
   }, [user?.id])
 
@@ -77,6 +82,15 @@ function CreatorDashboard({ user, onSignOut }) {
       .order('created_at', { ascending: false })
     setDevices(data || [])
     setLoading(false)
+  }
+
+  const fetchEvents = async () => {
+    const { data } = await supabase
+      .from('events')
+      .select('*')
+      .eq('creator_id', user.id)
+      .order('created_at', { ascending: false })
+    setEvents(data || [])
   }
 
   const fetchFrames = async () => {
@@ -130,11 +144,20 @@ function CreatorDashboard({ user, onSignOut }) {
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-hidden flex flex-col">
+          {activeTab === 'events' && (
+            <EventsView 
+              user={user} 
+              events={events} 
+              onRefresh={fetchEvents} 
+            />
+          )}
+
           {activeTab === 'devices' && (
             <DevicesView 
               user={user} 
               devices={devices} 
               frames={frames} 
+              events={events} 
               onRefresh={fetchDevices} 
             />
           )}

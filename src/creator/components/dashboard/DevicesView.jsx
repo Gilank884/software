@@ -1,14 +1,16 @@
 import { useState } from 'react'
-import { Plus, Monitor, Check, Copy, Trash2, Loader2, Smartphone, ShieldCheck, Layout } from 'lucide-react'
+import { Plus, Monitor, Check, Copy, Trash2, Loader2, Smartphone, ShieldCheck, Layout, Calendar } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 import DeviceDetailConfig from './DeviceDetailConfig'
 
-export default function DevicesView({ user, devices, frames, onRefresh }) {
+export default function DevicesView({ user, devices, frames, events, onRefresh }) {
   const [selectedDevice, setSelectedDevice] = useState(null)
   const [isAdding, setIsAdding] = useState(false)
   const [newDeviceName, setNewDeviceName] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [copying, setCopying] = useState(null)
+  const [filterEventId, setFilterEventId] = useState('all')
+  const [newEventEventId, setNewEventEventId] = useState('')
 
   const handleCopy = (code) => {
     navigator.clipboard.writeText(code)
@@ -46,16 +48,22 @@ export default function DevicesView({ user, devices, frames, onRefresh }) {
         creator_id: user.id, 
         name: newDeviceName, 
         unique_code: uniqueCode,
-        is_active: true
+        is_active: true,
+        event_id: newEventEventId || null
       }])
 
     if (!error) {
       setNewDeviceName('')
+      setNewEventEventId('')
       setIsAdding(false)
       onRefresh()
     }
     setIsSaving(false)
   }
+
+  const filteredDevices = filterEventId === 'all' 
+    ? devices 
+    : devices.filter(d => d.event_id === filterEventId)
 
   const deleteDevice = async (id) => {
     if (!confirm('Hapus perangkat ini?')) return
@@ -85,6 +93,7 @@ export default function DevicesView({ user, devices, frames, onRefresh }) {
       <DeviceDetailConfig 
         device={selectedDevice} 
         availableFrames={frames}
+        events={events}
         onUpdate={updateDeviceConfig}
         onBack={() => setSelectedDevice(null)}
       />
@@ -98,13 +107,28 @@ export default function DevicesView({ user, devices, frames, onRefresh }) {
           <h2 className="text-4xl font-black text-slate-900 tracking-tight">System Devices</h2>
           <p className="text-slate-500 font-medium mt-2">Manage and monitor your connected photobox hardware.</p>
         </div>
-        <button 
-          onClick={() => setIsAdding(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-[1.25rem] font-black text-xs uppercase tracking-[0.2em] border-b-4 border-blue-800 active:scale-95 transition-all flex items-center gap-3 shadow-xl shadow-blue-500/20"
-        >
-          <Plus size={20} />
-          Register Device
-        </button>
+        <div className="flex items-center gap-4">
+          <div className="bg-white/60 backdrop-blur-md border border-white/40 p-2 rounded-2xl flex items-center gap-2 shadow-sm">
+            <Calendar size={16} className="ml-3 text-blue-500" />
+            <select 
+              value={filterEventId}
+              onChange={e => setFilterEventId(e.target.value)}
+              className="bg-transparent text-[10px] font-black uppercase tracking-widest text-slate-700 focus:outline-none pr-8 py-2 appearance-none cursor-pointer"
+            >
+              <option value="all">All Events</option>
+              {events.map(ev => (
+                <option key={ev.id} value={ev.id}>{ev.name}</option>
+              ))}
+            </select>
+          </div>
+          <button 
+            onClick={() => setIsAdding(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-[1.25rem] font-black text-xs uppercase tracking-[0.2em] border-b-4 border-blue-800 active:scale-95 transition-all flex items-center gap-3 shadow-xl shadow-blue-500/20"
+          >
+            <Plus size={20} />
+            Register Device
+          </button>
+        </div>
       </div>
 
       {/* Device List (Table) */}
@@ -127,24 +151,28 @@ export default function DevicesView({ user, devices, frames, onRefresh }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100/50">
-              {devices.map((device) => (
-                <tr 
-                  key={device.id} 
-                  className="hover:bg-white/60 transition-colors duration-300 cursor-pointer group"
-                  onClick={() => setSelectedDevice(device)}
-                >
-                  <td className="px-10 py-7">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-blue-600 shadow-sm border border-slate-100 group-hover:scale-110 transition-transform duration-500">
-                        <Monitor size={22} />
+              {filteredDevices.map((device) => {
+                const deviceEvent = events.find(ev => ev.id === device.event_id)
+                return (
+                  <tr 
+                    key={device.id} 
+                    className="hover:bg-white/60 transition-colors duration-300 cursor-pointer group"
+                    onClick={() => setSelectedDevice(device)}
+                  >
+                    <td className="px-10 py-7">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-blue-600 shadow-sm border border-slate-100 group-hover:scale-110 transition-transform duration-500">
+                          <Monitor size={22} />
+                        </div>
+                        <div>
+                          <span className="block text-base font-black text-slate-800">{device.name}</span>
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                            {deviceEvent ? `Event: ${deviceEvent.name}` : 'No Event Assigned'}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="block text-base font-black text-slate-800">{device.name}</span>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Hardware Unit</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-10 py-7">
+                    </td>
+                    <td className="px-10 py-7">
                     <div className="flex items-center gap-3">
                       <code className="bg-slate-900 text-blue-400 px-4 py-2 rounded-xl font-black tracking-[0.2em] text-xs shadow-lg shadow-slate-900/10">
                         {device.unique_code}
@@ -172,7 +200,7 @@ export default function DevicesView({ user, devices, frames, onRefresh }) {
                     </button>
                   </td>
                 </tr>
-              ))}
+              )})}
               {devices.length === 0 && (
                 <tr>
                   <td colSpan="4" className="px-10 py-20 text-center">
@@ -214,6 +242,23 @@ export default function DevicesView({ user, devices, frames, onRefresh }) {
                   onChange={e => setNewDeviceName(e.target.value)}
                   className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-8 py-5 font-black text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:bg-white transition-all shadow-sm"
                 />
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Assign Event (Optional)</label>
+                <div className="relative">
+                  <Calendar size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" />
+                  <select 
+                    value={newEventEventId}
+                    onChange={e => setNewEventEventId(e.target.value)}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-16 pr-8 py-5 font-black text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:bg-white transition-all shadow-sm appearance-none cursor-pointer"
+                  >
+                    <option value="">No Special Event</option>
+                    {events.map(ev => (
+                      <option key={ev.id} value={ev.id}>{ev.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="flex gap-4">

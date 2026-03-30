@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Smartphone, LayoutGrid, Palette, BarChart3, Settings, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Smartphone, LayoutGrid, Palette, BarChart3, Settings, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
 
 export default function Sidebar({ activeTab, onTabChange, onSignOut, user }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   const tabs = [
     { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/analytics' },
+    { id: 'events', label: 'Events', icon: Calendar, path: '/events' },
     { id: 'devices', label: 'Devices', icon: Smartphone, path: '/devices' },
     { id: 'frames', label: 'Frames', icon: LayoutGrid, path: '/frames' },
     { id: 'canvas', label: 'Canvas Editor', icon: Palette, path: '/canvas' },
