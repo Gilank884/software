@@ -148,6 +148,7 @@ function CreatorDashboard({ user, onSignOut }) {
             <EventsView 
               user={user} 
               events={events} 
+              devices={devices}
               onRefresh={fetchEvents} 
             />
           )}

@@ -1,8 +1,9 @@
+import { useState } from 'react'
 import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 import PageHeader from './PageHeader'
 
-export default function EventsView({ user, events, onRefresh }) {
+export default function EventsView({ user, events, devices, onRefresh }) {
   const [isAdding, setIsAdding] = useState(false)
   const [editingEvent, setEditingEvent] = useState(null)
   const [name, setName] = useState('')
@@ -110,15 +111,40 @@ export default function EventsView({ user, events, onRefresh }) {
               {event.description || 'No description provided.'}
             </p>
 
+            {/* Linked Devices Section */}
+            <div className="mb-6 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Linked Fleet</span>
+                <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg">
+                  {devices.filter(d => d.event_id === event.id).length} units
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {devices.filter(d => d.event_id === event.id).length > 0 ? (
+                  devices.filter(d => d.event_id === event.id).slice(0, 3).map(device => (
+                    <div key={device.id} className="flex items-center gap-1.5 bg-slate-50 border border-slate-100 px-2.5 py-1 rounded-lg">
+                      <div className="w-1 h-1 bg-emerald-500 rounded-full" />
+                      <span className="text-[9px] font-bold text-slate-600 truncate max-w-[80px]">{device.name}</span>
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-[9px] font-medium text-slate-300 italic">No devices currently assigned</span>
+                )}
+                {devices.filter(d => d.event_id === event.id).length > 3 && (
+                  <span className="text-[9px] font-bold text-slate-400 mt-1">+{devices.filter(d => d.event_id === event.id).length - 3} more</span>
+                )}
+              </div>
+            </div>
+
             <div className="flex items-center justify-between pt-6 border-t border-slate-100/50">
                <div>
-                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Created At</p>
+                 <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Session Start</p>
                  <p className="text-xs font-black text-slate-700 mt-0.5">
                    {new Date(event.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                  </p>
                </div>
-               <div className="px-3 py-1 bg-blue-50 rounded-lg text-blue-600 text-[10px] font-black uppercase tracking-widest">
-                 Active
+               <div className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${devices.filter(d => d.event_id === event.id).length > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}>
+                 {devices.filter(d => d.event_id === event.id).length > 0 ? 'Operational' : 'Idle'}
                </div>
             </div>
           </div>
