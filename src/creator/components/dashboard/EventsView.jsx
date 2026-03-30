@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X } from 'lucide-react'
+import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
+import PageHeader from './PageHeader'
 
 export default function EventsView({ user, events, onRefresh }) {
   const [isAdding, setIsAdding] = useState(false)
@@ -58,20 +58,22 @@ export default function EventsView({ user, events, onRefresh }) {
   }
 
   return (
-    <div className="space-y-10 overflow-y-auto pr-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700 custom-scrollbar">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <h2 className="text-4xl font-black text-slate-900 tracking-tight">Event Management</h2>
-          <p className="text-slate-500 font-medium mt-2">Organize your photobooth sessions by specific events.</p>
-        </div>
+    <div className="space-y-12 overflow-y-auto pr-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700 custom-scrollbar">
+      <PageHeader
+        badge="EVENT COORDINATOR • PROGRAM MANAGER"
+        titleMain="Active"
+        titleHighlight="Events"
+        description="Organize your photobooth sessions by specific high-traffic events for better fleet tracking."
+        icon={Calendar}
+      >
         <button 
           onClick={() => { setIsAdding(true); setEditingEvent(null); setName(''); setDescription(''); }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-[1.25rem] font-black text-xs uppercase tracking-[0.2em] border-b-4 border-blue-800 active:scale-95 transition-all flex items-center gap-3 shadow-xl shadow-blue-500/20"
         >
           <Plus size={20} />
-          Create Event
+          Create New Event
         </button>
-      </div>
+      </PageHeader>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {events.map((event) => (

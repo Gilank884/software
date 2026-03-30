@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { Search, Loader2, ImageIcon } from 'lucide-react'
+import { Search, Loader2, ImageIcon, LayoutGrid } from 'lucide-react'
+import PageHeader from '../creator/components/dashboard/PageHeader'
 
 const FramesManager = ({ user }) => {
   const [frames, setFrames] = useState([])
@@ -51,12 +52,13 @@ const FramesManager = ({ user }) => {
 
   return (
     <div className="flex flex-col h-full overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
-        <div>
-          <h2 className="text-4xl font-black text-slate-900 tracking-tight">Frame Library</h2>
-          <p className="text-slate-500 font-medium mt-2">Browse and organize your custom photobox templates.</p>
-        </div>
-      </div>
+      <PageHeader
+        badge="TEMPLATE REPOSITORY • ASSET ENGINE"
+        titleMain="Frame"
+        titleHighlight="Library"
+        description="Browse and organize your custom photobox templates for various event themes and layouts."
+        icon={LayoutGrid}
+      />
 
       {/* Search & Filters */}
       <div className="flex flex-col md:flex-row gap-6 mb-12">

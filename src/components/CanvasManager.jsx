@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import FrameEditor from './FrameEditor'
-import { Upload, Plus, Save, Trash2, Lock, Unlock, ZoomIn, ZoomOut, Loader2, Check, Copy, Layout, Eraser, Maximize2, RotateCcw, RotateCw, Undo, Redo, Edit2 } from 'lucide-react'
+import { Upload, Plus, Save, Trash2, Lock, Unlock, ZoomIn, ZoomOut, Loader2, Check, Copy, Layout, Eraser, Maximize2, RotateCcw, RotateCw, Undo, Redo, Edit2, Palette } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
+import PageHeader from '../creator/components/dashboard/PageHeader'
 
 const CANVAS_CONFIG = {
   '4R': { width: 600, height: 900, label: '4R - 102×152mm', pxPerCm: 58.8235 },
@@ -576,7 +577,16 @@ const CanvasManager = ({ user }) => {
   )
 
   return (
-    <div className="flex h-full overflow-hidden bg-white/40 backdrop-blur-2xl rounded-[3rem] border border-white/40 shadow-[0_20px_70px_rgba(0,0,0,0.05)] animate-in fade-in slide-in-from-bottom-4 duration-700 relative">
+    <div className="flex flex-col h-full overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <PageHeader
+        badge="CANVAS EDITOR • TEMPLATE ENGINE"
+        titleMain="Visual"
+        titleHighlight="Editor"
+        description="Design and manage your photobox templates with precision using our advanced canvas engine."
+        icon={Palette}
+      />
+      
+      <div className="flex flex-1 overflow-hidden bg-white/40 backdrop-blur-2xl rounded-[3rem] border border-white/40 shadow-[0_20px_70px_rgba(0,0,0,0.05)] relative">
       
       {/* Center: Editor area */}
       <main className="flex-1 flex flex-col items-center justify-start p-6 bg-slate-50/20 relative overflow-auto custom-scrollbar transition-all duration-500">
@@ -913,6 +923,7 @@ const CanvasManager = ({ user }) => {
           </div>
         </div>
       </aside>
+      </div>
     </div>
   )
 }

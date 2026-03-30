@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../../lib/supabaseClient'
-import { TrendingUp, Monitor, Smartphone, RefreshCw, Calendar, Loader2 } from 'lucide-react'
+import { TrendingUp, Monitor, Smartphone, RefreshCw, Calendar, Loader2, Activity } from 'lucide-react'
+import PageHeader from './PageHeader'
 
 export default function AnalyticsView({ user, devices }) {
   const [captures, setCaptures] = useState([])
@@ -29,26 +30,50 @@ export default function AnalyticsView({ user, devices }) {
   }
 
   return (
-    <div className="space-y-10 overflow-y-auto pr-6 pb-20 custom-scrollbar animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <h2 className="text-4xl font-black text-slate-900 tracking-tight">Analytics Dashboard</h2>
-          <p className="text-slate-500 font-medium mt-2">Real-time usage insights across your photobooth fleet.</p>
-        </div>
-        <div className="flex items-center gap-3">
+    <div className="space-y-12 overflow-y-auto pr-6 pb-20 custom-scrollbar animate-in fade-in slide-in-from-bottom-4 duration-700">
+      <PageHeader
+        badge="INTELLIGENCE ENGINE • PLATFORM MATRIX"
+        titleMain="Network"
+        titleHighlight="Analytics"
+        description="Synthesizing ecosystem data into actionable performance metrics and real-time growth insights."
+        icon={Activity}
+      >
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+          {/* Time Range Selector */}
+          <div className="bg-white/40 backdrop-blur-xl border border-white/40 p-1.5 rounded-[1.5rem] flex items-center shadow-sm">
+            {['7D', '30D', 'MONTH', 'ALL'].map((range) => (
+              <button
+                key={range}
+                className={`px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${range === 'MONTH' ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
+              >
+                {range}
+              </button>
+            ))}
+          </div>
+
+          {/* Date Picker Placeholder */}
+          <div className="bg-white/40 backdrop-blur-xl border border-white/40 px-6 py-3 rounded-2xl flex items-center gap-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <Calendar size={14} className="text-blue-500" />
+              <span className="text-[10px] font-black text-slate-700 tabular-nums">28/02/2026</span>
+            </div>
+            <div className="w-2 h-[1px] bg-slate-300" />
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black text-slate-700 tabular-nums">30/03/2026</span>
+              <Calendar size={14} className="text-blue-500" />
+            </div>
+          </div>
+
+          {/* Sync Button */}
           <button 
             onClick={fetchCaptures}
-            className="group bg-white px-6 py-3 border border-slate-200 rounded-2xl flex items-center gap-3 text-xs font-black text-blue-600 hover:bg-blue-50 hover:border-blue-200 transition-all shadow-sm active:scale-95"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-[1.25rem] font-black text-xs uppercase tracking-[0.2em] border-b-4 border-blue-800 active:scale-95 transition-all flex items-center gap-3 shadow-xl shadow-blue-500/20"
           >
-            <RefreshCw size={16} className={`${loading ? "animate-spin" : "group-hover:rotate-180 transition-transform duration-500"}`} />
-            SYNCHRONIZE DATA
+            <RefreshCw size={18} className={`${loading ? "animate-spin" : ""}`} />
+            Sync Engine
           </button>
-          <div className="bg-slate-900 px-6 py-3 rounded-2xl flex items-center gap-3 text-xs font-black text-white shadow-lg shadow-slate-900/10">
-            <Calendar size={16} className="text-blue-400" />
-            LIFETIME VIEW
-          </div>
         </div>
-      </div>
+      </PageHeader>
 
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

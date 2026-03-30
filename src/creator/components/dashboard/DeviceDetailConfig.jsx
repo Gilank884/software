@@ -1,4 +1,6 @@
-import { Monitor, ShieldCheck, Palette, Smartphone, Check, Layout, Trash2, Copy, Loader2, Save, Calendar } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Monitor, ShieldCheck, Palette, Smartphone, Check, Layout, Trash2, Copy, Loader2, Save, Calendar, ChevronLeft } from 'lucide-react'
+import PageHeader from './PageHeader'
 
 export default function DeviceDetailConfig({ device, availableFrames, events, onUpdate, onBack }) {
   const [localPayment, setLocalPayment] = useState(device.payment_enabled)
@@ -41,42 +43,39 @@ export default function DeviceDetailConfig({ device, availableFrames, events, on
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 pb-20">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+    <div className="space-y-12 animate-in fade-in slide-in-from-right-4 duration-500 pb-20 custom-scrollbar overflow-y-auto pr-6">
+      <PageHeader
+        badge="UNIT CONFIGURATION • OPERATIONAL PARAMETERS"
+        titleMain={device.name}
+        titleHighlight="Settings"
+        description="Configure hardware identity, payment gateways, and operational modes for this specific deployment."
+        icon={Smartphone}
+      >
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
           <button 
             onClick={onBack}
-            className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm group"
+            className="w-14 h-14 bg-white/60 backdrop-blur-xl border border-white/40 rounded-2xl flex items-center justify-center text-slate-400 hover:text-blue-600 transition-all shadow-sm active:scale-95 group"
           >
-            <Monitor size={20} className="group-hover:scale-110 transition-transform" />
+            <ChevronLeft size={24} strokeWidth={2.5} className="group-hover:-translate-x-1 transition-transform" />
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-2xl font-black text-slate-800">{device.name}</h2>
-              <span className="bg-blue-50 text-blue-600 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest border border-blue-100 italic">Configuration</span>
-            </div>
-            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Device ID: {device.id}</p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-3">
           {hasChanges ? (
             <button 
               onClick={handleSave}
               disabled={isSaving}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-2xl font-bold border-b-4 border-blue-800 active:scale-95 transition-all flex items-center gap-2 shadow-xl shadow-blue-500/20 animate-in zoom-in duration-300"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-[1.25rem] font-black text-xs uppercase tracking-[0.2em] border-b-4 border-blue-800 active:scale-95 transition-all flex items-center gap-3 shadow-xl shadow-blue-500/20 animate-in zoom-in duration-300"
             >
               {isSaving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-              Save Changes
+              Commit Settings
             </button>
           ) : (
-            <div className="px-6 py-3 rounded-2xl font-bold text-slate-300 border border-slate-200 bg-white/50 flex items-center gap-2 text-xs uppercase tracking-widest transition-all">
-              <Check size={16} />
-              Settings Synced
+            <div className="px-8 py-4 rounded-[1.25rem] font-black text-[10px] uppercase tracking-[0.2em] text-slate-400 border border-slate-200 bg-white/50 flex items-center gap-3 transition-all">
+              <Check size={18} className="text-emerald-500" />
+              Synced to Cloud
             </div>
           )}
         </div>
-      </div>
+      </PageHeader>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
         <div className="space-y-10">

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Plus, Monitor, Check, Copy, Trash2, Loader2, Smartphone, ShieldCheck, Layout, Calendar } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 import DeviceDetailConfig from './DeviceDetailConfig'
+import PageHeader from './PageHeader'
 
 export default function DevicesView({ user, devices, frames, events, onRefresh }) {
   const [selectedDevice, setSelectedDevice] = useState(null)
@@ -101,35 +102,39 @@ export default function DevicesView({ user, devices, frames, events, onRefresh }
   }
 
   return (
-    <div className="space-y-10 overflow-y-auto pr-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700 custom-scrollbar">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <h2 className="text-4xl font-black text-slate-900 tracking-tight">System Devices</h2>
-          <p className="text-slate-500 font-medium mt-2">Manage and monitor your connected photobox hardware.</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="bg-white/60 backdrop-blur-md border border-white/40 p-2 rounded-2xl flex items-center gap-2 shadow-sm">
-            <Calendar size={16} className="ml-3 text-blue-500" />
+    <div className="space-y-12 overflow-y-auto pr-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700 custom-scrollbar">
+      <PageHeader
+        badge="HARDWARE TRANSCEIVER • DEVICE MATRIX"
+        titleMain="System"
+        titleHighlight="Devices"
+        description="Manage and monitor your connected photobox hardware across all active deployments."
+        icon={Smartphone}
+      >
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+          {/* Event Filter */}
+          <div className="bg-white/40 backdrop-blur-xl border border-white/40 px-6 py-3 rounded-2xl flex items-center gap-3 shadow-sm group">
+            <Calendar size={18} className="text-blue-500" />
             <select 
               value={filterEventId}
               onChange={e => setFilterEventId(e.target.value)}
-              className="bg-transparent text-[10px] font-black uppercase tracking-widest text-slate-700 focus:outline-none pr-8 py-2 appearance-none cursor-pointer"
+              className="bg-transparent text-[10px] font-black uppercase tracking-widest text-slate-700 focus:outline-none pr-8 appearance-none cursor-pointer"
             >
-              <option value="all">All Events</option>
+              <option value="all">All Active Events</option>
               {events.map(ev => (
                 <option key={ev.id} value={ev.id}>{ev.name}</option>
               ))}
             </select>
           </div>
+
           <button 
             onClick={() => setIsAdding(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-[1.25rem] font-black text-xs uppercase tracking-[0.2em] border-b-4 border-blue-800 active:scale-95 transition-all flex items-center gap-3 shadow-xl shadow-blue-500/20"
           >
             <Plus size={20} />
-            Register Device
+            Provision Unit
           </button>
         </div>
-      </div>
+      </PageHeader>
 
       {/* Device List (Table) */}
       <div className="bg-white/40 backdrop-blur-xl border border-white/40 rounded-[2.5rem] overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
