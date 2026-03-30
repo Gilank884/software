@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import FramesManager from '../components/FramesManager'
 import CanvasManager from '../components/CanvasManager'
-import AppBackground from '../components/AppBackground'
+import CreatorBackground from '../components/CreatorBackground'
 import Sidebar from './components/dashboard/Sidebar'
 import AnalyticsView from './components/dashboard/AnalyticsView'
 import DevicesView from './components/dashboard/DevicesView'
@@ -89,33 +89,33 @@ function CreatorDashboard({ user, onSignOut }) {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col relative overflow-hidden font-sans">
-      <AppBackground />
+      <CreatorBackground />
       
       {/* Top Navbar */}
-      <nav className="relative z-50 bg-white/40 backdrop-blur-2xl border-b border-white/40 px-10 py-5 flex items-center justify-between shadow-[0_4px_30px_rgba(0,0,0,0.03)]">
-        <div className="flex items-center gap-6 cursor-pointer group" onClick={() => handleTabChange('analytics', '/analytics')}>
-          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-all duration-500">
-            <Monitor size={24} />
+      <nav className="relative z-50 bg-white/30 backdrop-blur-xl border-b border-white/40 px-8 py-4 flex items-center justify-between transition-all duration-500">
+        <div className="flex items-center gap-5 cursor-pointer group" onClick={() => handleTabChange('analytics', '/analytics')}>
+          <div className="w-11 h-11 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 border border-blue-100/50 shadow-sm shadow-blue-500/10">
+            <Monitor size={22} />
           </div>
           <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-none">
-              Creator<span className="text-blue-600">Portal</span>
+            <h1 className="text-xl font-bold text-slate-900 tracking-tight leading-none">
+              Creator<span className="text-blue-600/80">Portal</span>
             </h1>
-            <div className="flex items-center gap-2 mt-1.5">
-              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-              <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">{user?.email}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse opacity-70" />
+              <p className="text-[11px] text-slate-400/80 font-medium tracking-wide">{user?.email}</p>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-6">
-          <div className="h-8 w-[1px] bg-slate-200/50 hidden md:block" />
+        <div className="flex items-center gap-5">
+          <div className="h-6 w-[1px] bg-slate-200/40 hidden md:block" />
           <button 
             onClick={onSignOut}
-            className="flex items-center gap-3 px-6 py-2.5 bg-white/50 hover:bg-white text-slate-400 hover:text-rose-500 border border-slate-200/50 hover:border-rose-100 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all duration-300 shadow-sm"
+            className="flex items-center gap-2 px-5 py-2 hover:bg-white/80 active:scale-95 text-slate-500 hover:text-rose-500 border border-transparent hover:border-rose-100/30 rounded-xl font-semibold text-xs transition-all duration-300"
           >
-            <LogOut size={14} />
-            Secure Sign Out
+            <LogOut size={14} strokeWidth={2.5} />
+            Sign Out
           </button>
         </div>
       </nav>
