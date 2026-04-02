@@ -10,6 +10,7 @@ const StartScreen = ({ onStart, user, onLogout }) => {
   const [isPrinting, setIsPrinting] = useState(false)
   const [printers, setPrinters] = useState([])
   const [isCheckingPrinters, setIsCheckingPrinters] = useState(false)
+  const [selectedPrinter, setSelectedPrinter] = useState(localStorage.getItem('selectedPrinter') || '')
   const pressTimer = useRef(null)
   const isLongPress = useRef(false)
   const previewRef = useRef(null)
@@ -18,7 +19,7 @@ const StartScreen = ({ onStart, user, onLogout }) => {
     e.stopPropagation()
     setIsPrinting(true)
     if (window.electronAPI?.printTestPage) {
-        window.electronAPI.printTestPage()
+        window.electronAPI.printTestPage(selectedPrinter)
     }
     setTimeout(() => setIsPrinting(false), 5000)
   }
@@ -172,12 +173,46 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                       <AlertCircle size={8} /> Run via Electron to see printers
                     </span>
                   ) : (
-                    <span className={`text-[8px] font-bold uppercase transition-colors ${printers.length > 0 ? 'text-green-600' : 'text-rose-600'}`}>
-                      {isCheckingPrinters ? 'Checking...' : printers.length > 0 ? `${printers.length} Printer Ready` : 'Printer Tidak Terbaca'}
-                    </span>
+                    <div className="flex flex-col gap-1 mt-1">
+                      <span className={`text-[8px] font-bold uppercase transition-colors ${printers.length > 0 ? 'text-green-600' : 'text-rose-600'}`}>
+                        {isCheckingPrinters ? 'Checking...' : printers.length > 0 ? `${printers.length} Printer Ready` : 'Printer Tidak Terbaca'}
+                      </span>
+                      {selectedPrinter && (
+                        <span className="text-[7px] font-black text-indigo-500 uppercase truncate max-w-[120px]">
+                          Active: {selectedPrinter}
+                        </span>
+                      )}
+                    </div>
                   )}
                 </div>
               </button>
+
+              {/* Printer Selection Dropdown/List */}
+              {printers.length > 0 && (
+                <div className="px-2 pb-2">
+                  <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <Settings size={8} /> Select Active Printer
+                  </div>
+                  <div className="flex flex-col gap-1 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSelectedPrinter(''); localStorage.removeItem('selectedPrinter'); }}
+                      className={`text-left px-3 py-1.5 rounded-lg text-[9px] font-bold transition-all ${!selectedPrinter ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                    >
+                      Default System Printer
+                    </button>
+                    {printers.map((p) => (
+                      <button
+                        key={p.name}
+                        onClick={(e) => { e.stopPropagation(); setSelectedPrinter(p.name); localStorage.setItem('selectedPrinter', p.name); }}
+                        className={`text-left px-3 py-1.5 rounded-lg text-[9px] font-bold transition-all truncate ${selectedPrinter === p.name ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                        title={p.name}
+                      >
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
 
               <div className="h-px bg-slate-100 my-1 mx-2"></div>

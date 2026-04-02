@@ -24,10 +24,11 @@ const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selec
         const compositeBlob = await generateCompositeImage();
 
         // Trigger Printing Immediately
+        const selectedPrinter = localStorage.getItem('selectedPrinter') || '';
         if (window.electronAPI?.printImage) {
           const reader = new FileReader();
           reader.onloadend = () => {
-             window.electronAPI.printImage(reader.result, printQuantity);
+             window.electronAPI.printImage(reader.result, printQuantity, selectedPrinter);
           };
           reader.readAsDataURL(compositeBlob);
         }

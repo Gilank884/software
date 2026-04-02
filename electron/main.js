@@ -89,7 +89,7 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.on('print-test-page', (event) => {
+  ipcMain.on('print-test-page', (event, { printerName } = {}) => {
     // Hidden window for 4R test print
     const printWindow = new BrowserWindow({
       show: false,
@@ -117,7 +117,7 @@ app.whenReady().then(() => {
       printWindow.webContents.print({ 
         silent: true, // Set to true to print directly without dialog
         printBackground: true, 
-        deviceName: '' // Default printer
+        deviceName: printerName || '' // Custom or Default printer
       }, (success, failureReason) => {
         if (!success) console.error("Print Failed:", failureReason);
         printWindow.close();
@@ -125,7 +125,7 @@ app.whenReady().then(() => {
     });
   });
 
-  ipcMain.on('print-image', (event, { imageUrl, copies = 1 }) => {
+  ipcMain.on('print-image', (event, { imageUrl, copies = 1, printerName = '' }) => {
     console.log(`Printing image: ${imageUrl.substring(0, 50)}... x${copies}`);
     
     const printWindow = new BrowserWindow({
@@ -150,7 +150,7 @@ app.whenReady().then(() => {
       printWindow.webContents.print({
         silent: true,
         printBackground: true,
-        deviceName: '', // Default printer
+        deviceName: printerName || '', // Custom or Default printer
         copies: copies
       }, (success, failureReason) => {
         if (!success) console.error("Photo Print Failed:", failureReason);
