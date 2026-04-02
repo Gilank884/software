@@ -14,6 +14,8 @@ import DecorativeBackground from './DecorativeBackground'
 
 const CaptureScreen = ({ 
   videoRef, 
+  previewCanvasRef,
+  cameraStatus,
   countdown, 
   currentShotIndex, 
   maxCaptures, 
@@ -46,13 +48,22 @@ const CaptureScreen = ({
               </button>
             </div>
           ) : (
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              muted
-              className="w-full h-full object-cover scale-x-[-1] z-10"
-            />
+            cameraStatus.source === 'dslr' ? (
+              <canvas 
+                ref={previewCanvasRef}
+                className="w-full h-full object-cover z-10"
+                width={1280}
+                height={720}
+              />
+            ) : (
+              <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                muted
+                className="w-full h-full object-cover scale-x-[-1] z-10"
+              />
+            )
           )}
 
           {!hasStartedSession && (

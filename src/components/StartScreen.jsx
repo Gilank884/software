@@ -1,17 +1,18 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Camera, LogOut, Settings, Printer, X } from 'lucide-react'
+import { Sparkles, Camera, LogOut, Settings, Printer, X, Monitor, RefreshCw, Settings2, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { useCamera } from '../hooks/useCamera'
 
 const StartScreen = ({ onStart, user, onLogout }) => {
+  const { status, initCamera, startPreview, stopPreview, setCameraSource, setWebcamDevice, refreshWebcamDevices } = useCamera()
   const [showExit, setShowExit] = useState(false)
   const [showCameraModal, setShowCameraModal] = useState(false)
-  const [cameraStream, setCameraStream] = useState(null)
   const [isPrinting, setIsPrinting] = useState(false)
   const [printers, setPrinters] = useState([])
   const [isCheckingPrinters, setIsCheckingPrinters] = useState(false)
   const pressTimer = useRef(null)
   const isLongPress = useRef(false)
-  const videoRef = useRef(null)
+  const previewRef = useRef(null)
 
   const handlePrinterTest = (e) => {
     e.stopPropagation()
@@ -65,44 +66,14 @@ const StartScreen = ({ onStart, user, onLogout }) => {
   }
 
   // Camera Management for Test Modal
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          width: { ideal: 1280 }, 
-          height: { ideal: 720 },
-          facingMode: 'user'
-        }, 
-        audio: false 
-      })
-      setCameraStream(stream)
-    } catch (err) {
-      console.error("Camera Test Error:", err)
-      alert("Gagal akses kamera: " + err.message)
-    }
-  }
-
-  const stopCamera = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop())
-      setCameraStream(null)
-    }
-  }
-
   useEffect(() => {
-    if (showCameraModal) {
-      startCamera()
-    } else {
-      stopCamera()
+    if (showCameraModal && previewRef.current && status.source === 'webcam') {
+      startPreview(previewRef.current)
     }
-  }, [showCameraModal])
-
-  // Attach stream when video element becomes available
-  useEffect(() => {
-    if (cameraStream && videoRef.current) {
-        videoRef.current.srcObject = cameraStream
+    return () => {
+      if (showCameraModal) stopPreview()
     }
-  }, [cameraStream, showCameraModal])
+  }, [showCameraModal, previewRef.current, status.source])
 
   // Re-check printers whenever diagnostic menu is opened
   useEffect(() => {
@@ -115,7 +86,6 @@ const StartScreen = ({ onStart, user, onLogout }) => {
   useEffect(() => {
     return () => {
       if (pressTimer.current) clearTimeout(pressTimer.current)
-      stopCamera()
     }
   }, [])
 
@@ -197,9 +167,15 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                     )}
                   </div>
                   <span className="text-xs font-black text-slate-700">Printer 4R Test</span>
-                  <span className={`text-[8px] font-bold uppercase transition-colors ${printers.length > 0 ? 'text-green-600' : 'text-rose-600'}`}>
-                    {isCheckingPrinters ? 'Checking...' : printers.length > 0 ? `${printers.length} Printer Ready` : 'Printer Tidak Terbaca'}
-                  </span>
+                  {!window.electronAPI ? (
+                    <span className="text-[8px] font-bold text-rose-500 uppercase leading-tight mt-1 bg-rose-50 px-2 py-1 rounded-lg border border-rose-100 flex items-center gap-1">
+                      <AlertCircle size={8} /> Run via Electron to see printers
+                    </span>
+                  ) : (
+                    <span className={`text-[8px] font-bold uppercase transition-colors ${printers.length > 0 ? 'text-green-600' : 'text-rose-600'}`}>
+                      {isCheckingPrinters ? 'Checking...' : printers.length > 0 ? `${printers.length} Printer Ready` : 'Printer Tidak Terbaca'}
+                    </span>
+                  )}
                 </div>
               </button>
 
@@ -234,7 +210,10 @@ const StartScreen = ({ onStart, user, onLogout }) => {
       {/* Camera Test Modal */}
       <AnimatePresence>
         {showCameraModal && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
+          <div 
+            className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md"
+            onPointerUp={(e) => e.stopPropagation()}
+          >
             <motion.div 
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -255,19 +234,25 @@ const StartScreen = ({ onStart, user, onLogout }) => {
               </div>
 
               <div className="aspect-video bg-slate-900 mx-8 mb-8 rounded-[24px] overflow-hidden relative group">
-                {!cameraStream ? (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-4">
-                    <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-xs font-black uppercase tracking-widest">Connecting to Camera...</span>
-                  </div>
-                ) : (
+                {status.source === 'webcam' ? (
                   <video 
-                    ref={videoRef} 
+                    ref={previewRef} 
                     autoPlay 
                     playsInline 
                     muted 
                     className="w-full h-full object-cover -scale-x-100"
                   />
+                ) : (status.lastCapturedImage || status.source === 'mock') ? (
+                   <img 
+                      src={status.lastCapturedImage || 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=1000'}
+                      alt="Camera Preview"
+                      className="w-full h-full object-cover"
+                   />
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-4">
+                    <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-xs font-black uppercase tracking-widest">Connecting to Hardware...</span>
+                  </div>
                 )}
                 
                 <div className="absolute top-6 right-6 px-3 py-1 bg-green-500 text-white text-[10px] font-black uppercase tracking-widest rounded-full flex items-center gap-2 shadow-lg">
@@ -275,18 +260,92 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                 </div>
               </div>
 
+              {/* Source Selection Buttons */}
+              <div className="px-8 pb-4 grid grid-cols-4 gap-2">
+                {[
+                  { id: 'auto', label: 'Auto', icon: RefreshCw },
+                  { id: 'dslr', label: 'DSLR Folder', icon: Camera },
+                  { id: 'webcam', label: 'Webcam', icon: Monitor },
+                  { id: 'mock', label: 'Mock', icon: Settings2 }
+                ].map(mode => {
+                  const isActive = (mode.id === 'auto' && status.isAutoDetect) || (mode.id !== 'auto' && !status.isAutoDetect && status.source === mode.id);
+                  return (
+                    <button
+                      key={mode.id}
+                      onClick={(e) => { e.stopPropagation(); setCameraSource(mode.id); }}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border transition-all relative ${
+                        isActive
+                          ? 'bg-slate-900 border-slate-900 text-white shadow-lg'
+                          : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <mode.icon size={14} />
+                      <span className="text-[8px] font-black uppercase tracking-widest">{mode.label}</span>
+                      {isActive && (
+                        <div className="absolute -top-1.5 -right-1.5 bg-emerald-500 text-white rounded-full p-0.5 shadow-sm border border-white">
+                          <CheckCircle2 size={10} />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Webcam Device Selection */}
+              {status.source === 'webcam' && (
+                <div className="px-8 mb-6">
+                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                       <Monitor size={10} />
+                       Pilih Input Kamera
+                    </div>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); refreshWebcamDevices(); }}
+                      className="p-1 hover:bg-slate-100 rounded-md transition-all text-blue-500"
+                      title="Refresh List"
+                    >
+                      <RefreshCw size={10} />
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {status.webcamDevices?.length > 0 ? (
+                      status.webcamDevices.map(device => (
+                        <button
+                          key={device.id}
+                          onClick={(e) => { e.stopPropagation(); setWebcamDevice(device.id); }}
+                          className={`px-4 py-2 rounded-xl border text-[10px] font-bold transition-all ${
+                            status.currentWebcamId === device.id
+                              ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                              : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'
+                          }`}
+                        >
+                          {device.label}
+                        </button>
+                      ))
+                    ) : (
+                      <p className="text-[8px] font-bold text-rose-400 uppercase tracking-widest italic">
+                        Tidak ada kamera lain ditemukan. Pastikan sudah dicolok dan driver terpasang.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="px-8 pb-8 flex items-center justify-between bg-slate-50/50 pt-8 mt-auto">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600">
+                  <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600">
                     <Camera size={16} />
                   </div>
-                  <span className="text-xs font-black text-slate-600">Standard HD Stream</span>
+                  <div>
+                    <span className="text-[9px] font-black text-blue-400 uppercase tracking-widest block leading-none mb-1">Hardware Ready</span>
+                    <span className="text-xs font-black text-slate-600 leading-none">{status.name}</span>
+                  </div>
                 </div>
                 <button 
                   onClick={() => setShowCameraModal(false)}
-                  className="px-8 py-3 bg-blue-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-500/20 hover:scale-105 transition-all"
+                  className="px-8 py-3 bg-emerald-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 hover:scale-105 hover:bg-emerald-700 transition-all"
                 >
-                  Close Test
+                  Konfirmasi & Simpan
                 </button>
               </div>
             </motion.div>

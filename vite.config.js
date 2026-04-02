@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
   const isCreator = target === 'creator';
 
   return {
-    base: isCreator ? '/creator/' : './',
+    base: './',
     plugins: [
       react(),
       tailwindcss(),

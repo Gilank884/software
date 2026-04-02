@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import isDev from 'electron-is-dev';
+import { CameraManagerBackend } from './camera/cameraManager.js';
+import { FolderBridge } from './camera/FolderBridge.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,7 +18,7 @@ function createWindow() {
     height: 800,
     icon: path.join(__dirname, '../public/Logo.png'),
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: false, // Ensure sandbox doesn't block hardware
@@ -58,13 +60,33 @@ function createWindow() {
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }
+
+  return mainWindow;
 }
 
 app.whenReady().then(() => {
-  createWindow();
+  const mainWindow = createWindow();
+  
+  // Initialize Camera Backend
+  new CameraManagerBackend(mainWindow);
+  
+  // Initialize Automated Hot Folder Bridge
+  const projectRoot = path.join(__dirname, '..');
+  const bridge = new FolderBridge(projectRoot);
+  bridge.start();
+  
+  // Stop bridge on app quit
+  app.on('will-quit', () => bridge.stop());
 
   ipcMain.handle('get-printers', async (event) => {
-    return event.sender.getPrintersAsync();
+    try {
+      const printers = await event.sender.getPrintersAsync();
+      console.log("System Detects Printers:", printers.map(p => p.name));
+      return printers;
+    } catch (err) {
+      console.error("Failed to list printers:", err);
+      return [];
+    }
   });
 
   ipcMain.on('print-test-page', (event) => {
@@ -79,14 +101,11 @@ app.whenReady().then(() => {
     // Simple 4R Test Pattern
     const testPattern = `
       <html>
-        <body style="margin:0; padding:0; width:6in; height:4in; display:flex; flex-direction:column; align-items:center; justify-content:center; border:2px solid black; font-family:sans-serif; text-align:center;">
-          <h1 style="font-size:48px; margin:0 0 10px 0;">LATARCERITA</h1>
-          <h2 style="font-size:32px; margin:0 0 20px 0; color:#3b82f6;">4R TEST PRINT</h2>
-          <div style="width:400px; height:10px; background:#3b82f6; border-radius:5px; margin-bottom:20px;"></div>
-          <p style="font-size:14px; color:#64748b;">PRINTER CALIBRATION & TEST SUCCESSFUL</p>
-          <div style="margin-top:30px; border:1px dashed #cbd5e1; width:80%; padding:10px;">
-            <p style="font-size:12px; color:#94a3b8; margin:0;">Target Format: 4x6 Inches (4R)</p>
-          </div>
+        <body style="margin:0; padding:0; width:6in; height:4in; display:flex; flex-direction:column; align-items:center; justify-content:center; border:1px solid #000; font-family:sans-serif; text-align:center; background: white;">
+          <h1 style="font-size:80px; margin:0; font-weight: 900; color: #000;">test Print</h1>
+          <div style="width:200px; height:8px; background:#000; margin: 20px 0;"></div>
+          <p style="font-size:24px; color: #000; font-weight: bold; text-transform: uppercase; letter-spacing: 0.2em;">Latarcerita Photobooth</p>
+          <p style="font-size:14px; color: #000; margin-top: 10px;">4R Format (4x6 inches)</p>
         </body>
       </html>
     `;
@@ -96,7 +115,7 @@ app.whenReady().then(() => {
     printWindow.webContents.on('did-finish-load', () => {
       // Print to default printer
       printWindow.webContents.print({ 
-        silent: false, // Set to false to allow printer selection/check in test mode
+        silent: true, // Set to true to print directly without dialog
         printBackground: true, 
         deviceName: '' // Default printer
       }, (success, failureReason) => {

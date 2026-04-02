@@ -22,7 +22,9 @@ import PublicGalleryScreen from './components/PublicGalleryScreen'
 import AppBackground from './components/AppBackground'
 import DeviceLogin from './components/DeviceLogin'
 import CreatorApp from './creator/App'
+import RemoteController from './components/RemoteController'
 import { LogOut, Monitor } from 'lucide-react'
+import { useCamera } from './hooks/useCamera'
 
 // --- Constants ---
 const STEPS = {
@@ -61,6 +63,9 @@ function App() {
   const [selfPhotoDuration, setSelfPhotoDuration] = useState(5) // minutes
   const [printQuantity, setPrintQuantity] = useState(1)
   const [selectedSelfPhotos, setSelectedSelfPhotos] = useState([]) // indices of selected photos
+  
+  // Use professional camera system
+  const { status, startPreview, stopPreview, capturePhoto: captureCamPhoto, initCamera } = useCamera()
 
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(() => {
@@ -75,13 +80,25 @@ function App() {
   const [galleryData, setGalleryData] = useState(null)
 
   const videoRef = useRef(null)
+  const previewCanvasRef = useRef(null) // Added for DSLR MJPEG preview
   const canvasRef = useRef(null)
-  const streamRef = useRef(null) // Restored streamRef
   // Read gallery param synchronously so it's available on first render
   const [galleryId, setGalleryId] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     return params.get('gallery') || null
   })
+
+  // Remote Control Session Management
+  const [activeRemoteSessionId, setActiveRemoteSessionId] = useState(null)
+  
+  // Effect to generate session ID when entering Self Photo capture
+  useEffect(() => {
+    if (step === STEPS.SP_CAPTURE && !activeRemoteSessionId) {
+       setActiveRemoteSessionId(`studio-${Math.random().toString(36).substring(2, 9)}`)
+    } else if (step !== STEPS.SP_CAPTURE && activeRemoteSessionId) {
+       setActiveRemoteSessionId(null)
+    }
+  }, [step])
 
   // Auth & URL Management
   useEffect(() => {
@@ -139,53 +156,18 @@ function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  const startCamera = async () => {
-    setCameraError(null)
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Kamera API tidak didukung di sistem ini.")
-      }
+  // Camera initialization happens automatically via Hook/Manager
+  // but we can manually trigger it here if needed
+  useEffect(() => {
+    initCamera()
+  }, [])
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'user'
-        },
-        audio: false
-      })
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-      }
-    } catch (err) {
-      console.error("Camera Error Log:", err)
-      let msg = "Kamera tidak dapat aktif."
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        msg = "Izin kamera ditolak. Mohon aktifkan di pengaturan sistem."
-      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        msg = "Kamera tidak ditemukan. Pastikan sudah tercolok."
-      } else {
-        msg = `Gagal akses kamera: ${err.message}`
-      }
-      setCameraError(msg)
-    }
-  }
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop())
-      streamRef.current = null
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null
-    }
-  }
 
   // Camera Management
   useEffect(() => {
     if (step === STEPS.CAPTURE || step === STEPS.SP_CAPTURE) {
-      startCamera()
+      const element = status.source === 'dslr' ? previewCanvasRef.current : videoRef.current
+      if (element) startPreview(element)
 
       // Auto-start countdown ONLY if we have started the photobooth session and are NOT reviewing
       if (step === STEPS.CAPTURE && hasStartedSession && !isReviewing) {
@@ -193,9 +175,9 @@ function App() {
         return () => clearTimeout(timeout)
       }
     } else {
-      stopCamera()
+      stopPreview()
     }
-  }, [step, hasStartedSession, isReviewing, currentShotIndex])
+  }, [step, hasStartedSession, isReviewing, currentShotIndex, status.source])
 
   const startCountdown = () => {
     setCountdown(3)
@@ -211,23 +193,17 @@ function App() {
     }, 1000)
   }
 
-  const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const context = canvasRef.current.getContext('2d')
-      canvasRef.current.width = videoRef.current.videoWidth
-      canvasRef.current.height = videoRef.current.videoHeight
-
-      context.translate(canvasRef.current.width, 0)
-      context.scale(-1, 1)
-      context.drawImage(videoRef.current, 0, 0)
-
-      const dataUrl = canvasRef.current.toDataURL('image/png')
-
+  const capturePhoto = async () => {
+    try {
+      const dataUrl = await captureCamPhoto()
+      
       const newPhotos = [...photos]
       newPhotos[currentShotIndex] = dataUrl
       setPhotos(newPhotos)
 
       setIsReviewing(true)
+    } catch (err) {
+      console.error("Capture Failed:", err)
     }
   }
 
@@ -283,6 +259,13 @@ function App() {
   // --- Public Gallery Route ---
   if (galleryId) {
     return <PublicGalleryScreen galleryId={galleryId} />
+  }
+
+  // --- Remote Controller Route (Safe detection via query param) ---
+  const urlParams = new URLSearchParams(window.location.search);
+  const remoteSessionFromUrl = urlParams.get('remoteSession');
+  if (remoteSessionFromUrl && !deviceSession) {
+    return <RemoteController sessionId={remoteSessionFromUrl} />
   }
 
   // --- Creator Mode Branch ---
@@ -379,6 +362,8 @@ function App() {
         {step === STEPS.CAPTURE && (
           <CaptureScreen
             videoRef={videoRef}
+            previewCanvasRef={previewCanvasRef}
+            cameraStatus={status}
             countdown={countdown}
             currentShotIndex={currentShotIndex}
             maxCaptures={selectedMode === 'self_photo' ? maxCaptures : maxCaptures}
@@ -388,7 +373,7 @@ function App() {
             onStartSession={() => setHasStartedSession(true)}
             onContinue={handleContinue}
             onRetake={handleRetake}
-            cameraError={cameraError}
+            cameraError={status.error}
             user={currentUser}
           />
         )}
@@ -408,11 +393,15 @@ function App() {
         {step === STEPS.SP_CAPTURE && (
           <SelfPhotoCaptureScreen
             videoRef={videoRef}
+            previewCanvasRef={previewCanvasRef}
+            cameraStatus={status}
             durationMinutes={selfPhotoDuration}
             photos={photos}
             setPhotos={setPhotos}
             onFinish={() => setStep(STEPS.CUSTOMIZE_FRAME)}
-            cameraError={cameraError}
+            cameraError={status.error}
+            remoteSessionId={activeRemoteSessionId}
+            captureCamPhoto={captureCamPhoto}
           />
         )}
         {step === STEPS.SP_PHOTO_SELECT && (

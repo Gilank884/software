@@ -1,19 +1,28 @@
 import { useState, useEffect, useRef } from 'react'
-import { Camera, AlertCircle, Clock } from 'lucide-react'
+import { Camera, AlertCircle, Clock, Smartphone } from 'lucide-react'
+import { supabase } from '../lib/supabaseClient'
+import QRCodeModule from "react-qr-code"
+
+const QRCode = QRCodeModule.default || QRCodeModule
 
 const SelfPhotoCaptureScreen = ({ 
   videoRef, 
+  previewCanvasRef,
+  cameraStatus,
   durationMinutes, 
   photos, 
   setPhotos, 
   onFinish, 
-  cameraError 
+  cameraError,
+  remoteSessionId,
+  captureCamPhoto
 }) => {
   const [timeLeft, setTimeLeft] = useState(durationMinutes * 60)
   const [isCapturing, setIsCapturing] = useState(false) // flash effect
   const [sessionStarted, setSessionStarted] = useState(false)
   
   const canvasRef = useRef(null)
+  const remoteUrl = `https://latarcerita.com/remote?remoteSession=${remoteSessionId}`
 
   // Start and Session Timer logic
   useEffect(() => {
@@ -32,25 +41,17 @@ const SelfPhotoCaptureScreen = ({
     }
   }, [sessionStarted])
 
-  const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current && !isCapturing) {
+  const capturePhoto = async () => {
+    if (!isCapturing) {
       setIsCapturing(true)
-      
-      const context = canvasRef.current.getContext('2d')
-      canvasRef.current.width = videoRef.current.videoWidth
-      canvasRef.current.height = videoRef.current.videoHeight
-      
-      // Mirror image
-      context.translate(canvasRef.current.width, 0)
-      context.scale(-1, 1)
-      context.drawImage(videoRef.current, 0, 0)
-      
-      // Compress to save memory (JPEG instead of PNG, 0.6 quality)
-      const dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.6)
-      
-      setPhotos(prev => [...prev, dataUrl])
-      
-      setTimeout(() => setIsCapturing(false), 200) // Flash duration
+      try {
+        const dataUrl = await captureCamPhoto()
+        setPhotos(prev => [...prev, dataUrl])
+      } catch (err) {
+        console.error("Capture Failed:", err)
+      } finally {
+        setTimeout(() => setIsCapturing(false), 200) // Flash duration
+      }
     }
   }
 
@@ -66,6 +67,25 @@ const SelfPhotoCaptureScreen = ({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [sessionStarted, isCapturing])
+
+  // Remote Controller Broadcast Listener
+  useEffect(() => {
+    if (!remoteSessionId || !sessionStarted) return
+
+    const channel = supabase.channel(`remote-control:${remoteSessionId}`)
+    
+    channel
+      .on('broadcast', { event: 'capture' }, () => {
+        if (!isCapturing) {
+          capturePhoto()
+        }
+      })
+      .subscribe()
+
+    return () => {
+      channel.unsubscribe()
+    }
+  }, [remoteSessionId, sessionStarted, isCapturing])
 
   // Formatting time
   const formatTime = (seconds) => {
@@ -93,22 +113,35 @@ const SelfPhotoCaptureScreen = ({
       {/* Session Controls or Header */}
       {!sessionStarted ? (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-500">
-          <div className="bg-white rounded-[4rem] p-16 max-w-xl w-full text-center border ring-1 ring-white/50 shadow-[0_20px_80px_rgba(0,0,0,0.3)] animate-in zoom-in-95 duration-700">
-            <div className="inline-flex items-center justify-center w-28 h-28 rounded-[2.5rem] bg-emerald-50 text-emerald-500 mb-8 shadow-inner border border-emerald-100">
-              <Camera size={50} strokeWidth={2} />
+          <div className="bg-white rounded-[4rem] p-12 max-w-xl w-full text-center border ring-1 ring-white/50 shadow-[0_20px_80px_rgba(0,0,0,0.3)] animate-in zoom-in-95 duration-700 mx-4">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-[2rem] bg-emerald-50 text-emerald-500 mb-6 shadow-inner border border-emerald-100">
+              <Camera size={40} strokeWidth={2} />
             </div>
             
-            <h2 className="text-5xl font-black text-slate-800 tracking-tight mb-4">Ready?</h2>
-            <p className="text-slate-500 font-medium text-lg leading-relaxed mb-10 px-6">
+            <h2 className="text-4xl font-black text-slate-800 tracking-tight mb-3">Ready?</h2>
+            <p className="text-slate-500 font-medium text-sm leading-relaxed mb-8 px-6">
               You have <strong className="text-slate-800">{durationMinutes} minutes</strong> in the studio. 
               Click the shutter button on screen to start capturing. Go crazy!
             </p>
+
+            {/* QR Remote Section */}
+            {remoteSessionId && (
+              <div className="bg-slate-50 rounded-[2.5rem] p-6 mb-8 border border-slate-200 flex flex-col items-center animate-in slide-in-from-bottom-2 duration-700">
+                <div className="bg-white p-4 rounded-[1.5rem] shadow-sm border border-slate-100 mb-4">
+                   <QRCode value={remoteUrl} size={140} level="H" />
+                </div>
+                <div className="flex items-center gap-3 text-emerald-600 font-black text-[10px] uppercase tracking-widest">
+                   <Smartphone size={14} />
+                   <span>Scan to use phone as remote</span>
+                </div>
+              </div>
+            )}
             
             <button 
               onClick={() => setSessionStarted(true)}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white rounded-[2rem] py-6 font-black text-sm uppercase tracking-[0.2em] shadow-2xl shadow-emerald-500/30 active:scale-95 transition-all text-center flex justify-center border-b-4 border-emerald-700 hover:border-emerald-800"
+              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white rounded-[2rem] py-5 font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-emerald-500/30 active:scale-95 transition-all text-center flex justify-center border-b-4 border-emerald-700 hover:border-emerald-800"
             >
-              Start Studio Sesson
+              Start Studio Session
             </button>
           </div>
         </div>
@@ -143,12 +176,21 @@ const SelfPhotoCaptureScreen = ({
         {/* Flash overlay */}
         <div className={`absolute inset-0 bg-white z-30 pointer-events-none transition-opacity duration-150 ${isCapturing ? 'opacity-100' : 'opacity-0'}`} />
 
-        <video 
-          ref={videoRef} 
-          autoPlay 
-          playsInline
-          className={`w-full h-full object-cover scale-x-[-1] transition-opacity duration-700 ${!sessionStarted ? 'opacity-30 blur-sm' : 'opacity-100'}`}
-        />
+        {cameraStatus.source === 'dslr' ? (
+          <canvas 
+            ref={previewCanvasRef}
+            className={`w-full h-full object-cover transition-opacity duration-700 ${!sessionStarted ? 'opacity-30 blur-sm' : 'opacity-100'}`}
+            width={1280}
+            height={720}
+          />
+        ) : (
+          <video 
+            ref={videoRef} 
+            autoPlay 
+            playsInline
+            className={`w-full h-full object-cover scale-x-[-1] transition-opacity duration-700 ${!sessionStarted ? 'opacity-30 blur-sm' : 'opacity-100'}`}
+          />
+        )}
         
         {/* Grid Overlay for framing */}
         <div className="absolute inset-0 pointer-events-none grid grid-cols-3 grid-rows-3 z-10 opacity-30">

@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import FrameEditor from './FrameEditor'
-import { Home, Upload, Plus, Save, Trash2, Lock, Unlock, ZoomIn, ZoomOut, Loader2, Maximize2, Eraser, Check, Layout, RotateCcw, RotateCw, Edit2 } from 'lucide-react'
+import { Home, Upload, Plus, Save, Trash2, Lock, Unlock, ZoomIn, ZoomOut, Loader2, Maximize2, Eraser, Check, Layout, RotateCcw, RotateCw, Edit2, Camera, Monitor, Smartphone, RefreshCw, AlertCircle, Settings2 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
+import { useCamera } from '../hooks/useCamera'
+import TestCamera from './TestCamera'
 
 const CANVAS_CONFIG = {
   '4R': { width: 600, height: 900, label: '4R - 102×152mm', pxPerCm: 58.8235 },
@@ -25,6 +27,8 @@ const SettingsPage = ({ user }) => {
   const [toast, setToast] = useState(null)
   const thumbnailCanvasRef = useRef(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+  
+  const { status: camStatus, setCameraSource } = useCamera()
   
   // Undo/Redo State
   const [past, setPast] = useState([])
@@ -803,7 +807,10 @@ const SettingsPage = ({ user }) => {
               </div>
             </div>
 
-            {/* Section 3: Layers hierarchy */}
+            {/* New Hardware Diagnostic Kit */}
+            <div className="space-y-6">
+              <TestCamera />
+            </div>
             <div className="flex-1 flex flex-col min-h-0">
                <div className="flex items-center gap-2 mb-6">
                 <div className="w-1 h-4 bg-blue-600 rounded-full" />
