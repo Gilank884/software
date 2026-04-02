@@ -119,9 +119,10 @@ const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selec
     return new Promise((resolve, reject) => {
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
-      canvas.width = 600;
-      canvas.height = 900;
+      canvas.width = 1200; // High-res 300 DPI (600 * 2)
+      canvas.height = 1800; // High-res 300 DPI (900 * 2)
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.scale(2, 2); // Maintain 600x900 coordinate system
 
       const loadImage = (src) => {
         return new Promise((res, rej) => {
