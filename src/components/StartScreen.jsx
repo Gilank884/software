@@ -11,6 +11,8 @@ const StartScreen = ({ onStart, user, onLogout }) => {
   const [printers, setPrinters] = useState([])
   const [isCheckingPrinters, setIsCheckingPrinters] = useState(false)
   const [selectedPrinter, setSelectedPrinter] = useState(localStorage.getItem('selectedPrinter') || '')
+  const [selectedPaperSize, setSelectedPaperSize] = useState(localStorage.getItem('selectedPaperSize') || '4r')
+  const [showPrinterModal, setShowPrinterModal] = useState(false)
   const pressTimer = useRef(null)
   const isLongPress = useRef(false)
   const previewRef = useRef(null)
@@ -19,7 +21,7 @@ const StartScreen = ({ onStart, user, onLogout }) => {
     e.stopPropagation()
     setIsPrinting(true)
     if (window.electronAPI?.printTestPage) {
-        window.electronAPI.printTestPage(selectedPrinter)
+        window.electronAPI.printTestPage(selectedPrinter, selectedPaperSize)
     }
     setTimeout(() => setIsPrinting(false), 5000)
   }
@@ -177,42 +179,28 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                       <span className={`text-[8px] font-bold uppercase transition-colors ${printers.length > 0 ? 'text-green-600' : 'text-rose-600'}`}>
                         {isCheckingPrinters ? 'Checking...' : printers.length > 0 ? `${printers.length} Printer Ready` : 'Printer Tidak Terbaca'}
                       </span>
-                      {selectedPrinter && (
-                        <span className="text-[7px] font-black text-indigo-500 uppercase truncate max-w-[120px]">
-                          Active: {selectedPrinter}
-                        </span>
-                      )}
                     </div>
                   )}
                 </div>
               </button>
 
-              {/* Printer Selection Dropdown/List */}
-              {printers.length > 0 && (
-                <div className="px-2 pb-2">
-                  <div className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                    <Settings size={8} /> Select Active Printer
-                  </div>
-                  <div className="flex flex-col gap-1 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setSelectedPrinter(''); localStorage.removeItem('selectedPrinter'); }}
-                      className={`text-left px-3 py-1.5 rounded-lg text-[9px] font-bold transition-all ${!selectedPrinter ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
-                    >
-                      Default System Printer
-                    </button>
-                    {printers.map((p) => (
-                      <button
-                        key={p.name}
-                        onClick={(e) => { e.stopPropagation(); setSelectedPrinter(p.name); localStorage.setItem('selectedPrinter', p.name); }}
-                        className={`text-left px-3 py-1.5 rounded-lg text-[9px] font-bold transition-all truncate ${selectedPrinter === p.name ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
-                        title={p.name}
-                      >
-                        {p.name}
-                      </button>
-                    ))}
-                  </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowPrinterModal(true); }}
+                className="flex items-center gap-4 hover:bg-indigo-50 p-2 pr-6 rounded-2xl transition-all duration-300 group/btn"
+              >
+                <div className="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 group-hover/btn:bg-indigo-600 group-hover/btn:text-white transition-all">
+                  <Settings2 size={20} />
                 </div>
-              )}
+                <div className="flex flex-col items-start px-2">
+                  <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Configuration</span>
+                  <span className="text-xs font-black text-slate-700">Printer Settings</span>
+                  {selectedPrinter && (
+                    <span className="text-[7px] font-black text-indigo-500 uppercase truncate max-w-[120px]">
+                      {selectedPaperSize.toUpperCase()} • {selectedPrinter}
+                    </span>
+                  )}
+                </div>
+              </button>
 
 
               <div className="h-px bg-slate-100 my-1 mx-2"></div>
@@ -408,11 +396,150 @@ const StartScreen = ({ onStart, user, onLogout }) => {
         )}
       </AnimatePresence>
 
+      {/* Printer Configuration Modal */}
+      <AnimatePresence>
+        {showPrinterModal && (
+          <div 
+            className="fixed inset-0 z-[250] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md"
+            onPointerUp={(e) => e.stopPropagation()}
+          >
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white rounded-[40px] overflow-hidden w-full max-w-xl shadow-2xl relative border-4 border-white/20"
+            >
+              <div className="p-8 pb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-3xl font-black text-slate-800 font-caveat tracking-tight">Printer Configuration</h2>
+                  <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Setup Hardware & Paper Size</p>
+                </div>
+                <button 
+                  onClick={() => setShowPrinterModal(false)}
+                  className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-all"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-8">
+                {/* Paper Size Selection */}
+                <div className="mb-8">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                    <Monitor size={12} /> Ukuran Kertas (Paper Size)
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {[
+                      { id: '4r', label: '4R Format', sub: '4x6 inches / 10x15cm' },
+                      { id: 'a4', label: 'A4 Format', sub: '8.27 x 11.69 inches' }
+                    ].map(size => (
+                      <button
+                        key={size.id}
+                        onClick={() => { setSelectedPaperSize(size.id); localStorage.setItem('selectedPaperSize', size.id); }}
+                        className={`p-6 rounded-[24px] border-2 transition-all flex flex-col items-start gap-1 text-left ${
+                          selectedPaperSize === size.id
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-xl scale-105'
+                            : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'
+                        }`}
+                      >
+                        <span className="text-xl font-black tracking-tight">{size.label}</span>
+                        <span className={`text-[9px] font-bold uppercase tracking-widest ${selectedPaperSize === size.id ? 'text-blue-100' : 'text-slate-400'}`}>
+                          {size.sub}
+                        </span>
+                        {selectedPaperSize === size.id && (
+                          <div className="mt-2 bg-white/20 p-1 rounded-full">
+                            <CheckCircle2 size={14} />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Printer Device Selection */}
+                <div>
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                       <Printer size={12} /> Pilih Perangkat Printer
+                    </div>
+                    <button 
+                      onClick={checkPrinters}
+                      className="p-1 hover:bg-slate-100 rounded-md transition-all text-blue-500"
+                    >
+                      <RefreshCw size={10} className={isCheckingPrinters ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                    <button
+                      onClick={() => { setSelectedPrinter(''); localStorage.removeItem('selectedPrinter'); }}
+                      className={`w-full text-left px-6 py-4 rounded-2xl border-2 transition-all font-bold text-sm ${
+                        !selectedPrinter
+                          ? 'bg-slate-900 border-slate-900 text-white shadow-lg'
+                          : 'bg-white border-slate-100 text-slate-500 hover:bg-slate-50'
+                      }`}
+                    >
+                      Default System Printer
+                    </button>
+                    {printers.map(printer => (
+                      <button
+                        key={printer.name}
+                        onClick={() => { setSelectedPrinter(printer.name); localStorage.setItem('selectedPrinter', printer.name); }}
+                        className={`w-full text-left px-6 py-4 rounded-2xl border-2 transition-all font-bold text-sm truncate ${
+                          selectedPrinter === printer.name
+                            ? 'bg-slate-900 border-slate-900 text-white shadow-lg'
+                            : 'bg-white border-slate-100 text-slate-600 hover:bg-slate-50'
+                        }`}
+                        title={printer.name}
+                      >
+                        {printer.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-8 pb-8 flex items-center justify-between bg-slate-50/50 pt-8">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 font-black">
+                    {selectedPaperSize.toUpperCase()}
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest block leading-none mb-1">Active Profile</span>
+                    <span className="text-xs font-black text-slate-600 leading-none truncate max-w-[150px]">
+                      {selectedPrinter || 'Default System'}
+                    </span>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowPrinterModal(false)}
+                  className="px-10 py-4 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all"
+                >
+                  Simpan Konfigurasi
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <style>{`
         @keyframes loading {
           0% { transform: translateX(-100%); }
           50% { transform: translateX(100%); }
           100% { transform: translateX(-100%); }
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #e2e8f0;
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #cbd5e1;
         }
       `}</style>
     </div>

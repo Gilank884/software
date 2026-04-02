@@ -25,10 +25,11 @@ const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selec
 
         // Trigger Printing Immediately
         const selectedPrinter = localStorage.getItem('selectedPrinter') || '';
+        const selectedPaperSize = localStorage.getItem('selectedPaperSize') || '4r';
         if (window.electronAPI?.printImage) {
           const reader = new FileReader();
           reader.onloadend = () => {
-             window.electronAPI.printImage(reader.result, printQuantity, selectedPrinter);
+             window.electronAPI.printImage(reader.result, printQuantity, selectedPrinter, selectedPaperSize);
           };
           reader.readAsDataURL(compositeBlob);
         }

@@ -89,7 +89,7 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.on('print-test-page', (event, { printerName } = {}) => {
+  ipcMain.on('print-test-page', (event, { printerName, pageSize = '4r' } = {}) => {
     // Hidden window for 4R test print
     const printWindow = new BrowserWindow({
       show: false,
@@ -103,13 +103,13 @@ app.whenReady().then(() => {
       <html>
         <body style="margin:0; padding:0; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; background: white; font-family:sans-serif; text-align:center;">
           <style>
-            @page { size: 4in 6in; margin: 0; }
+            @page { size: ${pageSize.toLowerCase() === 'a4' ? '210mm 297mm' : '4in 6in'}; margin: 0; }
             body { border: 1px solid #eee; box-sizing: border-box; }
           </style>
           <h1 style="font-size:60px; margin:0; font-weight: 900; color: #000;">Test Print</h1>
           <div style="width:150px; height:6px; background:#000; margin: 20px 0;"></div>
           <p style="font-size:18px; color: #000; font-weight: bold; text-transform: uppercase; letter-spacing: 0.2em;">Latarcerita Photobooth</p>
-          <p style="font-size:12px; color: #666; margin-top: 10px;">Format: 4R (4x6 inches)</p>
+          <p style="font-size:12px; color: #666; margin-top: 10px;">Format: ${pageSize.toUpperCase()}</p>
           <p style="font-size:10px; color: #999; margin-top: 5px;">300 DPI High-Quality</p>
         </body>
       </html>
@@ -125,7 +125,8 @@ app.whenReady().then(() => {
         deviceName: printerName || '',
         color: true,
         margins: { marginType: 'none' },
-        dpi: { horizontal: 300, vertical: 300 }
+        dpi: { horizontal: 300, vertical: 300 },
+        pageSize: pageSize.toLowerCase() === 'a4' ? 'A4' : { width: 101600, height: 152400 }
       }, (success, failureReason) => {
         if (!success) console.error("Print Failed:", failureReason);
         printWindow.close();
@@ -133,7 +134,7 @@ app.whenReady().then(() => {
     });
   });
 
-  ipcMain.on('print-image', (event, { imageUrl, copies = 1, printerName = '' }) => {
+  ipcMain.on('print-image', (event, { imageUrl, copies = 1, printerName = '', pageSize = '4r' }) => {
     console.log(`Printing image: ${imageUrl.substring(0, 50)}... x${copies}`);
     
     const printWindow = new BrowserWindow({
@@ -148,7 +149,7 @@ app.whenReady().then(() => {
       <html>
         <body style="margin:0; padding:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:white;">
           <style>
-             @page { size: 4in 6in; margin: 0; }
+             @page { size: ${pageSize.toLowerCase() === 'a4' ? '210mm 297mm' : '4in 6in'}; margin: 0; }
           </style>
           <img src="${imageUrl}" style="width:100%; height:100%; object-fit:contain;" />
         </body>
@@ -165,7 +166,8 @@ app.whenReady().then(() => {
         copies: copies,
         color: true,
         margins: { marginType: 'none' },
-        dpi: { horizontal: 300, vertical: 300 }
+        dpi: { horizontal: 300, vertical: 300 },
+        pageSize: pageSize.toLowerCase() === 'a4' ? 'A4' : { width: 101600, height: 152400 }
       }, (success, failureReason) => {
         if (!success) console.error("Photo Print Failed:", failureReason);
         printWindow.close();
