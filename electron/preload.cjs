@@ -9,5 +9,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   getAppVersion: () => process.versions.electron,
   printTestPage: () => ipcRenderer.send('print-test-page'),
+  printImage: (imageUrl, copies) => ipcRenderer.send('print-image', { imageUrl, copies }),
   getPrinters: () => ipcRenderer.invoke('get-printers'),
 });

@@ -437,6 +437,7 @@ function App() {
               }
             }}
             maxCaptures={maxCaptures}
+            setMaxCaptures={setMaxCaptures}
             user={currentUser}
           />
         )}
@@ -460,6 +461,7 @@ function App() {
           selectedFrameData={selectedFrameData}
           selectedFilter={selectedFilter}
           user={currentUser}
+          printQuantity={printQuantity}
           onFinish={(data) => {
             setGalleryData(data)
             setStep(STEPS.OUTPUT)

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { RefreshCcw } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
-const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selectedFilter, user, onFinish }) => {
+const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selectedFilter, user, printQuantity = 1, onFinish }) => {
   const [progress, setProgress] = useState("Preparing Layout...");
   const canvasRef = useRef(null);
   const doneRef = useRef(false);
@@ -22,6 +22,15 @@ const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selec
       try {
         setProgress("Generating final layout...");
         const compositeBlob = await generateCompositeImage();
+
+        // Trigger Printing Immediately
+        if (window.electronAPI?.printImage) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+             window.electronAPI.printImage(reader.result, printQuantity);
+          };
+          reader.readAsDataURL(compositeBlob);
+        }
 
         setProgress("Creating Session Gallery...");
         

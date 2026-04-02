@@ -125,6 +125,40 @@ app.whenReady().then(() => {
     });
   });
 
+  ipcMain.on('print-image', (event, { imageUrl, copies = 1 }) => {
+    console.log(`Printing image: ${imageUrl.substring(0, 50)}... x${copies}`);
+    
+    const printWindow = new BrowserWindow({
+      show: false,
+      webPreferences: {
+        offscreen: true
+      }
+    });
+
+    // Load a simple HTML wrapper for the image to ensure correct sizing
+    const html = `
+      <html>
+        <body style="margin:0; padding:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:white;">
+          <img src="${imageUrl}" style="width:100%; height:100%; object-fit:contain;" />
+        </body>
+      </html>
+    `;
+
+    printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+
+    printWindow.webContents.on('did-finish-load', () => {
+      printWindow.webContents.print({
+        silent: true,
+        printBackground: true,
+        deviceName: '', // Default printer
+        copies: copies
+      }, (success, failureReason) => {
+        if (!success) console.error("Photo Print Failed:", failureReason);
+        printWindow.close();
+      });
+    });
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

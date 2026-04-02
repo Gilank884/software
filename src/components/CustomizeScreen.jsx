@@ -15,6 +15,7 @@ const CustomizeScreen = ({
   onCetak,
   onNext,
   maxCaptures,
+  setMaxCaptures,
   user,
   appMode
 }) => {
@@ -71,6 +72,9 @@ const CustomizeScreen = ({
   const handleFrameSelect = (frame) => {
     setSelectedFrame(frame.id)
     setSelectedFrameData(frame)
+    if (setMaxCaptures && frame.photo_count) {
+      setMaxCaptures(frame.photo_count)
+    }
   }
 
   const currentFrame = selectedFrameData || dbFrames.find(f => f.id === selectedFrame)
@@ -94,7 +98,6 @@ const CustomizeScreen = ({
           >
             {/* Photo slots with absolute positioning */}
             {currentFrame?.slots?.map((slot, i) => {
-              if (slot.number > maxCaptures) return null;
               const photo = photos[slot.number - 1];
               const s = 0.6;
               return (
