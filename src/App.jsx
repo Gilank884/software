@@ -23,14 +23,17 @@ import AppBackground from './components/AppBackground'
 import DeviceLogin from './components/DeviceLogin'
 import CreatorApp from './creator/App'
 import RemoteController from './components/RemoteController'
+import ProductSelectScreen from './components/ProductSelectScreen'
 import { LogOut, Monitor } from 'lucide-react'
 import { useCamera } from './hooks/useCamera'
 
 // --- Constants ---
 const STEPS = {
+  // Photobooth Flow
   START: 'START',
-  INSTRUCTIONS: 'INSTRUCTIONS',
+  PRODUCT_SELECT: 'PRODUCT_SELECT',
   PAYMENT: 'PAYMENT',
+  INSTRUCTIONS: 'INSTRUCTIONS',
   SESSION_SELECT: 'SESSION_SELECT',
   CAPTURE: 'CAPTURE',
   CUSTOMIZE_FRAME: 'CUSTOMIZE_FRAME',
@@ -78,6 +81,7 @@ function App() {
   const [step, setStep] = useState(STEPS.START)
   const [selectedMode, setSelectedMode] = useState(null) // 'photobooth' | 'self_photo'
   const [galleryData, setGalleryData] = useState(null)
+  const [selectedProduct, setSelectedProduct] = useState(null)
 
   const videoRef = useRef(null)
   const previewCanvasRef = useRef(null) // Added for DSLR MJPEG preview
@@ -240,6 +244,7 @@ function App() {
     setSelfPhotoDuration(5)
     setPrintQuantity(1)
     setSelectedSelfPhotos([])
+    setSelectedProduct(null)
   }
 
   const handleSignOut = async () => {
@@ -301,7 +306,7 @@ function App() {
       setStep(STEPS.SP_INSTRUCTIONS)
     } else {
       setSelectedMode('photobooth')
-      setStep(STEPS.INSTRUCTIONS)
+      setStep(STEPS.PRODUCT_SELECT)
     }
   }
 
@@ -310,7 +315,7 @@ function App() {
     if (mode === 'self_photo') {
       setStep(STEPS.SP_INSTRUCTIONS);
     } else {
-      setStep(STEPS.INSTRUCTIONS);
+      setStep(STEPS.PRODUCT_SELECT);
     }
   }
 
@@ -340,9 +345,17 @@ function App() {
         )}
 
         {/* Photobooth Flow */}
+        {step === STEPS.PRODUCT_SELECT && (
+          <ProductSelectScreen
+            onSelect={(product) => {
+              setSelectedProduct(product);
+              setStep(currentUser.paymentEnabled ? STEPS.PAYMENT : STEPS.INSTRUCTIONS);
+            }}
+          />
+        )}
         {step === STEPS.INSTRUCTIONS && (
           <InstructionsScreen
-            onNext={() => setStep(currentUser.paymentEnabled ? STEPS.PAYMENT : STEPS.SESSION_SELECT)}
+            onNext={() => setStep(STEPS.SESSION_SELECT)}
           />
         )}
         {step === STEPS.PAYMENT && <PaymentScreen onPaymentSuccess={() => {
@@ -350,9 +363,9 @@ function App() {
             setStep(STEPS.PROCESSING)
             setTimeout(() => setStep(STEPS.OUTPUT), 3000)
           } else {
-            setStep(STEPS.SESSION_SELECT)
+            setStep(STEPS.INSTRUCTIONS)
           }
-        }} mode={selectedMode} selfPhotoDuration={selfPhotoDuration} printQuantity={printQuantity} />}
+        }} mode={selectedMode} selfPhotoDuration={selfPhotoDuration} printQuantity={printQuantity} selectedProduct={selectedProduct} />}
         {step === STEPS.SESSION_SELECT && (
           <SessionSelectScreen
             onSelectSession={(shots) => { setMaxCaptures(shots); setStep(STEPS.CAPTURE); }}

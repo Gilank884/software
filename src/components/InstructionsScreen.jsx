@@ -21,7 +21,7 @@ const InstructionsScreen = ({ onNext }) => (
         onClick={onNext}
         className="bg-slate-900 hover:bg-black text-white px-8 py-3 rounded-full text-2xl font-black font-caveat tracking-widest shadow-xl transition-all active:scale-95 flex items-center gap-4 mx-auto"
       >
-        Lanjut ke pembayaran <ChevronRight size={24} />
+        Mulai Sesi <ChevronRight size={24} />
       </button>
     </div>
   </StepWrapper>

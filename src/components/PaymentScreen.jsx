@@ -1,10 +1,12 @@
 import StepWrapper from './StepWrapper'
 import { QrCode, Scan } from 'lucide-react'
 
-const PaymentScreen = ({ onPaymentSuccess, mode, selfPhotoDuration = 5, printQuantity = 1 }) => {
+const PaymentScreen = ({ onPaymentSuccess, mode, selfPhotoDuration = 5, printQuantity = 1, selectedProduct }) => {
   // Hardcoded simple pricing model
   let price = 25000;
-  if (mode === 'self_photo') {
+  if (selectedProduct) {
+    price = selectedProduct.price;
+  } else if (mode === 'self_photo') {
     const timePrice = (selfPhotoDuration / 5) * 50000;
     const printPrice = (printQuantity - 1) * 25000;
     price = timePrice + printPrice;
