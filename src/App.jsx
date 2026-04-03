@@ -462,6 +462,7 @@ function App() {
           selectedFilter={selectedFilter}
           user={currentUser}
           printQuantity={printQuantity}
+          selectedMode={selectedMode}
           onFinish={(data) => {
             setGalleryData(data)
             setStep(STEPS.OUTPUT)

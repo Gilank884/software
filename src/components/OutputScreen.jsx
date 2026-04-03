@@ -86,6 +86,26 @@ const OutputScreen = ({ galleryData, selectedFrame, selectedFrameData, selectedF
             <h3 className="text-3xl font-black text-slate-800 tracking-tight text-center mb-2">Scan & Download</h3>
             <p className="text-slate-500 font-medium text-center animate-pulse">Get all your photos!</p>
           </div>
+
+          {/* GIF Animation Preview - Premium Style */}
+          {galleryData?.gifUrl && (
+            <div className="mt-8 group relative">
+              <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-[2rem] blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
+              <div className="relative bg-white rounded-[2rem] overflow-hidden border-4 border-white shadow-xl aspect-[3/4] max-w-[280px] mx-auto transition-transform duration-500 group-hover:scale-[1.02]">
+                <video 
+                  src={galleryData.gifUrl} 
+                  autoPlay 
+                  loop 
+                  muted 
+                  playsInline 
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-md px-3 py-1 rounded-full border border-white/20">
+                  <span className="text-[10px] font-black text-white uppercase tracking-widest">Animated GIF</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Side: Options & End */}
