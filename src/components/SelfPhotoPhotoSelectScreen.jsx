@@ -10,7 +10,9 @@ const SelfPhotoPhotoSelectScreen = ({
   onNext 
 }) => {
   // Number of slots required by the selected frame
-  const requiredCount = selectedFrameData?.photo_count || 1;
+  // Calculate actual photo count from unique slot numbers to be robust
+  const uniqueSlots = [...new Set((selectedFrameData?.slots || []).map(s => s.number))]
+  const requiredCount = uniqueSlots.length || selectedFrameData?.photo_count || 1;
 
   const toggleSelect = (index) => {
     setSelectedPhotos(prev => {

@@ -75,8 +75,14 @@ const CustomizeScreen = ({
 
         setDbFrames(processedFrames)
         if (processedFrames.length > 0 && !selectedFrameData) {
-          setSelectedFrame(processedFrames[0].id)
-          setSelectedFrameData(processedFrames[0])
+          const firstFrame = processedFrames[0]
+          setSelectedFrame(firstFrame.id)
+          setSelectedFrameData(firstFrame)
+          
+          // Calculate actual photo count from unique slot numbers
+          const uniqueSlots = [...new Set((firstFrame.slots || []).map(s => s.number))]
+          const actualCount = uniqueSlots.length || firstFrame.photo_count || 3
+          if (setMaxCaptures) setMaxCaptures(actualCount)
         }
       }
       setLoadingFrames(false)
@@ -87,15 +93,10 @@ const CustomizeScreen = ({
   useEffect(() => {
     if (mode === 'filter' && carouselRef.current) {
       const container = carouselRef.current
-      const items = container.querySelectorAll('.snap-center')
-      if (items.length > 1) {
-        const originalItem = items[1]
-        if (originalItem) {
-          const containerWidth = container.offsetWidth
-          const itemWidth = originalItem.offsetWidth
-          const scrollLeft = originalItem.offsetLeft - (containerWidth / 2) + (itemWidth / 2)
-          container.scrollTo({ left: scrollLeft, behavior: 'smooth' })
-        }
+      const selectedEl = container.querySelector(`[data-id="${selectedFrame}"]`)
+      if (selectedEl) {
+        const scrollLeft = selectedEl.offsetLeft - container.offsetWidth / 2 + selectedEl.offsetWidth / 2
+        container.scrollTo({ left: scrollLeft, behavior: 'smooth' })
       }
     }
   }, [mode])
@@ -103,8 +104,12 @@ const CustomizeScreen = ({
   const handleFrameSelect = (frame) => {
     setSelectedFrame(frame.id)
     setSelectedFrameData(frame)
-    if (setMaxCaptures && frame.photo_count) {
-      setMaxCaptures(frame.photo_count)
+    
+    // Calculate actual photo count from unique slot numbers to be robust
+    const uniqueSlots = [...new Set((frame.slots || []).map(s => s.number))]
+    const actualCount = uniqueSlots.length || frame.photo_count || 3
+    if (setMaxCaptures) {
+      setMaxCaptures(actualCount)
     }
   }
 

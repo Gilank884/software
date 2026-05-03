@@ -105,7 +105,7 @@ const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
             <div className="flex flex-row items-center gap-6 p-2">
               {/* Column 1: Raw Photos (Stacked Vertically) */}
               <div className="flex flex-col gap-3">
-                {galleryData?.rawPhotos?.slice(0, 3).map((url, idx) => (
+                {galleryData?.rawPhotos?.map((url, idx) => (
                   <motion.div
                     key={idx}
                     initial={{ opacity: 0, x: 20 }}

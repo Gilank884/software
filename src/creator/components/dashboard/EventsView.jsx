@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity, ChevronRight, ArrowLeft, Download, Eye, Smartphone, ImageIcon } from 'lucide-react'
+import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity, ChevronRight, ArrowLeft, Download, Eye, Smartphone, ImageIcon, RefreshCcw } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 import PageHeader from './PageHeader'
 
@@ -147,11 +147,67 @@ export default function EventsView({ user, events, devices, onRefresh }) {
     setIsSaving(false)
   }
 
-  const deleteEvent = async (e, id) => {
+  const deleteEvent = async (e, event) => {
     e.stopPropagation()
-    if (!confirm('Hapus event ini? Semua perangkat yang terhubung akan dilepas dari event ini.')) return
-    const { error } = await supabase.from('events').delete().eq('id', id)
-    if (!error) onRefresh()
+    const id = event.id
+    if (!confirm(`Hapus event "${event.name}"? \n\nPERHATIAN: Semua foto (captures) dan data terkait dalam event ini akan dihapus secara permanen!`)) return
+    
+    try {
+      // 1. Delete all captures associated with this event
+      const { error: capturesError } = await supabase
+        .from('captures')
+        .delete()
+        .eq('event_id', id)
+      
+      if (capturesError) console.error('Error deleting event captures:', capturesError)
+
+      // 2. Delete event logo from storage if it exists
+      if (event.logo_url) {
+        try {
+          const urlParts = event.logo_url.split('/')
+          const fileName = urlParts[urlParts.length - 1].split('?')[0]
+          await supabase.storage.from('events').remove([`logos/${fileName}`])
+        } catch (storageErr) {
+          console.error('Error deleting logo from storage:', storageErr)
+        }
+      }
+
+      // 3. Delete the event itself
+      const { error: eventError } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', id)
+      
+      if (!eventError) {
+        onRefresh()
+      } else {
+        alert('Gagal menghapus event: ' + eventError.message)
+      }
+    } catch (err) {
+      console.error('Delete event failed:', err)
+      alert('Terjadi kesalahan saat menghapus event.')
+    }
+  }
+
+  const clearEvent = async (event) => {
+    if (!confirm(`Bersihkan semua foto di event "${event.name}"? \n\nSemua foto akan dihapus permanen, tapi event tetap ada.`)) return
+    
+    try {
+      const { error } = await supabase
+        .from('captures')
+        .delete()
+        .eq('event_id', event.id)
+      
+      if (!error) {
+        fetchEventCaptures(event.id)
+        fetchAllCaptures()
+      } else {
+        alert('Gagal membersihkan event: ' + error.message)
+      }
+    } catch (err) {
+      console.error('Clear event failed:', err)
+      alert('Terjadi kesalahan saat membersihkan event.')
+    }
   }
 
   const startEdit = (e, event) => {
@@ -190,6 +246,26 @@ export default function EventsView({ user, events, devices, onRefresh }) {
                 )}
              </div>
           </div>
+        </div>
+
+        <div className="flex items-center gap-4 border-b border-slate-100 pb-8">
+           <button 
+             onClick={() => clearEvent(selectedEvent)}
+             className="px-6 py-3 bg-white border border-slate-200 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all shadow-sm"
+           >
+             <RefreshCcw size={14} />
+             Clear Photos
+           </button>
+           <button 
+             onClick={(e) => {
+               deleteEvent(e, selectedEvent);
+               setSelectedEvent(null);
+             }}
+             className="px-6 py-3 bg-white border border-slate-200 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all shadow-sm"
+           >
+             <Trash2 size={14} />
+             Delete Event
+           </button>
         </div>
 
         {loadingCaptures ? (
@@ -365,7 +441,7 @@ export default function EventsView({ user, events, devices, onRefresh }) {
                            <Edit2 size={16} />
                          </button>
                          <button 
-                           onClick={(e) => deleteEvent(e, event.id)}
+                           onClick={(e) => deleteEvent(e, event)}
                            className="p-3 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl border border-slate-100 hover:border-rose-100 transition-all"
                            title="Delete Event"
                          >
