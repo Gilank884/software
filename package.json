@@ -75,6 +75,7 @@
     "@supabase/supabase-js": "^2.100.0",
     "electron-is-dev": "^3.0.1",
     "framer-motion": "^12.38.0",
+    "gifshot": "^0.4.5",
     "interactjs": "^1.10.27",
     "lucide-react": "^0.577.0",
     "react": "^19.2.4",

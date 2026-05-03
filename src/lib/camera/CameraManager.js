@@ -151,18 +151,31 @@ export class CameraManager {
   }
 
   async setSource(source) {
+    const oldSource = this.currentSource;
+    
     if (source === 'auto') {
       this.isAutoDetect = true;
       await this.init();
     } else if (this.drivers[source]) {
       this.isAutoDetect = false;
+      
+      // Stop old source if it's different
+      if (oldSource !== source) {
+        if (this.drivers[oldSource]?.stopHardware) {
+          this.drivers[oldSource].stopHardware();
+        } else {
+          await this.drivers[oldSource].stopPreview();
+        }
+      }
+      
       this.currentSource = source;
       await this.init();
     }
     
     // If already previewing, restart preview on the new source
     if (this.previewElement) {
-      await this.stopPreview();
+      // Note: we don't call this.stopPreview() here because we already stopped 
+      // the old hardware above if the source changed.
       await this.startPreview(this.previewElement);
     }
     

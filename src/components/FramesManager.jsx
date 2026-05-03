@@ -1,45 +1,60 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
-import { Search, Loader2, ImageIcon, LayoutGrid } from 'lucide-react'
+import { Search, Loader2, ImageIcon, LayoutGrid, Trash2 } from 'lucide-react'
 import PageHeader from '../creator/components/dashboard/PageHeader'
 
 const FramesManager = ({ user }) => {
   const [frames, setFrames] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterCount, setFilterCount] = useState('all')
+  const [filterSize, setFilterSize] = useState('all')
+  const [deletingId, setDeletingId] = useState(null)
+
+  const fetchFrames = async () => {
+    if (!user?.id) return
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('frames')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+    
+    if (error) {
+      console.error('Error fetching frames:', error)
+    } else {
+      setFrames(data || [])
+    }
+    setLoading(false)
+  }
 
   useEffect(() => {
-    const fetchFrames = async () => {
-      if (!user?.id) return
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('frames')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-      
-      if (error) {
-        console.error('Error fetching frames:', error)
-      } else {
-        const processed = (data || []).map(f => {
-          if (f.photo_count) return f;
-          if (f.slots && Array.isArray(f.slots)) {
-            const unique = [...new Set(f.slots.map(s => s.number))];
-            return { ...f, photo_count: unique.length };
-          }
-          return { ...f, photo_count: 0 };
-        })
-        setFrames(processed)
-      }
-      setLoading(false)
-    }
     fetchFrames()
   }, [user?.id])
 
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this frame? This action cannot be undone.')) return
+    
+    setDeletingId(id)
+    try {
+      const { error } = await supabase
+        .from('frames')
+        .delete()
+        .eq('id', id)
+      
+      if (error) throw error
+      
+      setFrames(prev => prev.filter(f => f.id !== id))
+    } catch (err) {
+      console.error('Delete error:', err)
+      alert('Failed to delete frame.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   const filteredFrames = frames.filter(f => {
     const matchesSearch = f.name.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesFilter = filterCount === 'all' || f.photo_count.toString() === filterCount
+    const matchesFilter = filterSize === 'all' || f.size_type === filterSize
     return matchesSearch && matchesFilter
   })
 
@@ -74,13 +89,13 @@ const FramesManager = ({ user }) => {
         </div>
         
         <div className="flex gap-2 p-2 bg-white/40 backdrop-blur-xl border border-white/40 rounded-[1.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-          {['all', '2', '3'].map((count) => (
+          {['all', '4R', 'A4'].map((size) => (
             <button
-              key={count}
-              onClick={() => setFilterCount(count)}
-              className={`px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all duration-300 ${filterCount === count ? 'bg-slate-900 text-white shadow-xl shadow-slate-900/20' : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
+              key={size}
+              onClick={() => setFilterSize(size)}
+              className={`px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all duration-300 ${filterSize === size ? 'bg-slate-900 text-white shadow-xl shadow-slate-900/20' : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'}`}
             >
-              {count === 'all' ? 'All Layouts' : `${count} Shots`}
+              {size === 'all' ? 'All Layouts' : `Format ${size}`}
             </button>
           ))}
         </div>
@@ -108,12 +123,24 @@ const FramesManager = ({ user }) => {
                   <img 
                     src={frame.image_url} 
                     alt={frame.name}
-                    className="w-full h-full object-contain relative z-10 drop-shadow-2xl transition-transform duration-700 group-hover:scale-105"
+                    className="w-full h-auto object-contain relative z-10 drop-shadow-2xl transition-transform duration-700 group-hover:scale-105"
                   />
-                  <div className="absolute top-6 right-6 z-20">
+                  
+                  {/* Action Buttons Overlay */}
+                  <div className="absolute top-6 right-6 z-20 flex flex-col gap-2">
                     <div className="bg-white/80 backdrop-blur-md border border-white/40 px-3 py-1.5 rounded-xl font-black text-[9px] text-slate-600 uppercase tracking-widest shadow-sm">
-                      {frame.photo_count} SESSIONS
+                      FORMAT {frame.size_type || '4R'}
                     </div>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(frame.id);
+                      }}
+                      className="w-10 h-10 bg-white/90 backdrop-blur-md border border-white/40 rounded-xl flex items-center justify-center text-slate-400 hover:text-rose-500 hover:scale-110 active:scale-95 transition-all shadow-sm opacity-0 group-hover:opacity-100"
+                      disabled={deletingId === frame.id}
+                    >
+                      {deletingId === frame.id ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+                    </button>
                   </div>
                 </div>
                 <div className="p-8 bg-white/20 border-t border-white/40">

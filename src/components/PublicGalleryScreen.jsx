@@ -9,11 +9,23 @@ const PublicGalleryScreen = ({ galleryId }) => {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
+    // Unlock body scroll for gallery view
+    document.body.style.overflow = 'auto';
+    document.body.style.height = 'auto';
+    
+    return () => {
+      // Re-lock body scroll when leaving gallery
+      document.body.style.overflow = 'hidden';
+      document.body.style.height = '100vh';
+    };
+  }, []);
+
+  useEffect(() => {
     const fetchGallery = async () => {
       try {
         const { data: captureData, error: dbError } = await supabase
           .from('captures')
-          .select('image_url, raw_photos, created_at')
+          .select('image_url, raw_photos, gif_url, created_at')
           .eq('session_id', galleryId)
           .single()
 
@@ -97,31 +109,29 @@ const PublicGalleryScreen = ({ galleryId }) => {
         <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#475569 1px, transparent 1px)', backgroundSize: '40px 40px' }}></div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-6 pt-20">
+      <div className="max-w-3xl mx-auto px-6 pt-16 flex flex-col items-center">
         
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-20 animate-in slide-in-from-top-12 duration-1000">
-           <div>
-             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-100/50 border border-blue-200 text-blue-700 font-bold text-sm tracking-widest uppercase mb-6 backdrop-blur-md">
-               <Sparkles size={16} /> Digital Prints
-             </div>
-             <h1 className="text-6xl md:text-8xl font-black font-caveat tracking-tighter text-slate-900 leading-[1.1] pb-2">
-               Your Latarcerita <br />
-               <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 pr-4">
-                 Memories.
-               </span>
-             </h1>
-             <p className="text-slate-500 font-medium tracking-wide mt-4 text-lg">
-               Captured on {new Date(data.created_at).toLocaleDateString('en-US', {
-                 weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-               })}
-             </p>
+        {/* Header Section (Centered) */}
+        <div className="text-center mb-16 animate-in slide-in-from-top-12 duration-1000 flex flex-col items-center">
+           <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100/50 border border-blue-200 text-blue-700 font-bold text-xs tracking-widest uppercase mb-4 backdrop-blur-md">
+             <Sparkles size={14} /> Digital Prints
            </div>
-
-           <div className="flex gap-4">
+           <h1 className="text-5xl md:text-7xl font-black font-caveat tracking-tighter text-slate-900 leading-[1.1] pb-1">
+             Your Latarcerita <br />
+             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 pr-4">
+               Memories.
+             </span>
+           </h1>
+           <p className="text-slate-400 font-medium tracking-wide mt-3 text-base">
+             Captured on {new Date(data.created_at).toLocaleDateString('en-US', {
+               weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+             })}
+           </p>
+           
+           <div className="flex gap-4 mt-8">
               <button 
                 onClick={copyLink}
-                className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-slate-600 hover:text-blue-600 hover:scale-110 active:scale-95 transition-all shadow-[0_10px_40px_-10px_rgba(0,0,0,0.1)] border border-slate-100"
+                className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-slate-600 hover:text-blue-600 hover:scale-110 active:scale-95 transition-all shadow-xl border border-slate-100"
                 title="Copy Gallery Link"
               >
                 {copied ? <CheckCircle2 size={24} className="text-green-500" /> : <LinkIcon size={24} />}
@@ -129,79 +139,67 @@ const PublicGalleryScreen = ({ galleryId }) => {
            </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+        {/* Centered Single Column Content */}
+        <div className="w-full flex flex-col items-center gap-16">
           
-          {/* Photostrip Focus (Left Column) */}
+          {/* 1. Framed Layout Section (Full Width / Centered) */}
           {data.image_url && (
-              <div className="col-span-1 lg:col-span-5 animate-in slide-in-from-left-12 duration-1000 delay-150 relative">
-                 <div className="sticky top-12">
-                   <div className="flex items-center gap-3 mb-6 px-2">
-                     <ImageIcon size={32} className="text-blue-500" />
-                     <h2 className="text-5xl font-black font-caveat text-slate-800 tracking-tight">The Layout</h2>
-                   </div>
-                   
-                   <div className="group relative">
-                     {/* Glow Behind */}
-                     <div className="absolute -inset-1 bg-gradient-to-r from-blue-500 to-purple-600 rounded-3xl blur-2xl opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200" />
-                     
-                     <div className="relative bg-white/80 backdrop-blur-2xl p-6 rounded-3xl shadow-2xl border border-white overflow-hidden">
-                        <img 
-                          src={data.image_url} 
-                          alt="Layout" 
-                          className="w-full h-auto rounded-xl object-contain shadow-inner transition-transform duration-700 group-hover:scale-[1.03]"
-                        />
-                        
-                        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md opacity-0 group-hover:opacity-100 rounded-3xl transition-all duration-300 flex items-center justify-center pointer-events-none">
-                           <button 
-                             onClick={() => handleDownload(data.image_url, 'latarcerita-layout.png')}
-                             className="pointer-events-auto bg-white text-slate-900 px-8 py-5 rounded-full font-black tracking-widest uppercase flex items-center gap-3 hover:scale-110 active:scale-95 transition-all shadow-2xl hover:bg-blue-600 hover:text-white"
-                           >
-                             <DownloadCloud size={24} /> Get Frame
-                           </button>
-                        </div>
-                     </div>
-                   </div>
-                 </div>
+            <div className="w-full max-w-xl flex flex-col items-center animate-in slide-in-from-bottom-12 duration-1000 delay-150 px-2">
+              <div className="flex items-center gap-2 mb-6">
+                <ImageIcon size={28} className="text-blue-500" />
+                <h2 className="text-4xl md:text-5xl font-black font-caveat text-slate-800 tracking-tight">The Layout</h2>
               </div>
+              
+              <div className="relative w-full bg-white p-2 md:p-3 rounded-[1.5rem] shadow-xl border border-slate-100 overflow-hidden">
+                <img 
+                  src={data.image_url} 
+                  alt="Layout" 
+                  className="w-full h-auto rounded-xl object-contain mb-3"
+                />
+                
+                <button 
+                  onClick={() => handleDownload(data.image_url, 'latarcerita-layout.png')}
+                  className="w-full py-3 bg-blue-600 text-white rounded-lg font-black tracking-widest uppercase flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md text-[10px]"
+                >
+                  <DownloadCloud size={16} /> Download Layout
+                </button>
+              </div>
+            </div>
           )}
 
-          {/* Raw Photos Grid (Right Column) */}
+          {/* 2. Raw Photos Grid (Centered) */}
           {data.raw_photos && data.raw_photos.length > 0 && (
-              <div className="col-span-1 lg:col-span-7 animate-in slide-in-from-bottom-12 duration-1000 delay-300 pt-2 lg:pt-0">
-                 
-                 <div className="flex items-end justify-between mb-8 px-2">
-                   <div className="flex items-center gap-3">
-                     <ImageIcon size={32} className="text-slate-400" />
-                     <h2 className="text-5xl font-black font-caveat text-slate-800 tracking-tight">Original Cuts</h2>
-                   </div>
-                   <span className="bg-slate-800 text-slate-100 px-5 py-2 rounded-full text-sm font-black uppercase tracking-widest shadow-md">
-                     {data.raw_photos.length}
-                   </span>
+            <div className="w-full flex flex-col items-center animate-in slide-in-from-bottom-12 duration-1000 delay-300 px-2">
+               <div className="flex flex-col items-center mb-8">
+                 <div className="flex items-center gap-2 mb-1">
+                   <ImageIcon size={28} className="text-slate-400" />
+                   <h2 className="text-4xl md:text-5xl font-black font-caveat text-slate-800 tracking-tight">Original Cuts</h2>
                  </div>
-                 
-                 <div className="columns-2 gap-4 space-y-4">
-                    {data.raw_photos.map((url, i) => (
-                       <div key={i} className="group relative bg-white break-inside-avoid rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl transition-all duration-500 border border-slate-100">
-                          <img 
-                            src={url} 
-                            alt={`Original cut ${i+1}`}
-                            className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-700" 
-                            loading="lazy"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/80 via-slate-900/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                          
-                          <button 
-                            onClick={() => handleDownload(url, `latarcerita-raw-${i+1}.jpg`)}
-                            className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white text-slate-900 px-6 py-3 rounded-full font-black tracking-widest flex items-center gap-3 opacity-0 translate-y-8 group-hover:opacity-100 group-hover:translate-y-0 hover:bg-blue-600 hover:text-white transition-all duration-300 shadow-xl border border-white/20"
-                          >
-                            <Download size={18} /> Save
-                          </button>
-                       </div>
-                    ))}
-                 </div>
-              </div>
+                 <span className="bg-slate-800 text-slate-100 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-md">
+                   {data.raw_photos.length} Captures
+                 </span>
+               </div>
+               
+               <div className="grid grid-cols-2 md:grid-cols-2 gap-3 w-full max-w-2xl">
+                  {data.raw_photos.map((url, i) => (
+                     <div key={i} className="bg-white p-1.5 rounded-xl overflow-hidden shadow-sm border border-slate-100 flex flex-col gap-1.5">
+                        <img 
+                          src={url} 
+                          alt={`Original cut ${i+1}`}
+                          className="w-full h-auto aspect-[4/3] object-cover rounded-lg" 
+                          loading="lazy"
+                        />
+                        <button 
+                          onClick={() => handleDownload(url, `latarcerita-raw-${i+1}.jpg`)}
+                          className="w-full py-2 bg-slate-50 text-slate-800 rounded-md font-bold text-[9px] uppercase tracking-widest flex items-center justify-center gap-1.5 active:bg-blue-600 active:text-white transition-all"
+                        >
+                          <Download size={12} /> Download
+                        </button>
+                     </div>
+                  ))}
+               </div>
+            </div>
           )}
-
         </div>
 
         {/* Global Floating Action Button for Mobile / General Download */}
@@ -210,7 +208,6 @@ const PublicGalleryScreen = ({ galleryId }) => {
               Scroll or tap a photo to download
            </div>
         </div>
-
       </div>
 
       <style jsx="true">{`

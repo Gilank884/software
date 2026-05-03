@@ -1,201 +1,174 @@
-import { useState } from 'react'
-import { CheckCircle2, Share2, RefreshCcw, Mail, X, Loader2, ScanLine } from 'lucide-react'
-import { supabase } from '../lib/supabaseClient'
+import { CheckCircle2, RefreshCcw, ScanLine, Printer, Sparkles, Heart, Star, PartyPopper } from 'lucide-react'
 import { QRCode } from 'react-qr-code'
-
+import { motion } from 'framer-motion'
 import StepWrapper from './StepWrapper'
 
-const OutputScreen = ({ galleryData, selectedFrame, selectedFrameData, selectedFilter, onReset, user }) => {
-  const [showShareModal, setShowShareModal] = useState(false)
-  const [email, setEmail] = useState('')
-  const [sending, setSending] = useState(false)
-  const [status, setStatus] = useState(null) // 'success' | 'error' | null
-
-  // If galleryData is somehow missing, use fallback logic or URL
+const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
   // In production/release, we use the main domain for the gallery link
-  const productionBase = "https://latarcerita.com";
+  const galleryBase = "https://latarcerita.com";
   
   const galleryUrl = galleryData?.sessionId 
-    ? `${productionBase}/?gallery=${galleryData.sessionId}` 
-    : productionBase;
-
-  const handleShareEmail = async (e) => {
-    e.preventDefault()
-    if (!email) return
-
-    setSending(true)
-    setStatus(null)
-
-    try {
-      // 1. Log to shared_captures table
-      await supabase.from('shared_captures').insert({
-        user_id: user?.id,
-        email,
-        photo_url: galleryUrl,
-        frame_id: selectedFrameData?.id,
-        filter: selectedFilter
-      })
-
-      // 2. Invoke Edge Function with Gallery URL instead of just the image
-      const { data, error } = await supabase.functions.invoke('send-photo-email', {
-        body: {
-          email,
-          photoUrl: galleryUrl,
-          userName: "Latarcerita User"
-        }
-      })
-
-      if (error) throw error
-
-      setStatus('success')
-      setTimeout(() => {
-        setShowShareModal(false)
-        setStatus(null)
-        setEmail('')
-      }, 3000)
-    } catch (err) {
-      console.error('Email share error:', err)
-      setStatus('error')
-    } finally {
-      setSending(false)
-    }
-  }
+    ? `${galleryBase}/?gallery=${galleryData.sessionId}` 
+    : galleryBase;
 
   return (
-    <StepWrapper title="Completed!" subtitle="Scan to download all your photos">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-16 items-center py-10">
+    <StepWrapper title="" subtitle="">
+      {/* Top Right Action: Reprint Button */}
+      <div className="fixed top-8 right-8 z-[100]">
+        <motion.button
+          whileHover={{ scale: 1.1, rotate: 5 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={onAddPrint}
+          className="w-16 h-16 bg-white/80 backdrop-blur-md border-2 border-slate-100 text-slate-800 rounded-2xl flex items-center justify-center shadow-lg hover:border-blue-500 hover:text-blue-600 transition-all group"
+          title="Cetak Lagi"
+        >
+          <Printer size={28} className="group-hover:scale-110 transition-transform" />
+          <div className="absolute -bottom-10 right-0 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Cetak Lagi</span>
+          </div>
+        </motion.button>
+      </div>
+      {/* Decorative Floating Elements */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+        <motion.div animate={{ y: [0, -20, 0], rotate: [0, 10, 0] }} transition={{ duration: 5, repeat: Infinity }} className="absolute top-[10%] left-[5%] text-rose-300/30"><Heart size={48} /></motion.div>
+        <motion.div animate={{ y: [0, 20, 0], rotate: [0, -10, 0] }} transition={{ duration: 6, repeat: Infinity, delay: 1 }} className="absolute bottom-[10%] right-[5%] text-cyan-300/30"><Sparkles size={56} /></motion.div>
+        <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.4, 0.2] }} transition={{ duration: 4, repeat: Infinity }} className="absolute top-[20%] right-[15%] text-amber-300/20"><Star size={40} /></motion.div>
+        <motion.div animate={{ rotate: 360 }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }} className="absolute bottom-[20%] left-[15%] text-purple-300/20"><PartyPopper size={44} /></motion.div>
         
-        {/* Left Side: QR Code Panel */}
-        <div className="flex justify-center transition-all duration-1000">
-          <div className="bg-white p-10 rounded-[3rem] shadow-[0_20px_60px_rgba(0,0,0,0.1)] border border-slate-200 flex flex-col items-center animate-in zoom-in-95 duration-700">
-            
-            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-6">
-               <ScanLine size={32} />
+        {/* Soft Background Glows */}
+        <div className="absolute top-1/4 left-0 w-96 h-96 bg-rose-400/5 rounded-full blur-[120px]" />
+        <div className="absolute bottom-1/4 right-0 w-96 h-96 bg-cyan-400/5 rounded-full blur-[120px]" />
+      </div>
+
+      <div className="w-full flex flex-col md:flex-row items-center gap-2 py-2 h-full relative z-10">
+        
+        {/* Leftmost: QR Code Panel (No Card) */}
+        <div className="flex flex-col items-center justify-center transition-all duration-1000 pl-12 shrink-0 z-10">
+          <div className="flex flex-col items-center animate-in zoom-in-95 duration-700">
+            <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-200">
+               <ScanLine size={28} />
             </div>
             
-            <div className="bg-white p-4 rounded-3xl border-4 border-slate-100 shadow-sm mb-6">
+            <div className="bg-white p-3 rounded-2xl border-4 border-slate-50 shadow-sm mb-4">
               <QRCode 
                 value={galleryUrl} 
-                size={220}
+                size={200}
                 bgColor="#ffffff"
                 fgColor="#0f172a"
                 level="H"
               />
             </div>
             
-            <h3 className="text-3xl font-black text-slate-800 tracking-tight text-center mb-2">Scan & Download</h3>
-            <p className="text-slate-500 font-medium text-center animate-pulse">Get all your photos!</p>
-          </div>
+            <h3 className="text-5xl font-black text-fun-gradient tracking-tight text-center mb-1 font-caveat drop-shadow-sm px-4">Scan Here!</h3>
+            <p className="text-slate-500 text-sm font-medium text-center animate-pulse mb-6">Get all your photos!</p>
 
-          {/* GIF Animation Preview - Premium Style */}
-          {galleryData?.gifUrl && (
-            <div className="mt-8 group relative">
-              <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-[2rem] blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200"></div>
-              <div className="relative bg-white rounded-[2rem] overflow-hidden border-4 border-white shadow-xl aspect-[3/4] max-w-[280px] mx-auto transition-transform duration-500 group-hover:scale-[1.02]">
-                <video 
-                  src={galleryData.gifUrl} 
-                  autoPlay 
-                  loop 
-                  muted 
-                  playsInline 
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-md px-3 py-1 rounded-full border border-white/20">
-                  <span className="text-[10px] font-black text-white uppercase tracking-widest">Animated GIF</span>
-                </div>
-              </div>
+            <div className="flex flex-col items-center gap-3 w-full">
+              {/* Finish Button */}
+              <button
+                onClick={onReset}
+                className="w-full px-10 py-4 bg-slate-900 text-white rounded-[20px] font-black font-sans uppercase text-sm tracking-[0.2em] shadow-xl hover:bg-blue-600 transition-all flex items-center justify-center gap-4 group"
+              >
+                Finish <RefreshCcw size={18} className="group-hover:rotate-180 transition-transform duration-1000" />
+              </button>
+              
+              <p className="text-center mt-2 text-slate-400 font-sans font-bold text-[8px] uppercase tracking-[0.3em] animate-pulse">
+                Thank you for using Latarcerita
+              </p>
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Right Side: Options & End */}
-        <div className="flex flex-col gap-12 font-caveat">
-          <div className="bg-transparent text-center relative overflow-hidden group p-4">
-            <div className="absolute inset-0 bg-gradient-to-br from-green-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000"></div>
+        {/* Divider: Full Height Vertical Marquee Divider (In Flow) */}
+        <div className="hidden md:flex relative w-12 shrink-0 h-20 mx-12 z-0">
+          <div className="absolute top-[-50vh] bottom-[-50vh] left-0 right-0 w-full flex items-center justify-center overflow-hidden border-x-2 border-indigo-500/20 bg-slate-50/30">
+            <div className="flex flex-col whitespace-nowrap animate-marquee-vertical">
+              {[...Array(40)].map((_, i) => (
+                <span key={i} className="text-[10px] font-black text-fun-gradient uppercase tracking-[0.5em] py-4 [writing-mode:vertical-lr] rotate-180">
+                  LATARCERITA • SCAN QR • DOWNLOAD •
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content: Success Message & Detailed Previews */}
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 font-caveat pr-8 z-10 overflow-hidden">
+          <motion.h2 
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="text-6xl font-black text-fun-gradient mb-4 drop-shadow-sm px-4"
+          >
+            Fotomu sudah siap!
+          </motion.h2>
+
+          {galleryData?.compositeUrl ? (
+            <div className="flex flex-row items-center gap-6 p-2">
+              {/* Column 1: Raw Photos (Stacked Vertically) */}
+              <div className="flex flex-col gap-3">
+                {galleryData?.rawPhotos?.slice(0, 3).map((url, idx) => (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    className="relative group/raw"
+                  >
+                    <div className="bg-white p-2 rounded-lg shadow-md border border-slate-100 transform transition-transform group-hover/raw:scale-110 group-hover/raw:rotate-2">
+                      <img 
+                        src={url} 
+                        alt={`Capture ${idx + 1}`} 
+                        className="w-40 h-auto rounded-md object-cover aspect-[4/3]"
+                      />
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Column 2: Final Framed Photo */}
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="relative group/framed"
+              >
+                <div className="absolute -inset-4 bg-gradient-to-tr from-rose-400/20 via-purple-400/20 to-cyan-400/20 rounded-[2rem] blur-2xl opacity-0 group-hover/framed:opacity-100 transition-opacity duration-700" />
+                <div className="relative bg-white p-2 rounded-[1.5rem] shadow-2xl border border-slate-100 overflow-hidden transform transition-transform group-hover/framed:scale-105 duration-500">
+                  <img 
+                    src={galleryData.compositeUrl} 
+                    alt="Final Framed Result" 
+                    className="w-full max-w-[320px] h-auto rounded-[1.2rem]"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover/framed:opacity-100 transition-opacity" />
+                </div>
+                
+                {/* Floating Badge */}
+                <div className="absolute -top-3 -right-3 bg-green-500 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg border-2 border-white animate-bounce">
+                  <CheckCircle2 size={20} />
+                </div>
+              </motion.div>
+            </div>
+          ) : (
             <div className="w-20 h-20 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce shadow-lg shadow-green-200 relative z-10">
               <CheckCircle2 size={40} />
             </div>
-            <h3 className="text-5xl font-black text-slate-900 mb-2 tracking-tight relative z-10">Success!</h3>
-            <p className="text-gradient-blue font-black uppercase tracking-widest font-sans text-[10px] relative z-10">Printing in progress</p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6">
-            <button
-              onClick={() => setShowShareModal(true)}
-              className="flex items-center justify-center gap-4 p-6 bg-white border border-white rounded-[40px] hover:bg-slate-50 transition-all shadow-sm group"
-            >
-              <div className="w-14 h-14 bg-slate-100 rounded-[20px] flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all shadow-inner border border-slate-200">
-                <Share2 size={24} className="group-hover:scale-125 transition-transform" />
-              </div>
-              <span className="font-black text-slate-800 text-2xl font-sans tracking-wide">Share via Email</span>
-            </button>
-          </div>
-
-          {/* Share Modal */}
-          {showShareModal && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
-              <div
-                className="absolute inset-0 bg-slate-900/40 backdrop-blur-md"
-                onClick={() => !sending && setShowShareModal(false)}
-              />
-
-              <div className="bg-white rounded-[48px] p-10 w-full max-w-md relative z-10 shadow-2xl border border-white/20 animate-in fade-in zoom-in duration-300">
-                <button
-                  onClick={() => setShowShareModal(false)}
-                  className="absolute right-8 top-8 text-slate-400 hover:text-slate-600 transition-colors"
-                >
-                  <X size={24} />
-                </button>
-
-                <div className="text-center mb-8">
-                  <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <Mail size={32} className="text-blue-500" />
-                  </div>
-                  <h4 className="text-4xl font-black text-gradient-blue font-caveat tracking-tight mb-2">Share Link</h4>
-                  <p className="text-slate-500 font-sans text-sm font-medium">We'll send the gallery link right away</p>
-                </div>
-
-                <form onSubmit={handleShareEmail} className="space-y-6 font-sans">
-                  <div>
-                    <input
-                      type="email"
-                      placeholder="your@email.com"
-                      required
-                      className="w-full px-6 py-5 bg-slate-50 border-2 border-slate-100 focus:border-blue-500 rounded-3xl outline-none font-bold text-slate-700 transition-all text-center"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={sending || status === 'success'}
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={sending || status === 'success'}
-                    className={`w-full py-5 rounded-3xl font-black text-lg tracking-widest transition-all shadow-lg flex items-center justify-center gap-3 ${status === 'success' ? 'bg-green-500 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-                  >
-                    {sending ? (
-                      <>Sending... <Loader2 size={20} className="animate-spin" /></>
-                    ) : status === 'success' ? (
-                      <>Email Sent! <CheckCircle2 size={20} /></>
-                    ) : (
-                      <>Send Gallery</>
-                    )}
-                  </button>
-
-                  {status === 'error' && (
-                    <p className="text-red-500 text-xs text-center font-bold">Failed to send email. Please try again.</p>
-                  )}
-                </form>
-              </div>
-            </div>
           )}
 
-          <button
-            onClick={onReset}
-            className="w-full py-7 bg-slate-900 text-white rounded-[40px] font-black font-sans uppercase text-2xl tracking-[0.2em] shadow-xl hover:bg-blue-600 transition-all flex items-center justify-center gap-6 group"
-          >
-            Finish <RefreshCcw size={28} className="group-hover:rotate-180 transition-transform duration-1000" />
-          </button>
+          {galleryData?.compositeUrl && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+              className="mt-4 text-4xl font-black text-slate-700 font-caveat"
+            >
+              Terima Kasih!
+            </motion.p>
+          )}
+          
+          {!galleryData?.compositeUrl && (
+            <>
+              <h3 className="text-5xl font-black text-slate-900 mb-2 tracking-tight relative z-10">Success!</h3>
+              <p className="text-gradient-blue font-black uppercase tracking-widest font-sans text-[10px] relative z-10">Printing in progress</p>
+            </>
+          )}
         </div>
       </div>
     </StepWrapper>

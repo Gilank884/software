@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel),
   },
   getAppVersion: () => process.versions.electron,
-  printTestPage: (printerName, pageSize) => ipcRenderer.send('print-test-page', { printerName, pageSize }),
-  printImage: (imageUrl, copies, printerName, pageSize) => ipcRenderer.send('print-image', { imageUrl, copies, printerName, pageSize }),
+  printTestPage: (printerName, pageSize, autoEpsonMatte) => ipcRenderer.send('print-test-page', { printerName, pageSize, autoEpsonMatte }),
+  printImage: (imageUrl, copies, printerName, pageSize, autoEpsonMatte) => ipcRenderer.send('print-image', { imageUrl, copies, printerName, pageSize, autoEpsonMatte }),
   getPrinters: () => ipcRenderer.invoke('get-printers'),
 });

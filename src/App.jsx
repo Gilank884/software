@@ -82,11 +82,11 @@ function App() {
   const [selectedMode, setSelectedMode] = useState(null) // 'photobooth' | 'self_photo'
   const [galleryData, setGalleryData] = useState(null)
   const [selectedProduct, setSelectedProduct] = useState(null)
+  const [isReprint, setIsReprint] = useState(false)
 
   const videoRef = useRef(null)
-  const previewCanvasRef = useRef(null) // Added for DSLR MJPEG preview
+  const previewCanvasRef = useRef(null) 
   const canvasRef = useRef(null)
-  // Read gallery param synchronously so it's available on first render
   const [galleryId, setGalleryId] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     return params.get('gallery') || null
@@ -95,7 +95,6 @@ function App() {
   // Remote Control Session Management
   const [activeRemoteSessionId, setActiveRemoteSessionId] = useState(null)
   
-  // Effect to generate session ID when entering Self Photo capture
   useEffect(() => {
     if (step === STEPS.SP_CAPTURE && !activeRemoteSessionId) {
        setActiveRemoteSessionId(`studio-${Math.random().toString(36).substring(2, 9)}`)
@@ -104,9 +103,7 @@ function App() {
     }
   }, [step])
 
-  // Auth & URL Management
   useEffect(() => {
-    // If gallery param exists it was already read synchronously above — skip full init
     if (galleryId) {
       setLoading(false)
       return
@@ -117,16 +114,14 @@ function App() {
       setIsCreatorMode(true)
     }
 
-    // Check for device session and refresh from DB to get latest config
     const savedDevice = localStorage.getItem('pb_device_session')
     if (savedDevice) {
       const parsed = JSON.parse(savedDevice)
       setDeviceSession(parsed)
 
-      // Background refresh
       supabase
         .from('devices')
-        .select('id, creator_id, name, payment_enabled, available_frames, enable_photobooth, enable_self_photo, self_photo_durations')
+        .select('id, creator_id, name, payment_enabled, available_frames, enable_photobooth, enable_self_photo, self_photo_durations, event_id, events(name, logo_url)')
         .eq('id', parsed.device_id)
         .single()
         .then(({ data }) => {
@@ -140,7 +135,9 @@ function App() {
               enable_photobooth: data.enable_photobooth ?? true,
               enable_self_photo: data.enable_self_photo ?? false,
               available_frames: data.available_frames || [],
-              self_photo_durations: data.self_photo_durations || [5, 10, 15]
+              self_photo_durations: data.self_photo_durations || [5, 10, 15],
+              event_id: data.event_id,
+              events: data.events
             }
             localStorage.setItem('pb_device_session', JSON.stringify(updated))
             setDeviceSession(updated)
@@ -160,20 +157,16 @@ function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  // Camera initialization happens automatically via Hook/Manager
-  // but we can manually trigger it here if needed
   useEffect(() => {
     initCamera()
   }, [])
 
 
-  // Camera Management
   useEffect(() => {
     if (step === STEPS.CAPTURE || step === STEPS.SP_CAPTURE) {
       const element = status.source === 'dslr' ? previewCanvasRef.current : videoRef.current
       if (element) startPreview(element)
 
-      // Auto-start countdown ONLY if we have started the photobooth session and are NOT reviewing
       if (step === STEPS.CAPTURE && hasStartedSession && !isReviewing) {
         const timeout = setTimeout(() => startCountdown(), 1000)
         return () => clearTimeout(timeout)
@@ -184,7 +177,7 @@ function App() {
   }, [step, hasStartedSession, isReviewing, currentShotIndex, status.source])
 
   const startCountdown = () => {
-    setCountdown(3)
+    setCountdown(5)
     const timer = setInterval(() => {
       setCountdown((prev) => {
         if (prev <= 1) {
@@ -200,11 +193,9 @@ function App() {
   const capturePhoto = async () => {
     try {
       const dataUrl = await captureCamPhoto()
-      
       const newPhotos = [...photos]
       newPhotos[currentShotIndex] = dataUrl
       setPhotos(newPhotos)
-
       setIsReviewing(true)
     } catch (err) {
       console.error("Capture Failed:", err)
@@ -213,7 +204,7 @@ function App() {
 
   const handleContinue = () => {
     if (currentShotIndex + 1 >= maxCaptures) {
-      setStep(STEPS.CUSTOMIZE_FRAME)
+      setStep(STEPS.CUSTOMIZE_FILTER)
       setIsReviewing(false)
     } else {
       setCurrentShotIndex(prev => prev + 1)
@@ -232,6 +223,11 @@ function App() {
     setStep(STEPS.PROCESSING)
   }
 
+  const handleAddPrint = () => {
+    setIsReprint(true)
+    handleCetak()
+  }
+
   const resetSession = () => {
     setStep(STEPS.START)
     setPhotos([])
@@ -245,6 +241,7 @@ function App() {
     setPrintQuantity(1)
     setSelectedSelfPhotos([])
     setSelectedProduct(null)
+    setIsReprint(false)
   }
 
   const handleSignOut = async () => {
@@ -261,44 +258,50 @@ function App() {
     )
   }
 
-  // --- Public Gallery Route ---
   if (galleryId) {
     return <PublicGalleryScreen galleryId={galleryId} />
   }
 
-  // --- Remote Controller Route (Safe detection via query param) ---
   const urlParams = new URLSearchParams(window.location.search);
   const remoteSessionFromUrl = urlParams.get('remoteSession');
   if (remoteSessionFromUrl && !deviceSession) {
     return <RemoteController sessionId={remoteSessionFromUrl} />
   }
 
-  // --- Creator Mode Branch ---
   if (isCreatorMode) {
     return <CreatorApp />
   }
 
-  // --- Device Mode Branch ---
   if (!deviceSession) {
     return <DeviceLogin onLogin={setDeviceSession} />
   }
 
-  // If in Device Mode, the "owner" of the content is the creator_id
+  const deviceMode = localStorage.getItem('deviceMode') || 'default'
+  const isEventMode = deviceMode === 'event'
+
   const currentUser = {
     id: deviceSession.creator_id,
     isDevice: true,
     deviceName: deviceSession.name,
     deviceId: deviceSession.device_id,
     availableFrames: deviceSession.available_frames || [],
-    paymentEnabled: deviceSession.payment_enabled,
+    paymentEnabled: isEventMode ? false : deviceSession.payment_enabled,
     enablePhotobooth: deviceSession.enable_photobooth ?? true,
     enableSelfPhoto: deviceSession.enable_self_photo ?? false,
-    selfPhotoDurations: deviceSession.self_photo_durations || [5, 10, 15]
+    selfPhotoDurations: deviceSession.self_photo_durations || [5, 10, 15],
+    deviceMode,
+    eventId: deviceSession.event_id,
+    eventName: deviceSession.events?.name,
+    eventLogo: deviceSession.events?.logo_url
   }
 
-  // --- Handlers for Start Flow ---
   const handleStart = () => {
-    // Determine where to go based on device config
+    if (isEventMode) {
+      setSelectedMode('photobooth')
+      setStep(STEPS.CUSTOMIZE_FRAME)
+      return
+    }
+
     if (currentUser.enablePhotobooth && currentUser.enableSelfPhoto) {
       setStep(STEPS.MODE_SELECT)
     } else if (currentUser.enableSelfPhoto && !currentUser.enablePhotobooth) {
@@ -319,16 +322,14 @@ function App() {
     }
   }
 
-  // Path-based routing for Settings (e.g. to logout device)
   if (window.location.pathname === '/settings') {
     return <SettingsPage user={currentUser} />
   }
 
   return (
-    <div className="min-h-screen relative overflow-x-hidden selection:bg-blue-100 selection:text-blue-900 bg-slate-50">
-      <AppBackground />
+    <div className="h-screen relative overflow-hidden selection:bg-blue-100 selection:text-blue-900 bg-white transition-colors duration-1000">
+      <AppBackground mode={deviceMode} isHidden={step === STEPS.OUTPUT || step === STEPS.CUSTOMIZE_FRAME || step === STEPS.CUSTOMIZE_FILTER} />
 
-      {/* Main Content Area */}
       <div className="relative z-10 w-full min-h-screen flex flex-col">
         {step === STEPS.START && (
           <StartScreen
@@ -344,7 +345,6 @@ function App() {
           />
         )}
 
-        {/* Photobooth Flow */}
         {step === STEPS.PRODUCT_SELECT && (
           <ProductSelectScreen
             onSelect={(product) => {
@@ -368,7 +368,7 @@ function App() {
         }} mode={selectedMode} selfPhotoDuration={selfPhotoDuration} printQuantity={printQuantity} selectedProduct={selectedProduct} />}
         {step === STEPS.SESSION_SELECT && (
           <SessionSelectScreen
-            onSelectSession={(shots) => { setMaxCaptures(shots); setStep(STEPS.CAPTURE); }}
+            onSelectSession={(shots) => { setMaxCaptures(shots); setStep(STEPS.CUSTOMIZE_FRAME); }}
             user={currentUser}
           />
         )}
@@ -379,7 +379,7 @@ function App() {
             cameraStatus={status}
             countdown={countdown}
             currentShotIndex={currentShotIndex}
-            maxCaptures={selectedMode === 'self_photo' ? maxCaptures : maxCaptures}
+            maxCaptures={maxCaptures}
             photos={photos}
             isReviewing={isReviewing}
             hasStartedSession={hasStartedSession}
@@ -388,10 +388,10 @@ function App() {
             onRetake={handleRetake}
             cameraError={status.error}
             user={currentUser}
+            selectedFrameData={selectedFrameData}
           />
         )}
 
-        {/* Self Photo Flow specific screens */}
         {step === STEPS.SP_INSTRUCTIONS && (
           <SelfPhotoInstructionsScreen
             onNext={() => setStep(STEPS.SP_TIME_SELECT)}
@@ -411,7 +411,7 @@ function App() {
             durationMinutes={selfPhotoDuration}
             photos={photos}
             setPhotos={setPhotos}
-            onFinish={() => setStep(STEPS.CUSTOMIZE_FRAME)}
+            onFinish={() => setStep(STEPS.SP_PHOTO_SELECT)}
             cameraError={status.error}
             remoteSessionId={activeRemoteSessionId}
             captureCamPhoto={captureCamPhoto}
@@ -443,7 +443,10 @@ function App() {
             setSelectedFrameData={setSelectedFrameData}
             selectedFilter={selectedFilter}
             onNext={() => {
-              if (selectedMode === 'self_photo') {
+              if (photos.length === 0) {
+                setHasStartedSession(false)
+                setStep(STEPS.CAPTURE)
+              } else if (selectedMode === 'self_photo') {
                 setStep(STEPS.SP_PHOTO_SELECT)
               } else {
                 setStep(STEPS.CUSTOMIZE_FILTER)
@@ -476,19 +479,18 @@ function App() {
           user={currentUser}
           printQuantity={printQuantity}
           selectedMode={selectedMode}
+          isReprint={isReprint}
           onFinish={(data) => {
-            setGalleryData(data)
+            if (data) setGalleryData(data)
             setStep(STEPS.OUTPUT)
+            setIsReprint(false) // Reset after finish
           }}
         />}
         {step === STEPS.OUTPUT && (
           <OutputScreen
             galleryData={galleryData}
-            selectedFrame={selectedFrame}
-            selectedFrameData={selectedFrameData}
-            selectedFilter={selectedFilter}
             onReset={resetSession}
-            user={currentUser}
+            onAddPrint={handleAddPrint}
           />
         )}
       </div>

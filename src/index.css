@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&family=Outfit:wght@400;700;900&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -10,7 +10,8 @@
 
 @layer base {
   body {
-    @apply m-0 min-w-[320px] min-h-screen bg-slate-50 flex items-center overflow-x-hidden;
+    @apply m-0 min-w-[320px] h-screen bg-white flex items-center overflow-hidden;
+    touch-action: manipulation;
   }
   
   #root {
@@ -20,6 +21,7 @@
 
 /* Photobox Custom Utilities */
 .font-caveat { font-family: 'Caveat', cursive; }
+.font-outfit { font-family: 'Outfit', sans-serif; }
 
 @keyframes float {
   0% { transform: translateY(0px); }
@@ -39,5 +41,40 @@
 /* Global Brand Gradient Text */
 .text-gradient-blue {
   @apply text-transparent bg-clip-text bg-gradient-to-br from-blue-400 via-blue-600 to-blue-800;
+}
+
+@keyframes marquee-horizontal {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee-horizontal {
+  animation: marquee-horizontal 30s linear infinite;
+}
+
+.animate-marquee-horizontal-reverse {
+  animation: marquee-horizontal 30s linear infinite reverse;
+}
+
+@keyframes bounce-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-30px); }
+}
+
+.animate-bounce-slow {
+  animation: bounce-slow 10s ease-in-out infinite;
+}
+
+.text-fun-gradient {
+  @apply text-transparent bg-clip-text bg-gradient-to-r from-rose-500 via-purple-500 to-cyan-500;
+}
+
+@keyframes marquee-vertical {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+
+.animate-marquee-vertical {
+  animation: marquee-vertical 30s linear infinite;
 }
 

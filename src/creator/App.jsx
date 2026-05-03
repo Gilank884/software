@@ -14,6 +14,12 @@ export default function CreatorApp() {
   const [session, setSession] = useState(null)
   
   useEffect(() => {
+    // Ensure body is scrollable in dashboard
+    document.body.style.overflow = 'auto';
+    document.body.style.height = 'auto';
+  }, []);
+
+  useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
     })
@@ -102,7 +108,7 @@ function CreatorDashboard({ user, onSignOut }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col relative overflow-hidden font-sans">
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col relative overflow-y-auto font-sans">
       <CreatorBackground />
       
       {/* Top Navbar */}
@@ -134,7 +140,7 @@ function CreatorDashboard({ user, onSignOut }) {
         </div>
       </nav>
 
-      <div className="flex-1 flex max-w-[1700px] w-full mx-auto relative z-10 px-10 py-12 gap-10 overflow-hidden">
+      <div className="flex-1 flex max-w-[1700px] w-full mx-auto relative z-10 px-10 py-12 gap-10 overflow-y-auto">
         <Sidebar 
           activeTab={activeTab} 
           onTabChange={handleTabChange} 
@@ -143,7 +149,7 @@ function CreatorDashboard({ user, onSignOut }) {
         />
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-hidden flex flex-col">
+        <main className="flex-1 overflow-y-auto flex flex-col">
           {activeTab === 'events' && (
             <EventsView 
               user={user} 

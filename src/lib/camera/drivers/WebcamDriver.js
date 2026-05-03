@@ -22,6 +22,14 @@ export class WebcamDriver {
     }
 
     await this.refreshDevices();
+    
+    // Pre-start the stream to keep it "always on" as requested
+    try {
+      await this._ensureStream();
+    } catch (err) {
+      console.warn("[WebcamDriver] Initial stream warmup failed:", err);
+    }
+    
     return Promise.resolve();
   }
 
@@ -47,38 +55,53 @@ export class WebcamDriver {
     console.log("[WebcamDriver] Switching to device:", id);
     this.selectedDeviceId = id;
     localStorage.setItem('pb_webcam_device_id', id);
+    
+    // MUST stop old hardware stream when switching devices
+    this.stopHardware();
+    
     if (this.videoElement) {
-      this.stopPreview();
       await this.startPreview(this.videoElement);
+    } else {
+      await this._ensureStream();
     }
+  }
+
+  async _ensureStream() {
+    // If stream exists and is active, reuse it
+    if (this.stream && this.stream.active && this.stream.getTracks().some(t => t.readyState === 'live')) {
+      return this.stream;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("Kamera API tidak didukung di sistem ini.");
+    }
+
+    const constraints = {
+      video: {
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+      },
+      audio: false
+    };
+
+    if (this.selectedDeviceId) {
+      constraints.video.deviceId = { exact: this.selectedDeviceId };
+    } else {
+      constraints.video.facingMode = 'user';
+    }
+
+    console.log("[WebcamDriver] Starting hardware stream...");
+    this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+    return this.stream;
   }
 
   async startPreview(element) {
     this.videoElement = element;
     this.error = null;
     try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error("Kamera API tidak didukung di sistem ini.");
-      }
-
-      const constraints = {
-        video: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false
-      };
-
-      if (this.selectedDeviceId) {
-        constraints.video.deviceId = { exact: this.selectedDeviceId };
-      } else {
-        constraints.video.facingMode = 'user';
-      }
-
-      this.stream = await navigator.mediaDevices.getUserMedia(constraints);
-
+      const stream = await this._ensureStream();
       if (this.videoElement) {
-        this.videoElement.srcObject = this.stream;
+        this.videoElement.srcObject = stream;
       }
     } catch (err) {
       console.error("Webcam Error:", err);
@@ -96,7 +119,21 @@ export class WebcamDriver {
   }
 
   stopPreview() {
+    // Only detach the video element, do NOT stop the tracks
+    // This keeps the camera hardware active ("on" light stays on)
+    if (this.videoElement) {
+      this.videoElement.srcObject = null;
+      this.videoElement = null;
+    }
+    console.log("[WebcamDriver] Preview detached, stream remains active.");
+  }
+
+  /**
+   * Explicitly stop the hardware stream when switching sources or closing.
+   */
+  stopHardware() {
     if (this.stream) {
+      console.log("[WebcamDriver] Stopping hardware stream tracks.");
       this.stream.getTracks().forEach(track => track.stop());
       this.stream = null;
     }

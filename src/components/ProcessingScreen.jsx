@@ -1,8 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCcw } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import gifshot from 'gifshot';
 
-const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selectedFilter, user, printQuantity = 1, selectedMode, onFinish }) => {
+const ProcessingScreen = ({ 
+  rawPhotos, 
+  compositePhotos, 
+  selectedFrameData, 
+  selectedFilter, 
+  user, 
+  printQuantity = 1, 
+  selectedMode, 
+  onFinish,
+  isReprint = false 
+}) => {
   const [progress, setProgress] = useState("Preparing Layout...");
   const canvasRef = useRef(null);
   const doneRef = useRef(false);
@@ -20,18 +31,28 @@ const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selec
       doneRef.current = true;
 
       try {
-        setProgress("Generating final layout...");
+        setProgress("Generating layout...");
         const compositeBlob = await generateCompositeImage();
 
         // Trigger Printing Immediately
         const selectedPrinter = localStorage.getItem('selectedPrinter') || '';
         const selectedPaperSize = localStorage.getItem('selectedPaperSize') || '4r';
+        const autoEpsonMatte = localStorage.getItem('autoEpsonMatte') === 'true';
         if (window.electronAPI?.printImage) {
           const reader = new FileReader();
           reader.onloadend = () => {
-             window.electronAPI.printImage(reader.result, printQuantity, selectedPrinter, selectedPaperSize);
+             window.electronAPI.printImage(reader.result, printQuantity, selectedPrinter, selectedPaperSize, autoEpsonMatte);
           };
           reader.readAsDataURL(compositeBlob);
+        }
+
+        // IF REPRINT: Skip everything else and finish
+        if (isReprint) {
+          setProgress("Reprinting done!");
+          setTimeout(() => {
+            onFinish();
+          }, 1500);
+          return;
         }
 
         setProgress("Creating Session Gallery...");
@@ -44,10 +65,8 @@ const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selec
 
         setProgress("Uploading raw photos...");
         
-        // 2. Upload Raw Photos (Limit concurrency or upload sequentially to avoid memory issues)
+        // 2. Upload Raw Photos
         const rawPhotoUrls = [];
-        
-        // Generate UUID safely (fallback for non-HTTPS local IP testing)
         const generateUUID = () => {
           if (typeof crypto !== 'undefined' && crypto.randomUUID) {
             return crypto.randomUUID();
@@ -61,39 +80,39 @@ const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selec
         
         for (let i = 0; i < rawPhotos.length; i++) {
           if (!rawPhotos[i]) continue;
-          
           setProgress(`Uploading photo ${i + 1} of ${rawPhotos.length}...`);
-          
-          // Convert base64 to blob
           const res = await fetch(rawPhotos[i]);
           const blob = await res.blob();
-          
           const rawFileName = `captures/${user?.id}/${sessionId}_raw_${i}.jpg`;
           const { error: rawErr } = await supabase.storage.from('frames').upload(rawFileName, blob);
-          
           if (!rawErr) {
              const { data: { publicUrl: rawUrl } } = supabase.storage.from('frames').getPublicUrl(rawFileName);
              rawPhotoUrls.push(rawUrl);
           }
         }
 
-        // 3. Generate Video (GIF-like) ONLY if in photobooth mode
+        // 3. Generate Video
+        // GIF Generation is disabled for now
+        /*
         let gifUrl = null;
         if (selectedMode === 'photobooth') {
           try {
             setProgress("Generating animated GIF...");
-            const videoBlob = await generateVideoFromPhotos(rawPhotoUrls);
-            const videoFileName = `captures/${user?.id}/${sessionId}_animation.webm`;
-            const { error: videoErr } = await supabase.storage.from('frames').upload(videoFileName, videoBlob);
-            
+            const { blob: gifBlob, extension } = await generateGifFromPhotos(rawPhotoUrls);
+            const gifFileName = `captures/${user?.id}/${sessionId}_animation.${extension}`;
+            const { error: videoErr } = await supabase.storage.from('frames').upload(gifFileName, gifBlob, {
+              contentType: 'image/gif'
+            });
             if (!videoErr) {
-              const { data: { publicUrl: vUrl } } = supabase.storage.from('frames').getPublicUrl(videoFileName);
+              const { data: { publicUrl: vUrl } } = supabase.storage.from('frames').getPublicUrl(gifFileName);
               gifUrl = vUrl;
             }
           } catch (vidErr) {
             console.error("Video Generation Error:", vidErr);
           }
         }
+        */
+        const gifUrl = null;
 
         setProgress("Finalizing Gallery...");
 
@@ -105,19 +124,15 @@ const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selec
           raw_photos: rawPhotoUrls,
           session_id: sessionId,
           device_id: user?.deviceId,
-          device_name: user?.deviceName
+          device_name: user?.deviceName,
+          event_id: user?.eventId
         };
-
-        // Add gif_url if generated
         if (gifUrl) insertData.gif_url = gifUrl;
-
         const { error: insertError } = await supabase.from('captures').insert(insertData);
-
         if (insertError) throw insertError;
 
         setProgress("Done!");
         
-        // 5. Return Session ID and Composite URL
         setTimeout(() => {
             onFinish({
               sessionId,
@@ -130,7 +145,6 @@ const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selec
       } catch (err) {
         console.error("Processing Error:", err);
         alert("Gagal memproses foto: " + err.message);
-        // Fallback finish just in case
         onFinish({ sessionId: null, compositeUrl: null });
       }
     };
@@ -144,10 +158,10 @@ const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selec
     return new Promise((resolve, reject) => {
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
-      canvas.width = 1200; // High-res 300 DPI (600 * 2)
-      canvas.height = 1800; // High-res 300 DPI (900 * 2)
+      canvas.width = 1200; 
+      canvas.height = 1800; 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.scale(2, 2); // Maintain 600x900 coordinate system
+      ctx.scale(2, 2); 
 
       const loadImage = (src) => {
         return new Promise((res, rej) => {
@@ -170,11 +184,9 @@ const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selec
               if (selectedFilter && canvasFilters[selectedFilter]) {
                 ctx.filter = canvasFilters[selectedFilter];
               }
-
               const aspect = img.width / img.height;
               const targetAspect = slot.width / slot.height;
               let drawW, drawH, drawX, drawY;
-
               if (aspect > targetAspect) {
                 drawH = slot.height;
                 drawW = slot.height * aspect;
@@ -186,7 +198,6 @@ const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selec
                 drawX = slot.x;
                 drawY = slot.y - (drawH - slot.height) / 2;
               }
-
               ctx.beginPath();
               ctx.rect(slot.x, slot.y, slot.width, slot.height);
               ctx.clip();
@@ -194,19 +205,15 @@ const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selec
               ctx.restore();
             }
           }
-
           const frameUrl = selectedFrameData.url || selectedFrameData.image_url;
           const frameImg = await loadImage(frameUrl);
-          
           const fx = selectedFrameData.frame_x || 0;
           const fy = selectedFrameData.frame_y || 0;
           const fw = selectedFrameData.frame_width || 600;
           const fh = selectedFrameData.frame_height || 900;
-
           const fAspect = frameImg.width / frameImg.height;
           const targetFAspect = fw / fh;
           let fDrawW, fDrawH, fDrawX, fDrawY;
-
           if (fAspect > targetFAspect) {
             fDrawW = fw;
             fDrawH = fw / fAspect;
@@ -218,77 +225,45 @@ const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selec
             fDrawX = fx + (fw - fDrawW) / 2;
             fDrawY = fy;
           }
-
           ctx.drawImage(frameImg, fDrawX, fDrawY, fDrawW, fDrawH);
           canvas.toBlob((blob) => resolve(blob), 'image/png');
         } catch (err) {
           reject(err);
         }
       };
-
       drawAll();
     });
   };
 
-  const generateVideoFromPhotos = (photoUrls) => {
-    return new Promise(async (resolve) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 720;
-      canvas.height = 1080;
-      const ctx = canvas.getContext('2d');
-      const stream = canvas.captureStream(10);
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-      const chunks = [];
-      
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.push(e.data);
-      };
-      
-      recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'video/webm' });
-        resolve(blob);
-      };
+  const generateGifFromPhotos = (photoUrls) => {
+    return new Promise((resolve) => {
+      const numPhotos = photoUrls.length;
+      // Total duration 1s, so interval per frame is 1 / numPhotos
+      const interval = 1 / numPhotos;
 
-      recorder.start();
-      
-      const loadImage = (src) => {
-        return new Promise((res, rej) => {
-          const img = new Image();
-          img.crossOrigin = "anonymous";
-          img.onload = () => res(img);
-          img.onerror = rej;
-          img.src = src;
-        });
-      };
-
-      for (const url of photoUrls) {
-        try {
-          const img = await loadImage(url);
-          for (let j = 0; j < 6; j++) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const aspect = img.width / img.height;
-            const targetAspect = canvas.width / canvas.height;
-            let drawW, drawH, drawX, drawY;
-            if (aspect > targetAspect) {
-              drawH = canvas.height;
-              drawW = canvas.height * aspect;
-              drawX = (canvas.width - drawW) / 2;
-              drawY = 0;
-            } else {
-              drawW = canvas.width;
-              drawH = canvas.width / aspect;
-              drawX = 0;
-              drawY = (canvas.height - drawH) / 2;
-            }
-            ctx.drawImage(img, drawX, drawY, drawW, drawH);
-            await new Promise(r => setTimeout(r, 100));
-          }
-        } catch (e) {
-          console.error("Frame render error", e);
+      gifshot.createGIF({
+        images: photoUrls,
+        gifWidth: 1080,
+        gifHeight: 720,
+        interval: interval,
+        numFrames: numPhotos,
+        frameDuration: interval * 10, // gifshot uses 1/10th of a second units for some params? No, interval is in seconds.
+        sampleInterval: 10,
+        numWorkers: 2
+      }, (obj) => {
+        if (!obj.error) {
+          const image = obj.image;
+          // Convert base64 to blob
+          fetch(image)
+            .then(res => res.blob())
+            .then(blob => {
+              resolve({ blob, extension: 'gif' });
+            });
+        } else {
+          console.error("GIF creation error", obj.error);
+          resolve({ blob: null, extension: 'gif' });
         }
-      }
-      
-      recorder.stop();
+      });
     });
   };
 
@@ -304,7 +279,7 @@ const ProcessingScreen = ({ rawPhotos, compositePhotos, selectedFrameData, selec
         </div>
 
         <h2 className="text-7xl font-black text-slate-800 mb-6 animate-bounce tracking-tighter leading-none">
-          Printing...
+          {isReprint ? "Reprinting..." : "Printing..."}
         </h2>
 
         <div className="flex items-center justify-center gap-3">

@@ -1,7 +1,23 @@
-import { useState, useEffect } from 'react'
-import StepWrapper from './StepWrapper'
-import { Palette, Wand2, Sparkles, Loader2, Image as ImageIcon } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Palette, Wand2, Sparkles, Loader2, Image as ImageIcon, ChevronRight, Layers, Heart, Star } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
+
+const FILTER_OPTIONS = [
+  { id: 'grayscale', name: 'NOIR', class: 'grayscale', icon: Palette, color: 'from-gray-400 to-slate-900' },
+  { id: 'none', name: 'ORIGINAL', class: '', icon: Wand2, color: 'from-slate-600 to-black' },
+  { id: 'sepia', name: 'VINTAGE', class: 'sepia', icon: Sparkles, color: 'from-amber-400 to-orange-900' },
+  { id: 'vibrant', name: 'VIVID', class: 'saturate-200 contrast-125', icon: ImageIcon, color: 'from-rose-400 to-purple-600' }
+];
+
+const SLOT_COLORS = [
+  { bg: 'bg-blue-50/50', text: 'text-blue-500', border: 'border-blue-100' },
+  { bg: 'bg-purple-50/50', text: 'text-purple-500', border: 'border-purple-100' },
+  { bg: 'bg-rose-50/50', text: 'text-rose-500', border: 'border-rose-100' },
+  { bg: 'bg-amber-50/50', text: 'text-amber-500', border: 'border-amber-100' },
+  { bg: 'bg-emerald-50/50', text: 'text-emerald-500', border: 'border-emerald-100' },
+  { bg: 'bg-indigo-50/50', text: 'text-indigo-500', border: 'border-indigo-100' }
+];
 
 const CustomizeScreen = ({
   mode = "frame",
@@ -21,6 +37,7 @@ const CustomizeScreen = ({
 }) => {
   const [dbFrames, setDbFrames] = useState([])
   const [loadingFrames, setLoadingFrames] = useState(true)
+  const carouselRef = useRef(null)
 
   const filters = {
     none: "",
@@ -29,7 +46,6 @@ const CustomizeScreen = ({
     vibrant: "saturate-200 contrast-125"
   };
 
-  // Load frames from Supabase filtered by slot_count
   useEffect(() => {
     const loadFrames = async () => {
       if (mode !== 'frame') return
@@ -58,7 +74,6 @@ const CustomizeScreen = ({
         }).filter(f => appMode === 'self_photo' ? true : f.photo_count === maxCaptures);
 
         setDbFrames(processedFrames)
-        // Auto-select first frame if none selected
         if (processedFrames.length > 0 && !selectedFrameData) {
           setSelectedFrame(processedFrames[0].id)
           setSelectedFrameData(processedFrames[0])
@@ -69,6 +84,22 @@ const CustomizeScreen = ({
     loadFrames()
   }, [mode, maxCaptures, appMode])
 
+  useEffect(() => {
+    if (mode === 'filter' && carouselRef.current) {
+      const container = carouselRef.current
+      const items = container.querySelectorAll('.snap-center')
+      if (items.length > 1) {
+        const originalItem = items[1]
+        if (originalItem) {
+          const containerWidth = container.offsetWidth
+          const itemWidth = originalItem.offsetWidth
+          const scrollLeft = originalItem.offsetLeft - (containerWidth / 2) + (itemWidth / 2)
+          container.scrollTo({ left: scrollLeft, behavior: 'smooth' })
+        }
+      }
+    }
+  }, [mode])
+
   const handleFrameSelect = (frame) => {
     setSelectedFrame(frame.id)
     setSelectedFrameData(frame)
@@ -77,172 +108,259 @@ const CustomizeScreen = ({
     }
   }
 
-  const currentFrame = selectedFrameData || dbFrames.find(f => f.id === selectedFrame)
+  const handleFilterSelect = (filterId) => {
+    if (setSelectedFilter) {
+      setSelectedFilter(filterId)
+    }
+  }
+
   const isFrameMode = mode === "frame";
+  const currentFrame = selectedFrameData || dbFrames.find(f => f.id === selectedFrame)
 
   return (
-    <StepWrapper
-      title={isFrameMode ? "Pilih Frame Terbaikmu" : "Pilih Filter Favoritmu"}
-      subtitle={""}
-    >
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start max-w-6xl mx-auto py-10 h-[80vh]">
-        {/* Left: Frame Preview */}
-        <div className="lg:col-span-7 flex justify-center sticky top-20">
-          <div
-            className="relative transition-transform duration-1000 animate-float drop-shadow-2xl"
-            style={{
-              width: `${600 * 0.6}px`,
-              height: `${900 * 0.6}px`,
-              backgroundColor: 'transparent'
-            }}
-          >
-            {/* Photo slots with absolute positioning */}
-            {currentFrame?.slots?.map((slot, i) => {
-              const photo = photos[slot.number - 1];
-              const s = 0.6;
-              return (
-                <div
-                  key={i}
-                  className={`absolute overflow-hidden bg-transparent transition-all duration-500 hover:z-20 group/slot ${filters[selectedFilter]} drop-shadow-md group-hover:drop-shadow-2xl`}
-                  style={{
-                    left: `${slot.x * s}px`,
-                    top: `${slot.y * s}px`,
-                    width: `${slot.width * s}px`,
-                    height: `${slot.height * s}px`,
-                    borderRadius: '2px',
-                  }}
-                >
-                  {photo ? (
-                    <img src={photo} className="w-full h-full object-cover transition-transform duration-700 hover:scale-110" alt={`Slot ${slot.number}`} />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-500 font-black text-2xl animate-pulse">
-                      {slot.number}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+    <div className="fixed inset-0 w-full h-full flex flex-col z-50 overflow-hidden">
+      
+      {/* Background Decorative Elements - Keep it clean */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full opacity-[0.03] pointer-events-none"
+          style={{ backgroundImage: 'radial-gradient(circle, #000 1px, transparent 1px)', backgroundSize: '60px 60px' }} />
+      </div>
 
-            {/* Frame overlay */}
-            {currentFrame && (
-              <img
-                src={currentFrame.image_url}
-                className="absolute inset-0 w-full h-full object-contain pointer-events-none z-30"
-                alt="Frame overlay"
-                style={{
-                  left: `${(currentFrame.frame_x || 0) * 0.6}px`,
-                  top: `${(currentFrame.frame_y || 0) * 0.6}px`,
-                  width: `${(currentFrame.frame_width || 600) * 0.6}px`,
-                  height: `${(currentFrame.frame_height || 900) * 0.6}px`,
-                }}
-              />
-            )}
+      {/* Header Section */}
+      <div className="w-full flex items-center justify-between px-16 py-6 z-50 shrink-0">
+        <div className="flex-1" /> {/* Left Spacer */}
+        
+        <div className="text-center flex-shrink-0 relative">
+          <motion.h2
+            key={mode}
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="text-5xl font-black text-fun-gradient font-caveat drop-shadow-sm mb-2 px-8"
+          >
+            {isFrameMode ? (photos?.length > 0 ? "Pilih Frame Terbaikmu" : "Pilih Layout Frame") : "Pilih Filter "}
+          </motion.h2>
+          <div className="flex items-center justify-center gap-4">
+            <div className="h-[2px] w-12 bg-gradient-to-r from-transparent via-slate-200 to-slate-200 rounded-full" />
+            <p className="text-slate-400 font-black text-[10px] uppercase tracking-[0.5em] animate-pulse">
+              Geser ke samping untuk memilih
+            </p>
+            <div className="h-[2px] w-12 bg-gradient-to-l from-transparent via-slate-200 to-slate-200 rounded-full" />
           </div>
         </div>
 
-        <div className="lg:col-span-5 flex flex-col gap-6 font-caveat">
-          <div className="flex flex-col h-[55vh] overflow-hidden bg-white/50 backdrop-blur-3xl px-8 py-8 rounded-[40px] border border-white shadow-[0_0_80px_rgba(0,0,0,0.06),0_20px_40px_rgba(0,0,0,0.03)]">
-            {isFrameMode ? (
-              <div className="flex flex-col h-full translate-z-0">
-                <div className="flex items-center justify-between mb-8 flex-shrink-0">
-                  <div className="relative flex-shrink-0">
-                    <h3 className="text-4xl font-black flex items-center gap-4 italic mb-1">
-                      <Palette size={32} className="text-blue-500" />
-                      <span className="text-gradient-blue inline-block pr-6">Frames</span>
-                    </h3>
-                    <div className="h-1.5 w-full bg-gradient-to-r from-blue-400/10 via-blue-500/30 to-blue-400/10 rounded-full"></div>
-                  </div>
-                </div>
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="flex-1 flex justify-end"
+        >
+          <motion.button
+            whileHover={{ scale: 1.05, y: -4 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={isFrameMode ? onNext : onCetak}
+            className="group relative px-10 py-4 bg-gradient-to-r from-blue-600 via-purple-600 to-rose-600 text-white rounded-[24px] font-black text-sm tracking-[0.2em] shadow-[0_20px_50px_rgba(37,99,235,0.3)] overflow-hidden"
+          >
+            <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <div className="relative z-10 flex items-center gap-3">
+              <span>{isFrameMode ? 'LANJUTKAN' : 'CETAK SEKARANG'}</span>
+              <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+            </div>
+          </motion.button>
+        </motion.div>
+      </div>
 
-                <div className="flex-1 overflow-y-auto pr-2 -mx-4 px-4 custom-scrollbar">
-                  {loadingFrames ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 size={24} className="animate-spin text-blue-500" />
-                    </div>
-                  ) : dbFrames.length === 0 ? (
-                    <p className="text-slate-600 text-sm text-center py-8">Belum ada frame.</p>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-x-10 gap-y-16 pt-12 pb-24 px-4">
-                      {dbFrames.map((frame, idx) => (
-                        <button
-                          key={frame.id}
-                          onClick={() => handleFrameSelect(frame)}
-                          className={`relative aspect-[3/4] transition-all duration-500 ${selectedFrame === frame.id ? 'scale-110 z-10' : 'hover:scale-105 opacity-80 hover:opacity-100'}`}
-                        >
-                          <img
-                            src={frame.image_url}
-                            className={`w-full h-full object-contain drop-shadow-md transition-all ${selectedFrame === frame.id ? 'drop-shadow-[0_10px_15px_rgba(59,130,246,0.3)]' : ''}`}
-                            alt={frame.name}
-                          />
-                          {selectedFrame === frame.id && (
-                            <div className="absolute -bottom-2 translate-y-full left-1/2 -translate-x-1/2 text-[10px] font-black text-gradient-blue uppercase tracking-widest whitespace-nowrap bg-white px-3 py-1 rounded-full shadow-sm border border-blue-100 animate-bounce">
-                              Selected
-                            </div>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+      {/* Carousel Section with Side Masks */}
+      <div className="flex-1 w-full relative flex items-center justify-center min-h-0 z-10">
+        
+        {/* Top Decorative Divider */}
+        <div className="absolute top-0 left-0 right-0 z-30 overflow-hidden py-3 bg-white/40 backdrop-blur-md border-y border-rose-100">
+          <div className="flex whitespace-nowrap animate-marquee-horizontal">
+            {[...Array(10)].map((_, i) => (
+              <span key={i} className="text-[10px] font-black text-rose-500/40 uppercase tracking-[1em] px-4">
+                LATARCERITA OFFICIAL • PREMIUM PHOTOBOOTH • FUN TIMES •
+              </span>
+            ))}
+            {[...Array(10)].map((_, i) => (
+              <span key={i + 10} className="text-[10px] font-black text-purple-500/40 uppercase tracking-[1em] px-4">
+                LATARCERITA OFFICIAL • PREMIUM PHOTOBOOTH • FUN TIMES •
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Bottom Decorative Divider */}
+        <div className="absolute bottom-0 left-0 right-0 z-30 overflow-hidden py-3 bg-white/40 backdrop-blur-md border-y border-cyan-100">
+          <div className="flex whitespace-nowrap animate-marquee-horizontal-reverse">
+            {[...Array(10)].map((_, i) => (
+              <span key={i} className="text-[10px] font-black text-cyan-500/40 uppercase tracking-[1em] px-4">
+                LATARCERITA OFFICIAL • PREMIUM PHOTOBOOTH • FUN TIMES •
+              </span>
+            ))}
+            {[...Array(10)].map((_, i) => (
+              <span key={i + 10} className="text-[10px] font-black text-blue-500/40 uppercase tracking-[1em] px-4">
+                LATARCERITA OFFICIAL • PREMIUM PHOTOBOOTH • FUN TIMES •
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Side Masks for better focus */}
+        <div className="absolute inset-y-0 left-0 w-[20vw] bg-gradient-to-r from-slate-50/90 to-transparent z-20 pointer-events-none" />
+        <div className="absolute inset-y-0 right-0 w-[20vw] bg-gradient-to-l from-slate-50/90 to-transparent z-20 pointer-events-none" />
+
+        <div
+          ref={carouselRef}
+          className="w-full h-full flex items-center overflow-x-auto overflow-y-hidden custom-scrollbar-none px-[35vw] snap-x snap-mandatory gap-20 py-8"
+        >
+          {isFrameMode ? (
+            loadingFrames ? (
+              <div className="w-full flex items-center justify-center">
+                <div className="relative">
+                  <Loader2 size={80} className="animate-spin text-blue-600/20" />
+                  <Sparkles size={32} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-blue-600 animate-pulse" />
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col h-full translate-z-0">
-                <div className="flex items-center justify-between mb-8 flex-shrink-0">
-                  <div className="relative flex-shrink-0">
-                    <h3 className="text-4xl font-black flex items-center gap-4 italic mb-1">
-                      <Wand2 size={32} className="text-blue-500" />
-                      <span className="text-gradient-blue inline-block pr-6">Filters</span>
-                    </h3>
-                    <div className="h-1.5 w-full bg-gradient-to-r from-blue-400/10 via-blue-500/30 to-blue-400/10 rounded-full"></div>
-                  </div>
-                </div>
+              dbFrames.map((frame) => (
+                <motion.div
+                  key={frame.id}
+                  onClick={() => handleFrameSelect(frame)}
+                  className={`snap-center flex-shrink-0 relative transition-all duration-700 cursor-pointer ${selectedFrame === frame.id ? 'scale-110 z-30' : 'scale-90 opacity-20 grayscale-[0.5] z-10'}`}
+                  style={{ willChange: 'transform, opacity' }}
+                >
+                  {/* Premium Card Glow */}
+                  {selectedFrame === frame.id && (
+                    <motion.div
+                      layoutId="frame-glow"
+                      className="absolute -inset-24 bg-gradient-to-tr from-rose-400/30 via-purple-400/30 to-cyan-400/30 rounded-full blur-[120px] z-0"
+                    />
+                  )}
 
-                <div className="flex-1 overflow-y-auto pr-2 -mx-4 px-4 custom-scrollbar">
-                  <div className="grid grid-cols-2 gap-x-10 gap-y-16 pt-12 pb-24 px-4">
-                    {Object.keys(filters).map((filter) => (
-                      <button
-                        key={filter}
-                        onClick={() => setSelectedFilter(filter)}
-                        className={`group relative p-2.5 rounded-[32px] font-black transition-all overflow-hidden flex flex-col items-center gap-2.5 ${selectedFilter === filter ? 'bg-blue-600 text-white shadow-lg scale-[1.02]' : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100 hover:scale-[1.02]'}`}
-                      >
-                        <div className="w-full aspect-[4/3] rounded-[24px] overflow-hidden bg-slate-100 relative group-hover:rotate-1 transition-transform duration-500 shadow-inner">
-                          {photos && photos[0] ? (
-                            <img
-                              src={photos[0]}
-                              className={`w-full h-full object-cover ${filters[filter]}`}
-                              alt={filter}
-                            />
+                  <div className="relative z-10">
+
+
+                    <div
+                      className="relative shadow-[0_60px_120px_rgba(0,0,0,0.2)] ring-1 ring-black/5 bg-white"
+                      style={{ width: `${600 * 0.38}px`, height: `${900 * 0.38}px` }}
+                    >
+                      {frame.slots?.map((slot, i) => {
+                        const photo = photos?.[slot.number - 1];
+                        const s = 0.38;
+                        const color = SLOT_COLORS[(slot.number - 1) % SLOT_COLORS.length];
+                        return (
+                          <div
+                            key={i}
+                            className={`absolute overflow-hidden ${photo ? '' : color.bg} transition-all duration-700 ${filters[selectedFilter]} border border-white/10 flex items-center justify-center`}
+                            style={{
+                              left: `${slot.x * s}px`,
+                              top: `${slot.y * s}px`,
+                              width: `${slot.width * s}px`,
+                              height: `${slot.height * s}px`,
+                            }}
+                          >
+                            {photo ? (
+                              <img src={photo} className="w-full h-full object-cover" alt="" />
+                            ) : (
+                              <div className={`flex flex-col items-center justify-center ${color.text} animate-pulse`}>
+                                <span className="text-4xl font-black italic leading-none opacity-40">
+                                  {slot.number}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      <img
+                        src={frame.image_url}
+                        className="absolute inset-0 w-full h-full object-contain pointer-events-none z-30"
+                        alt={frame.name}
+                        style={{
+                          left: `${(frame.frame_x || 0) * 0.38}px`,
+                          top: `${(frame.frame_y || 0) * 0.38}px`,
+                          width: `${(frame.frame_width || 600) * 0.38}px`,
+                          height: `${(frame.frame_height || 900) * 0.38}px`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              ))
+            )
+          ) : (
+            FILTER_OPTIONS.map((filter) => (
+              <motion.div
+                key={filter.id}
+                onClick={() => handleFilterSelect(filter.id)}
+                className={`snap-center flex-shrink-0 relative transition-all duration-700 cursor-pointer ${selectedFilter === filter.id ? 'scale-110 z-30' : 'scale-90 opacity-20 grayscale-[0.5] z-10'}`}
+                style={{ willChange: 'transform, opacity' }}
+              >
+                {selectedFilter === filter.id && (
+                  <motion.div
+                    layoutId="filter-glow"
+                    className={`absolute -inset-20 bg-gradient-to-tr ${filter.color} opacity-20 rounded-full blur-[100px] z-0`}
+                  />
+                )}
+
+                <div className="relative z-10 flex flex-col items-center">
+
+
+                  <div
+                    className="relative bg-white shadow-[0_60px_120px_rgba(0,0,0,0.2)] overflow-hidden ring-1 ring-black/5"
+                    style={{ width: `${600 * 0.35}px`, height: `${900 * 0.35}px` }}
+                  >
+                    {currentFrame?.slots?.map((slot, i) => {
+                      const photo = photos?.[slot.number - 1];
+                      const s = 0.35;
+                      return (
+                        <div
+                          key={i}
+                          className={`absolute overflow-hidden transition-all duration-700 ${filter.class} border border-white/20`}
+                          style={{
+                            left: `${slot.x * s}px`,
+                            top: `${slot.y * s}px`,
+                            width: `${slot.width * s}px`,
+                            height: `${slot.height * s}px`,
+                          }}
+                        >
+                          {photo ? (
+                            <img src={photo} className="w-full h-full object-cover" alt="" />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center bg-slate-200">
-                              <ImageIcon size={24} className="opacity-20" />
-                            </div>
+                            <div className="w-full h-full bg-slate-100" />
                           )}
-                          <div className="absolute inset-0 border border-black/5 pointer-events-none rounded-[24px]"></div>
                         </div>
-                        <div className="relative z-10 flex flex-col items-center gap-0.5 pb-2">
-                          <span className="capitalize text-lg tracking-tight">{filter === 'none' ? 'Natural' : filter}</span>
-                          <span className="text-[8px] opacity-60 font-bold uppercase tracking-[0.2em]">{selectedFilter === filter ? 'Active' : 'Select'}</span>
-                        </div>
-                        {selectedFilter === filter && (
-                          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-blue-700/10 pointer-events-none"></div>
-                        )}
-                      </button>
-                    ))}
+                      );
+                    })}
+
+                    {currentFrame && (
+                      <img
+                        src={currentFrame.image_url}
+                        className="absolute inset-0 w-full h-full object-contain pointer-events-none z-30"
+                        alt={currentFrame.name}
+                        style={{
+                          left: `${(currentFrame.frame_x || 0) * 0.35}px`,
+                          top: `${(currentFrame.frame_y || 0) * 0.35}px`,
+                          width: `${(currentFrame.frame_width || 600) * 0.35}px`,
+                          height: `${(currentFrame.frame_height || 900) * 0.35}px`,
+                        }}
+                      />
+                    )}
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={isFrameMode ? onNext : onCetak}
-            className="w-full py-2.5 bg-slate-900 text-white rounded-2xl font-black text-2xl tracking-widest shadow-lg hover:bg-blue-600 hover:scale-[1.02] transition-all flex items-center justify-center gap-4 group flex-shrink-0"
-          >
-            {isFrameMode ? 'Lanjutkan' : 'Cetak Hasil'} <Sparkles size={24} className="group-hover:rotate-12 transition-transform duration-500" />
-          </button>
+              </motion.div>
+            ))
+          )}
         </div>
       </div>
-    </StepWrapper>
+
+      {/* Bottom Status Info */}
+      <div className="w-full px-16 py-4 flex items-center justify-center gap-12 z-50 shrink-0">
+        <div className="flex items-center gap-3">
+          <Heart size={14} className="text-rose-500" />
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Latarcerita Photobooth</span>
+        </div>
+      </div>
+
+    </div>
   )
 }
 
