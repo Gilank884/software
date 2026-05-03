@@ -71,7 +71,7 @@ const CustomizeScreen = ({
             return { ...f, photo_count: unique.length };
           }
           return f;
-        }).filter(f => appMode === 'self_photo' ? true : f.photo_count === maxCaptures);
+        }).filter(f => true); // Show all frames regardless of shot count
 
         setDbFrames(processedFrames)
         if (processedFrames.length > 0 && !selectedFrameData) {
@@ -82,7 +82,7 @@ const CustomizeScreen = ({
       setLoadingFrames(false)
     }
     loadFrames()
-  }, [mode, maxCaptures, appMode])
+  }, [mode, appMode, user?.id, user?.availableFrames])
 
   useEffect(() => {
     if (mode === 'filter' && carouselRef.current) {

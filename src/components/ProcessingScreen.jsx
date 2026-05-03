@@ -41,7 +41,9 @@ const ProcessingScreen = ({
         if (window.electronAPI?.printImage) {
           const reader = new FileReader();
           reader.onloadend = () => {
-             window.electronAPI.printImage(reader.result, printQuantity, selectedPrinter, selectedPaperSize, autoEpsonMatte);
+             // Map a4_plus back to a4 for the actual printer driver paper size
+             const printerPaperSize = selectedPaperSize === 'a4_plus' ? 'a4' : selectedPaperSize;
+             window.electronAPI.printImage(reader.result, printQuantity, selectedPrinter, printerPaperSize, autoEpsonMatte);
           };
           reader.readAsDataURL(compositeBlob);
         }
@@ -156,12 +158,34 @@ const ProcessingScreen = ({
 
   const generateCompositeImage = () => {
     return new Promise((resolve, reject) => {
+      const selectedPaperSize = localStorage.getItem('selectedPaperSize') || '4r';
+      const isA4 = selectedPaperSize === 'a4';
+      const isA4Plus = selectedPaperSize === 'a4_plus';
+      
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
-      canvas.width = 1200; 
-      canvas.height = 1800; 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.scale(2, 2); 
+      
+      if (isA4Plus) {
+        // Enlarged version (+1.5cm effect)
+        canvas.width = 1350; 
+        canvas.height = 1950; 
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.translate(-35, -40); 
+        ctx.scale(2.35, 2.35); 
+      } else if (isA4) {
+        // Standard A4 Fit
+        canvas.width = 1240; 
+        canvas.height = 1840; 
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.translate(-10, -10);
+        ctx.scale(2.1, 2.1); 
+      } else {
+        // Standard 4R
+        canvas.width = 1200; 
+        canvas.height = 1800; 
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.scale(2, 2); 
+      }
 
       const loadImage = (src) => {
         return new Promise((res, rej) => {

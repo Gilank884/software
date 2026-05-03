@@ -424,7 +424,8 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                   <div className="grid grid-cols-2 gap-2">
                     {[
                       { id: '4r', label: '4R Format', sub: '4x6 in' },
-                      { id: 'a4', label: 'A4 Format', sub: '8.27x11 in' }
+                      { id: 'a4', label: 'A4 Format', sub: '210x297 mm' },
+                      { id: 'a4_plus', label: 'A4+ Format', sub: 'Large (+1.5cm)' }
                     ].map(size => (
                       <button
                         key={size.id}
