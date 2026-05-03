@@ -10,7 +10,7 @@ lerna-debug.log*
 node_modules
 release
 dist
-.env
+
 *.dmg
 *.zip
 *.app
