@@ -13,11 +13,13 @@ const FramesManager = ({ user }) => {
   const fetchFrames = async () => {
     if (!user?.id) return
     setLoading(true)
-    const { data, error } = await supabase
-      .from('frames')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
+    let query = supabase.from('frames').select('*')
+    
+    if (!user.isAdmin) {
+      query = query.eq('user_id', user.id)
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false })
     
     if (error) {
       console.error('Error fetching frames:', error)

@@ -30,7 +30,14 @@ export default function CreatorApp() {
   }, [])
 
   if (!session) {
-    const isSignupPath = window.location.pathname === '/daftar'
+    const isLocal = window.location.hostname === 'localhost'
+    const isNetlify = window.location.hostname.endsWith('netlify.app')
+    
+    if (isLocal || isNetlify) {
+      return <CreatorDashboard user={{ id: 'admin', email: 'admin@local', isAdmin: true }} onSignOut={() => setSession(null)} />
+    }
+    
+    const isSignupPath = window.location.pathname.endsWith('/daftar')
     return <AuthScreen onAuthSuccess={setSession} initialIsLogin={!isSignupPath} />
   }
 
@@ -38,6 +45,11 @@ export default function CreatorApp() {
 }
 
 function CreatorDashboard({ user, onSignOut }) {
+  const getBasePath = () => {
+    const path = window.location.pathname
+    return path.startsWith('/creator') ? '/creator' : ''
+  }
+
   const [devices, setDevices] = useState([])
   const [frames, setFrames] = useState([])
   const [events, setEvents] = useState([])
@@ -58,8 +70,10 @@ function CreatorDashboard({ user, onSignOut }) {
   const [activeTab, setActiveTab] = useState(getInitialTab())
 
   const handleTabChange = (tabId, path) => {
+    const basePath = getBasePath()
+    const fullPath = path.startsWith(basePath) ? path : `${basePath}${path}`
     setActiveTab(tabId)
-    window.history.pushState({}, '', path)
+    window.history.pushState({}, '', fullPath)
   }
 
   // Handle browser back/forward
@@ -81,29 +95,36 @@ function CreatorDashboard({ user, onSignOut }) {
 
   const fetchDevices = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('devices')
-      .select('*')
-      .eq('creator_id', user?.id)
-      .order('created_at', { ascending: false })
+    let query = supabase.from('devices').select('*')
+    
+    if (!user.isAdmin) {
+      query = query.eq('creator_id', user.id)
+    }
+
+    const { data } = await query.order('created_at', { ascending: false })
     setDevices(data || [])
     setLoading(false)
   }
 
   const fetchEvents = async () => {
-    const { data } = await supabase
-      .from('events')
-      .select('*')
-      .eq('creator_id', user.id)
-      .order('created_at', { ascending: false })
+    let query = supabase.from('events').select('*')
+    
+    if (!user.isAdmin) {
+      query = query.eq('creator_id', user.id)
+    }
+
+    const { data } = await query.order('created_at', { ascending: false })
     setEvents(data || [])
   }
 
   const fetchFrames = async () => {
-    const { data } = await supabase
-      .from('frames')
-      .select('*')
-      .eq('user_id', user.id)
+    let query = supabase.from('frames').select('*')
+    
+    if (!user.isAdmin) {
+      query = query.eq('user_id', user.id)
+    }
+
+    const { data } = await query
     setFrames(data || [])
   }
 

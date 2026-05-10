@@ -5,7 +5,7 @@ import StepWrapper from './StepWrapper'
 
 const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
   // In production/release, we use the main domain for the gallery link
-  const galleryBase = "https://latarcerita.com";
+  const galleryBase = import.meta.env.VITE_GALLERY_URL || (import.meta.env.DEV ? window.location.origin : "https://latarcerita.com");
   
   const galleryUrl = galleryData?.sessionId 
     ? `${galleryBase}/?gallery=${galleryData.sessionId}` 
@@ -132,11 +132,22 @@ const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
               >
                 <div className="absolute -inset-4 bg-gradient-to-tr from-rose-400/20 via-purple-400/20 to-cyan-400/20 rounded-[2rem] blur-2xl opacity-0 group-hover/framed:opacity-100 transition-opacity duration-700" />
                 <div className="relative bg-white p-2 rounded-[1.5rem] shadow-2xl border border-slate-100 overflow-hidden transform transition-transform group-hover/framed:scale-105 duration-500">
-                  <img 
-                    src={galleryData.compositeUrl} 
-                    alt="Final Framed Result" 
-                    className="w-full max-w-[320px] h-auto rounded-[1.2rem]"
-                  />
+                  {galleryData.videoUrl ? (
+                    <video 
+                      src={galleryData.videoUrl} 
+                      autoPlay 
+                      loop 
+                      muted 
+                      playsInline
+                      className="w-full max-w-[320px] h-auto rounded-[1.2rem]"
+                    />
+                  ) : (
+                    <img 
+                      src={galleryData.compositeUrl} 
+                      alt="Final Framed Result" 
+                      className="w-full max-w-[320px] h-auto rounded-[1.2rem]"
+                    />
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover/framed:opacity-100 transition-opacity" />
                 </div>
                 

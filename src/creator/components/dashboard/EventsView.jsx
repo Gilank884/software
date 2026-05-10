@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity, ChevronRight, ArrowLeft, Download, Eye, Smartphone, ImageIcon, RefreshCcw } from 'lucide-react'
+import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity, ChevronRight, ArrowLeft, Download, Eye, Smartphone, ImageIcon, RefreshCcw, Printer } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 import PageHeader from './PageHeader'
 
@@ -27,10 +27,13 @@ export default function EventsView({ user, events, devices, onRefresh }) {
   }, [user?.id])
 
   const fetchAllCaptures = async () => {
-    const { data, error: capturesError } = await supabase
-      .from('captures')
-      .select('id, event_id')
-      .eq('user_id', user.id)
+    let query = supabase.from('captures').select('id, event_id')
+    
+    if (!user.isAdmin) {
+      query = query.eq('user_id', user.id)
+    }
+
+    const { data, error: capturesError } = await query
     
     if (capturesError) {
       console.warn('Column event_id might be missing in captures table:', capturesError)
@@ -62,6 +65,93 @@ export default function EventsView({ user, events, devices, onRefresh }) {
     }
     setLoadingCaptures(false)
   }
+
+  const handlePrint = async (imageUrl) => {
+    // 1. Try specialized Electron printing if available (Direct/Silent Print)
+    if (window.electronAPI?.printImage) {
+      try {
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        
+        reader.onloadend = () => {
+          const selectedPrinter = localStorage.getItem('selectedPrinter') || '';
+          const selectedPaperSize = localStorage.getItem('selectedPaperSize') || '4r';
+          const autoEpsonMatte = localStorage.getItem('autoEpsonMatte') === 'true';
+          const printerPaperSize = selectedPaperSize === 'a4_plus' ? 'a4' : selectedPaperSize;
+          
+          window.electronAPI.printImage(reader.result, 1, selectedPrinter, printerPaperSize, autoEpsonMatte);
+        };
+        
+        reader.readAsDataURL(blob);
+        return;
+      } catch (err) {
+        console.error('Electron Print Error:', err);
+      }
+    }
+
+    // 2. Fallback to standard browser printing using a Hidden Iframe
+    // This is more seamless than window.open as it doesn't open a new tab/window
+    let printFrame = document.getElementById('print-frame');
+    if (!printFrame) {
+      printFrame = document.createElement('iframe');
+      printFrame.id = 'print-frame';
+      printFrame.style.position = 'fixed';
+      printFrame.style.right = '0';
+      printFrame.style.bottom = '0';
+      printFrame.style.width = '0';
+      printFrame.style.height = '0';
+      printFrame.style.border = '0';
+      document.body.appendChild(printFrame);
+    }
+
+    const frameDoc = printFrame.contentWindow.document;
+    frameDoc.open();
+    frameDoc.write(`
+      <html>
+        <head>
+          <title>Print - Latarcerita</title>
+          <style>
+            body { margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; }
+            img { width: 100%; height: auto; }
+            @media print {
+              @page { margin: 0; size: auto; }
+              body { margin: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <img src="${imageUrl}" onload="window.focus(); window.print();" />
+        </body>
+      </html>
+    `);
+    frameDoc.close();
+
+    // Trigger print from the iframe context
+    setTimeout(() => {
+      printFrame.contentWindow.focus();
+      printFrame.contentWindow.print();
+    }, 500);
+  }
+
+  const handleDownload = async (imageUrl, filename) => {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename || `capture-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+      // Fallback: open in new tab if blob fails
+      window.open(imageUrl, '_blank');
+    }
+  };
 
   const handleEventClick = (event) => {
     setSelectedEvent(event)
@@ -308,9 +398,18 @@ export default function EventsView({ user, events, devices, onRefresh }) {
                        <a href={capture.image_url} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-white/20 backdrop-blur-md border border-white/20 rounded-none flex items-center justify-center text-white hover:bg-white hover:text-slate-900 transition-all">
                          <Eye size={16} />
                        </a>
-                       <a href={capture.image_url} download className="w-10 h-10 bg-white/20 backdrop-blur-md border border-white/20 rounded-none flex items-center justify-center text-white hover:bg-white hover:text-slate-900 transition-all">
+                       <button 
+                         onClick={(e) => { e.stopPropagation(); handleDownload(capture.image_url, `capture-${capture.id.slice(0,8)}.png`); }}
+                         className="w-10 h-10 bg-white/20 backdrop-blur-md border border-white/20 rounded-none flex items-center justify-center text-white hover:bg-white hover:text-slate-900 transition-all"
+                       >
                          <Download size={16} />
-                       </a>
+                       </button>
+                       <button 
+                         onClick={(e) => { e.stopPropagation(); handlePrint(capture.image_url); }}
+                         className="w-10 h-10 bg-white/20 backdrop-blur-md border border-white/20 rounded-none flex items-center justify-center text-white hover:bg-blue-600 transition-all"
+                       >
+                         <Printer size={16} />
+                       </button>
                     </div>
                   </div>
                 </div>

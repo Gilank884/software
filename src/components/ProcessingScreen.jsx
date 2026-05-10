@@ -12,7 +12,8 @@ const ProcessingScreen = ({
   printQuantity = 1, 
   selectedMode, 
   onFinish,
-  isReprint = false 
+  isReprint = false,
+  videoClips = []
 }) => {
   const [progress, setProgress] = useState("Preparing Layout...");
   const canvasRef = useRef(null);
@@ -114,7 +115,24 @@ const ProcessingScreen = ({
           }
         }
         */
-        const gifUrl = null;
+        
+        let finalVideoUrl = null;
+        if (selectedMode === 'photobooth' && videoClips.length > 0) {
+          try {
+            setProgress("Generating Framed Video...");
+            const videoBlob = await generateCompositeVideo(videoClips);
+            const videoFileName = `captures/${user?.id}/${sessionId}_framed_video.webm`;
+            const { error: videoErr } = await supabase.storage.from('frames').upload(videoFileName, videoBlob, {
+              contentType: 'video/webm'
+            });
+            if (!videoErr) {
+              const { data: { publicUrl: vUrl } } = supabase.storage.from('frames').getPublicUrl(videoFileName);
+              finalVideoUrl = vUrl;
+            }
+          } catch (vidErr) {
+            console.error("Video Generation Error:", vidErr);
+          }
+        }
 
         setProgress("Finalizing Gallery...");
 
@@ -129,7 +147,7 @@ const ProcessingScreen = ({
           device_name: user?.deviceName,
           event_id: user?.eventId
         };
-        if (gifUrl) insertData.gif_url = gifUrl;
+        if (finalVideoUrl) insertData.video_url = finalVideoUrl;
         const { error: insertError } = await supabase.from('captures').insert(insertData);
         if (insertError) throw insertError;
 
@@ -140,7 +158,7 @@ const ProcessingScreen = ({
               sessionId,
               compositeUrl,
               rawPhotos: rawPhotoUrls,
-              gifUrl
+              videoUrl: finalVideoUrl
             });
         }, 500);
 
@@ -288,6 +306,176 @@ const ProcessingScreen = ({
           resolve({ blob: null, extension: 'gif' });
         }
       });
+    });
+  };
+
+  const generateCompositeVideo = (videoBlobs) => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const selectedPaperSize = localStorage.getItem('selectedPaperSize') || '4r';
+        const isA4 = selectedPaperSize === 'a4';
+        const isA4Plus = selectedPaperSize === 'a4_plus';
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        if (isA4Plus) {
+          canvas.width = 1350; 
+          canvas.height = 1950; 
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.translate(-35, -40); 
+          ctx.scale(2.35, 2.35); 
+        } else if (isA4) {
+          canvas.width = 1240; 
+          canvas.height = 1840; 
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.translate(-10, -10);
+          ctx.scale(2.1, 2.1); 
+        } else {
+          canvas.width = 1200; 
+          canvas.height = 1800; 
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.scale(2, 2); 
+        }
+        
+        const frameUrl = selectedFrameData.url || selectedFrameData.image_url;
+        
+        const loadImageLocal = (src) => {
+          return new Promise((res, rej) => {
+            if (!src) return rej(new Error('Source missing'));
+            const img = new Image();
+            if (typeof src === 'string' && src.startsWith('http')) img.crossOrigin = "anonymous";
+            img.onload = () => res(img);
+            img.onerror = rej;
+            img.src = src;
+          });
+        };
+
+        const frameImg = await loadImageLocal(frameUrl);
+        
+        const videoElements = await Promise.all(videoBlobs.map(async (blob) => {
+          if (!blob) return null;
+          const video = document.createElement('video');
+          video.src = URL.createObjectURL(blob);
+          video.muted = true;
+          video.loop = true;
+          video.playsInline = true;
+          await new Promise((res) => {
+            video.oncanplay = res;
+            video.load();
+          });
+          await video.play();
+          return video;
+        }));
+
+        const stream = canvas.captureStream(30);
+        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8' });
+        const chunks = [];
+        
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) chunks.push(e.data);
+        };
+        
+        recorder.onstop = () => {
+          const finalBlob = new Blob(chunks, { type: 'video/webm' });
+          resolve(finalBlob);
+        };
+
+        recorder.start();
+        
+        const startTime = Date.now();
+        const recordingDuration = 3500; 
+
+        const render = () => {
+          const now = Date.now();
+          if (now - startTime > recordingDuration) {
+            if (recorder.state === 'recording') recorder.stop();
+            videoElements.forEach(v => {
+               if (v) {
+                  v.pause();
+                  URL.revokeObjectURL(v.src);
+               }
+            });
+            return;
+          }
+
+          // Clear is tricky because of translate/scale, better to clear the whole canvas using absolute coords
+          ctx.save();
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.restore();
+
+          // Draw videos in slots
+          selectedFrameData.slots.forEach((slot) => {
+            const video = videoElements[slot.number - 1];
+            if (video) {
+              ctx.save();
+              const aspect = video.videoWidth / video.videoHeight;
+              const targetAspect = slot.width / slot.height;
+              let drawW, drawH, drawX, drawY;
+              
+              if (aspect > targetAspect) {
+                drawH = slot.height;
+                drawW = slot.height * aspect;
+                drawX = slot.x - (drawW - slot.width) / 2;
+                drawY = slot.y;
+              } else {
+                drawW = slot.width;
+                drawH = slot.width / aspect;
+                drawX = slot.x;
+                drawY = slot.y - (drawH - slot.height) / 2;
+              }
+              
+              ctx.beginPath();
+              ctx.rect(slot.x, slot.y, slot.width, slot.height);
+              ctx.clip();
+              
+              // Apply horizontal flip to un-mirror the video (standard for photobooth results)
+              ctx.translate(slot.x + slot.width, 0);
+              ctx.scale(-1, 1);
+              ctx.translate(-slot.x, 0);
+
+              if (selectedFilter && canvasFilters[selectedFilter]) {
+                ctx.filter = canvasFilters[selectedFilter];
+              }
+              
+              ctx.drawImage(video, drawX, drawY, drawW, drawH);
+              ctx.restore();
+            }
+          });
+
+          // Draw frame overlay
+          const fx = selectedFrameData.frame_x || 0;
+          const fy = selectedFrameData.frame_y || 0;
+          const fw = selectedFrameData.frame_width || 600;
+          const fh = selectedFrameData.frame_height || 900;
+          
+          const fAspect = frameImg.width / frameImg.height;
+          const targetFAspect = fw / fh;
+          let fDrawW, fDrawH, fDrawX, fDrawY;
+          
+          if (fAspect > targetFAspect) {
+            fDrawW = fw;
+            fDrawH = fw / fAspect;
+            fDrawX = fx;
+            fDrawY = fy + (fh - fDrawH) / 2;
+          } else {
+            fDrawH = fh;
+            fDrawW = fh * fAspect;
+            fDrawX = fx + (fw - fDrawW) / 2;
+            fDrawY = fy;
+          }
+          
+          ctx.drawImage(frameImg, fDrawX, fDrawY, fDrawW, fDrawH);
+          
+          requestAnimationFrame(render);
+        };
+
+        render();
+      } catch (err) {
+        console.error("Error in generateCompositeVideo:", err);
+        reject(err);
+      }
     });
   };
 

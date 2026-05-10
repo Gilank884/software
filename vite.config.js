@@ -13,14 +13,16 @@ export default defineConfig(({ mode }) => {
       react(),
       tailwindcss(),
     ],
+    root: '.',
+    envDir: '.',
     build: {
-      outDir: isCreator ? 'dist/creator' : 'dist',
-      emptyOutDir: true,
+      outDir: 'dist',
+      emptyOutDir: !isCreator,
       rollupOptions: {
-        input: isCreator
-          ? { index: './creator/index.html' }
-          : { index: './index.html' }
-      },
+        input: isCreator 
+          ? { 'creator/index': 'creator/index.html' } 
+          : { index: 'index.html' }
+      }
     },
     server: {
       port: 3000,

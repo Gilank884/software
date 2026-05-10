@@ -25,7 +25,7 @@ const PublicGalleryScreen = ({ galleryId }) => {
       try {
         const { data: captureData, error: dbError } = await supabase
           .from('captures')
-          .select('image_url, raw_photos, gif_url, created_at')
+          .select('image_url, raw_photos, gif_url, video_url, created_at')
           .eq('session_id', galleryId)
           .single()
 
@@ -143,7 +143,7 @@ const PublicGalleryScreen = ({ galleryId }) => {
         <div className="w-full flex flex-col items-center gap-16">
           
           {/* 1. Framed Layout Section (Full Width / Centered) */}
-          {data.image_url && (
+          {(data.image_url || data.video_url) && (
             <div className="w-full max-w-xl flex flex-col items-center animate-in slide-in-from-bottom-12 duration-1000 delay-150 px-2">
               <div className="flex items-center gap-2 mb-6">
                 <ImageIcon size={28} className="text-blue-500" />
@@ -151,18 +151,41 @@ const PublicGalleryScreen = ({ galleryId }) => {
               </div>
               
               <div className="relative w-full bg-white p-2 md:p-3 rounded-[1.5rem] shadow-xl border border-slate-100 overflow-hidden">
-                <img 
-                  src={data.image_url} 
-                  alt="Layout" 
-                  className="w-full h-auto rounded-xl object-contain mb-3"
-                />
+                {data.video_url ? (
+                  <video 
+                    src={data.video_url} 
+                    autoPlay 
+                    loop 
+                    muted 
+                    playsInline
+                    className="w-full h-auto rounded-xl object-contain mb-3"
+                  />
+                ) : (
+                  <img 
+                    src={data.image_url} 
+                    alt="Layout" 
+                    className="w-full h-auto rounded-xl object-contain mb-3"
+                  />
+                )}
                 
-                <button 
-                  onClick={() => handleDownload(data.image_url, 'latarcerita-layout.png')}
-                  className="w-full py-3 bg-blue-600 text-white rounded-lg font-black tracking-widest uppercase flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md text-[10px]"
-                >
-                  <DownloadCloud size={16} /> Download Layout
-                </button>
+                <div className="flex gap-2">
+                  {data.image_url && (
+                    <button 
+                      onClick={() => handleDownload(data.image_url, 'latarcerita-layout.png')}
+                      className="flex-1 py-3 bg-slate-900 text-white rounded-lg font-black tracking-widest uppercase flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md text-[10px]"
+                    >
+                      <DownloadCloud size={16} /> Download Photo
+                    </button>
+                  )}
+                  {data.video_url && (
+                    <button 
+                      onClick={() => handleDownload(data.video_url, 'latarcerita-video.webm')}
+                      className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-black tracking-widest uppercase flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md text-[10px]"
+                    >
+                      <DownloadCloud size={16} /> Download Video
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           )}

@@ -9,10 +9,13 @@ export default function AnalyticsView({ user, devices }) {
 
   const fetchCaptures = async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('captures')
-      .select('*')
-      .eq('user_id', user.id)
+    let query = supabase.from('captures').select('*')
+    
+    if (!user.isAdmin) {
+      query = query.eq('user_id', user.id)
+    }
+
+    const { data } = await query
     setCaptures(data || [])
     setLoading(false)
   }

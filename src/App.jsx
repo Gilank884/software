@@ -61,6 +61,17 @@ function App() {
   const [selectedFrameData, setSelectedFrameData] = useState(null)
   const [selectedFilter, setSelectedFilter] = useState('none')
   const [cameraError, setCameraError] = useState(null)
+  const [isSpecialMode, setIsSpecialMode] = useState(false)
+  const [ghosts, setGhosts] = useState([])
+  const [activePortal, setActivePortal] = useState(null)
+  const [videoClips, setVideoClips] = useState([])
+
+  useEffect(() => {
+    if (!isSpecialMode) {
+      setGhosts([]);
+      setActivePortal(null);
+    }
+  }, [isSpecialMode]);
 
   // Self Photo Specific State
   const [selfPhotoDuration, setSelfPhotoDuration] = useState(5) // minutes
@@ -110,7 +121,8 @@ function App() {
     }
 
     const host = window.location.hostname
-    if (host.startsWith('creator.')) {
+    const path = window.location.pathname
+    if (host.startsWith('creator.') || path.startsWith('/creator')) {
       setIsCreatorMode(true)
     }
 
@@ -161,42 +173,50 @@ function App() {
     initCamera()
   }, [])
 
-
   useEffect(() => {
     if (step === STEPS.CAPTURE || step === STEPS.SP_CAPTURE) {
       const element = status.source === 'dslr' ? previewCanvasRef.current : videoRef.current
       if (element) startPreview(element)
-
-      if (step === STEPS.CAPTURE && hasStartedSession && !isReviewing) {
-        const timeout = setTimeout(() => startCountdown(), 1000)
-        return () => clearTimeout(timeout)
-      }
     } else {
       stopPreview()
     }
-  }, [step, hasStartedSession, isReviewing, currentShotIndex, status.source])
+  }, [step, status.source])
 
-  const startCountdown = () => {
-    setCountdown(5)
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          capturePhoto()
-          return null
-        }
-        return prev - 1
-      })
-    }, 1000)
-  }
+  useEffect(() => {
+    let timer;
+    if (step === STEPS.CAPTURE && hasStartedSession && !isReviewing && !isSpecialMode && countdown !== null) {
+      timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            capturePhoto();
+            return null;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else if (isSpecialMode || isReviewing || step !== STEPS.CAPTURE) {
+      setCountdown(null);
+    }
+    return () => { if (timer) clearInterval(timer); };
+  }, [step, hasStartedSession, isReviewing, isSpecialMode, countdown === null]);
 
-  const capturePhoto = async () => {
+  useEffect(() => {
+    if (step === STEPS.CAPTURE && hasStartedSession && !isReviewing && !isSpecialMode && countdown === null) {
+      const timeout = setTimeout(() => setCountdown(5), 1000);
+      return () => clearTimeout(timeout);
+    }
+  }, [step, hasStartedSession, isReviewing, isSpecialMode, currentShotIndex, countdown === null]);
+
+  const capturePhoto = async (manualDataUrl = null) => {
     try {
-      const dataUrl = await captureCamPhoto()
+      const dataUrl = manualDataUrl || await captureCamPhoto()
       const newPhotos = [...photos]
       newPhotos[currentShotIndex] = dataUrl
       setPhotos(newPhotos)
       setIsReviewing(true)
+      
+      // Removed cumulative ghosting - each shot starts fresh
     } catch (err) {
       console.error("Capture Failed:", err)
     }
@@ -210,6 +230,9 @@ function App() {
       setCurrentShotIndex(prev => prev + 1)
       setIsReviewing(false)
     }
+    // Reset special mode state for next shot
+    setGhosts([])
+    setActivePortal(null)
   }
 
   const handleRetake = () => {
@@ -217,6 +240,9 @@ function App() {
     newPhotos[currentShotIndex] = null
     setPhotos(newPhotos)
     setIsReviewing(false)
+    // Reset special mode state for retake
+    setGhosts([])
+    setActivePortal(null)
   }
 
   const handleCetak = () => {
@@ -242,6 +268,10 @@ function App() {
     setSelectedSelfPhotos([])
     setSelectedProduct(null)
     setIsReprint(false)
+    setIsSpecialMode(false)
+    setGhosts([])
+    setActivePortal(null)
+    setVideoClips([])
   }
 
   const handleSignOut = async () => {
@@ -389,6 +419,14 @@ function App() {
             cameraError={status.error}
             user={currentUser}
             selectedFrameData={selectedFrameData}
+            isSpecialMode={isSpecialMode}
+            setIsSpecialMode={setIsSpecialMode}
+            ghosts={ghosts}
+            setGhosts={setGhosts}
+            activePortal={activePortal}
+            setActivePortal={setActivePortal}
+            onSpecialCapture={capturePhoto}
+            setVideoClips={setVideoClips}
           />
         )}
 
@@ -480,6 +518,7 @@ function App() {
           printQuantity={printQuantity}
           selectedMode={selectedMode}
           isReprint={isReprint}
+          videoClips={videoClips}
           onFinish={(data) => {
             if (data) setGalleryData(data)
             setStep(STEPS.OUTPUT)
