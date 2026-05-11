@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { RefreshCcw } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import gifshot from 'gifshot';
+import qrcode from 'qr.js';
 
 const ProcessingScreen = ({ 
   rawPhotos, 
@@ -26,14 +27,48 @@ const ProcessingScreen = ({
     vibrant: "saturate(1.5)",
   };
 
+  const drawQRCode = (ctx, data, x, y, size) => {
+    try {
+      const qr = qrcode(data, { errorCorrectLevel: qrcode.ErrorCorrectLevel.H });
+      const modules = qr.modules;
+      const moduleSize = size / modules.length;
+      
+      ctx.save();
+      ctx.fillStyle = '#000000';
+      ctx.translate(x, y);
+      modules.forEach((row, rowIndex) => {
+        row.forEach((col, colIndex) => {
+          if (col) {
+            // Added 0.5 to moduleSize to prevent tiny gaps between modules due to anti-aliasing
+            ctx.fillRect(colIndex * moduleSize, rowIndex * moduleSize, moduleSize + 0.2, moduleSize + 0.2);
+          }
+        });
+      });
+      ctx.restore();
+    } catch (err) {
+      console.error("QR Draw Error:", err);
+    }
+  };
+
   useEffect(() => {
     const processAndUpload = async () => {
       if (doneRef.current) return;
       doneRef.current = true;
 
       try {
+        const generateUUID = () => {
+          if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            return crypto.randomUUID();
+          }
+          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+          });
+        };
+        const sessionId = generateUUID();
+
         setProgress("Generating layout...");
-        const compositeBlob = await generateCompositeImage();
+        const compositeBlob = await generateCompositeImage(sessionId);
 
         // Trigger Printing Immediately
         const selectedPrinter = localStorage.getItem('selectedPrinter') || '';
@@ -70,16 +105,6 @@ const ProcessingScreen = ({
         
         // 2. Upload Raw Photos
         const rawPhotoUrls = [];
-        const generateUUID = () => {
-          if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-            return crypto.randomUUID();
-          }
-          return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-          });
-        };
-        const sessionId = generateUUID();
         
         for (let i = 0; i < rawPhotos.length; i++) {
           if (!rawPhotos[i]) continue;
@@ -120,7 +145,7 @@ const ProcessingScreen = ({
         if (selectedMode === 'photobooth' && videoClips.length > 0) {
           try {
             setProgress("Generating Framed Video...");
-            const videoBlob = await generateCompositeVideo(videoClips);
+            const videoBlob = await generateCompositeVideo(videoClips, sessionId);
             const videoFileName = `captures/${user?.id}/${sessionId}_framed_video.webm`;
             const { error: videoErr } = await supabase.storage.from('frames').upload(videoFileName, videoBlob, {
               contentType: 'video/webm'
@@ -174,7 +199,12 @@ const ProcessingScreen = ({
     }
   }, []);
 
-  const generateCompositeImage = () => {
+  const getGalleryUrl = (sessionId) => {
+    const galleryBase = import.meta.env.VITE_GALLERY_URL || (import.meta.env.DEV ? window.location.origin : "https://latarcerita.com");
+    return `${galleryBase}/?gallery=${sessionId}`;
+  };
+
+  const generateCompositeImage = (sessionId) => {
     return new Promise((resolve, reject) => {
       const selectedPaperSize = localStorage.getItem('selectedPaperSize') || '4r';
       const isA4 = selectedPaperSize === 'a4';
@@ -219,32 +249,37 @@ const ProcessingScreen = ({
       const drawAll = async () => {
         try {
           for (const slot of selectedFrameData.slots) {
-            const photoSrc = compositePhotos[slot.number - 1];
-            if (photoSrc) {
-              const img = await loadImage(photoSrc);
-              ctx.save();
-              if (selectedFilter && canvasFilters[selectedFilter]) {
-                ctx.filter = canvasFilters[selectedFilter];
+            if (slot.type === 'qr') {
+              const galleryUrl = getGalleryUrl(sessionId);
+              drawQRCode(ctx, galleryUrl, slot.x, slot.y, slot.width);
+            } else {
+              const photoSrc = compositePhotos[slot.number - 1];
+              if (photoSrc) {
+                const img = await loadImage(photoSrc);
+                ctx.save();
+                if (selectedFilter && canvasFilters[selectedFilter]) {
+                  ctx.filter = canvasFilters[selectedFilter];
+                }
+                const aspect = img.width / img.height;
+                const targetAspect = slot.width / slot.height;
+                let drawW, drawH, drawX, drawY;
+                if (aspect > targetAspect) {
+                  drawH = slot.height;
+                  drawW = slot.height * aspect;
+                  drawX = slot.x - (drawW - slot.width) / 2;
+                  drawY = slot.y;
+                } else {
+                  drawW = slot.width;
+                  drawH = slot.width / aspect;
+                  drawX = slot.x;
+                  drawY = slot.y - (drawH - slot.height) / 2;
+                }
+                ctx.beginPath();
+                ctx.rect(slot.x, slot.y, slot.width, slot.height);
+                ctx.clip();
+                ctx.drawImage(img, drawX, drawY, drawW, drawH);
+                ctx.restore();
               }
-              const aspect = img.width / img.height;
-              const targetAspect = slot.width / slot.height;
-              let drawW, drawH, drawX, drawY;
-              if (aspect > targetAspect) {
-                drawH = slot.height;
-                drawW = slot.height * aspect;
-                drawX = slot.x - (drawW - slot.width) / 2;
-                drawY = slot.y;
-              } else {
-                drawW = slot.width;
-                drawH = slot.width / aspect;
-                drawX = slot.x;
-                drawY = slot.y - (drawH - slot.height) / 2;
-              }
-              ctx.beginPath();
-              ctx.rect(slot.x, slot.y, slot.width, slot.height);
-              ctx.clip();
-              ctx.drawImage(img, drawX, drawY, drawW, drawH);
-              ctx.restore();
             }
           }
           const frameUrl = selectedFrameData.url || selectedFrameData.image_url;
@@ -309,7 +344,7 @@ const ProcessingScreen = ({
     });
   };
 
-  const generateCompositeVideo = (videoBlobs) => {
+  const generateCompositeVideo = (videoBlobs, sessionId) => {
     return new Promise(async (resolve, reject) => {
       try {
         const selectedPaperSize = localStorage.getItem('selectedPaperSize') || '4r';
@@ -360,16 +395,34 @@ const ProcessingScreen = ({
           video.muted = true;
           video.loop = true;
           video.playsInline = true;
+          video.setAttribute('webkit-playsinline', 'true');
           await new Promise((res) => {
             video.oncanplay = res;
             video.load();
           });
-          await video.play();
+          try {
+            await video.play();
+          } catch (e) {
+            console.warn("Video play failed, but continuing:", e);
+          }
           return video;
         }));
 
+        // Attach canvas to DOM hidden to ensure it's "active" in Electron/Chrome background
+        canvas.style.position = 'fixed';
+        canvas.style.top = '-9999px';
+        canvas.style.left = '-9999px';
+        canvas.style.visibility = 'hidden';
+        document.body.appendChild(canvas);
+
         const stream = canvas.captureStream(30);
-        const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp8' });
+        
+        let mimeType = 'video/webm;codecs=vp8';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'video/webm';
+        }
+        
+        const recorder = new MediaRecorder(stream, { mimeType });
         const chunks = [];
         
         recorder.ondataavailable = (e) => {
@@ -378,6 +431,7 @@ const ProcessingScreen = ({
         
         recorder.onstop = () => {
           const finalBlob = new Blob(chunks, { type: 'video/webm' });
+          if (canvas.parentNode) document.body.removeChild(canvas);
           resolve(finalBlob);
         };
 
@@ -386,9 +440,10 @@ const ProcessingScreen = ({
         const startTime = Date.now();
         const recordingDuration = 3500; 
 
-        const render = () => {
+        const renderInterval = setInterval(() => {
           const now = Date.now();
           if (now - startTime > recordingDuration) {
+            clearInterval(renderInterval);
             if (recorder.state === 'recording') recorder.stop();
             videoElements.forEach(v => {
                if (v) {
@@ -399,7 +454,7 @@ const ProcessingScreen = ({
             return;
           }
 
-          // Clear is tricky because of translate/scale, better to clear the whole canvas using absolute coords
+          // Clear the whole canvas using absolute coords
           ctx.save();
           ctx.setTransform(1, 0, 0, 1, 0, 0);
           ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -407,40 +462,45 @@ const ProcessingScreen = ({
 
           // Draw videos in slots
           selectedFrameData.slots.forEach((slot) => {
-            const video = videoElements[slot.number - 1];
-            if (video) {
-              ctx.save();
-              const aspect = video.videoWidth / video.videoHeight;
-              const targetAspect = slot.width / slot.height;
-              let drawW, drawH, drawX, drawY;
-              
-              if (aspect > targetAspect) {
-                drawH = slot.height;
-                drawW = slot.height * aspect;
-                drawX = slot.x - (drawW - slot.width) / 2;
-                drawY = slot.y;
-              } else {
-                drawW = slot.width;
-                drawH = slot.width / aspect;
-                drawX = slot.x;
-                drawY = slot.y - (drawH - slot.height) / 2;
-              }
-              
-              ctx.beginPath();
-              ctx.rect(slot.x, slot.y, slot.width, slot.height);
-              ctx.clip();
-              
-              // Apply horizontal flip to un-mirror the video (standard for photobooth results)
-              ctx.translate(slot.x + slot.width, 0);
-              ctx.scale(-1, 1);
-              ctx.translate(-slot.x, 0);
+            if (slot.type === 'qr') {
+               const galleryUrl = getGalleryUrl(sessionId);
+               drawQRCode(ctx, galleryUrl, slot.x, slot.y, slot.width);
+            } else {
+              const video = videoElements[slot.number - 1];
+              if (video && video.readyState >= 2) {
+                ctx.save();
+                const aspect = video.videoWidth / video.videoHeight;
+                const targetAspect = slot.width / slot.height;
+                let drawW, drawH, drawX, drawY;
+                
+                if (aspect > targetAspect) {
+                  drawH = slot.height;
+                  drawW = slot.height * aspect;
+                  drawX = slot.x - (drawW - slot.width) / 2;
+                  drawY = slot.y;
+                } else {
+                  drawW = slot.width;
+                  drawH = slot.width / aspect;
+                  drawX = slot.x;
+                  drawY = slot.y - (drawH - slot.height) / 2;
+                }
+                
+                ctx.beginPath();
+                ctx.rect(slot.x, slot.y, slot.width, slot.height);
+                ctx.clip();
+                
+                // Apply horizontal flip to un-mirror the video (standard for photobooth results)
+                ctx.translate(slot.x + slot.width, 0);
+                ctx.scale(-1, 1);
+                ctx.translate(-slot.x, 0);
 
-              if (selectedFilter && canvasFilters[selectedFilter]) {
-                ctx.filter = canvasFilters[selectedFilter];
+                if (selectedFilter && canvasFilters[selectedFilter]) {
+                  ctx.filter = canvasFilters[selectedFilter];
+                }
+                
+                ctx.drawImage(video, drawX, drawY, drawW, drawH);
+                ctx.restore();
               }
-              
-              ctx.drawImage(video, drawX, drawY, drawW, drawH);
-              ctx.restore();
             }
           });
 
@@ -467,11 +527,7 @@ const ProcessingScreen = ({
           }
           
           ctx.drawImage(frameImg, fDrawX, fDrawY, fDrawW, fDrawH);
-          
-          requestAnimationFrame(render);
-        };
-
-        render();
+        }, 1000 / 30); // 30 FPS
       } catch (err) {
         console.error("Error in generateCompositeVideo:", err);
         reject(err);

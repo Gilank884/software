@@ -16,11 +16,13 @@ const DraggableBox = ({ box, onUpdate, onDelete, isSelected, onSelect, isLocked 
     posRef.current = { x: box.x, y: box.y, width: box.width, height: box.height }
   }, [box.x, box.y, box.width, box.height])
 
+  const isQr = box.type === 'qr'
+
   useEffect(() => {
     const node = boxRef.current
     if (!node || !isSelected || isLocked) return
 
-    interact(node)
+    const interactObj = interact(node)
       .draggable({
         listeners: {
           move(event) {
@@ -37,12 +39,13 @@ const DraggableBox = ({ box, onUpdate, onDelete, isSelected, onSelect, isLocked 
           }
         }
       })
-      .resizable({
+
+    if (!isQr) {
+      interactObj.resizable({
         edges: { left: true, right: true, bottom: true, top: true },
         listeners: {
           move(event) {
             const z = propsRef.current.zoom
-            // Use deltas instead of absolute rect to avoid zoom scaling issues
             posRef.current.width += event.deltaRect.right / z - event.deltaRect.left / z
             posRef.current.height += event.deltaRect.bottom / z - event.deltaRect.top / z
             posRef.current.x += event.deltaRect.left / z
@@ -62,17 +65,26 @@ const DraggableBox = ({ box, onUpdate, onDelete, isSelected, onSelect, isLocked 
           }
         }
       })
+    }
 
     return () => {
       interact(node).unset()
     }
-  }, [box.id, isSelected, isLocked])
+  }, [box.id, isSelected, isLocked, isQr])
 
   return (
     <div
       ref={boxRef}
       onClick={isLocked ? undefined : onSelect}
-      className={`absolute border-2 flex items-center justify-center group touch-none select-none z-10 transition-[border-color,box-shadow,opacity] duration-200 ${isLocked ? 'pointer-events-none border-slate-300 bg-slate-100/10 grayscale opacity-40' : 'pointer-events-auto cursor-pointer shadow-sm'} ${isSelected && !isLocked ? 'border-blue-500 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.5)] ring-2 ring-blue-500/20' : 'border-dashed border-red-500 bg-red-500/5 hover:border-red-400'}`}
+      className={`absolute border-2 flex items-center justify-center group touch-none select-none z-10 transition-[border-color,box-shadow,opacity] duration-200 ${
+        isLocked 
+          ? 'pointer-events-none border-slate-300 bg-slate-100/10 grayscale opacity-40' 
+          : 'pointer-events-auto cursor-pointer shadow-sm'
+      } ${
+        isSelected && !isLocked 
+          ? isQr ? 'border-indigo-500 bg-indigo-500/10 shadow-[0_0_20px_rgba(99,102,241,0.5)] ring-2 ring-indigo-500/20' : 'border-blue-500 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.5)] ring-2 ring-blue-500/20' 
+          : isQr ? 'border-dashed border-indigo-400 bg-indigo-400/5 hover:border-indigo-500' : 'border-dashed border-red-500 bg-red-500/5 hover:border-red-400'
+      }`}
       style={{
         width: box.width,
         height: box.height,
@@ -80,8 +92,14 @@ const DraggableBox = ({ box, onUpdate, onDelete, isSelected, onSelect, isLocked 
         position: 'absolute'
       }}
     >
-      <span className={`font-bold text-[10px] pointer-events-none uppercase tracking-widest ${isLocked ? 'text-slate-400' : isSelected ? 'text-blue-600' : 'text-red-400 opacity-60'}`}>
-        {isLocked ? 'Locked' : `Foto ${box.number}`}
+      <span className={`font-bold text-[10px] pointer-events-none uppercase tracking-widest ${
+        isLocked 
+          ? 'text-slate-400' 
+          : isSelected 
+            ? isQr ? 'text-indigo-600' : 'text-blue-600' 
+            : isQr ? 'text-indigo-400 opacity-60' : 'text-red-400 opacity-60'
+      }`}>
+        {isLocked ? 'Locked' : isQr ? 'QR CODE' : `Foto ${box.number}`}
       </span>
       
       <button

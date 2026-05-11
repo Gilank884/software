@@ -9,9 +9,9 @@ const SelfPhotoPhotoSelectScreen = ({
   setSelectedPhotos, 
   onNext 
 }) => {
-  // Number of slots required by the selected frame
-  // Calculate actual photo count from unique slot numbers to be robust
-  const uniqueSlots = [...new Set((selectedFrameData?.slots || []).map(s => s.number))]
+  // Number of slots required by the selected frame, ignoring QR targets
+  const photoSlots = (selectedFrameData?.slots || []).filter(s => s.number > 0 && s.type !== 'qr')
+  const uniqueSlots = [...new Set(photoSlots.map(s => s.number))]
   const requiredCount = uniqueSlots.length || selectedFrameData?.photo_count || 1;
 
   const toggleSelect = (index) => {

@@ -79,8 +79,9 @@ const CustomizeScreen = ({
           setSelectedFrame(firstFrame.id)
           setSelectedFrameData(firstFrame)
           
-          // Calculate actual photo count from unique slot numbers
-          const uniqueSlots = [...new Set((firstFrame.slots || []).map(s => s.number))]
+          // Calculate actual photo count from unique slot numbers, ignoring QR (number 0)
+          const photoSlots = (firstFrame.slots || []).filter(s => s.number > 0 && s.type !== 'qr')
+          const uniqueSlots = [...new Set(photoSlots.map(s => s.number))]
           const actualCount = uniqueSlots.length || firstFrame.photo_count || 3
           if (setMaxCaptures) setMaxCaptures(actualCount)
         }
@@ -105,8 +106,9 @@ const CustomizeScreen = ({
     setSelectedFrame(frame.id)
     setSelectedFrameData(frame)
     
-    // Calculate actual photo count from unique slot numbers to be robust
-    const uniqueSlots = [...new Set((frame.slots || []).map(s => s.number))]
+    // Calculate actual photo count from unique slot numbers to be robust, ignoring QR
+    const photoSlots = (frame.slots || []).filter(s => s.number > 0 && s.type !== 'qr')
+    const uniqueSlots = [...new Set(photoSlots.map(s => s.number))]
     const actualCount = uniqueSlots.length || frame.photo_count || 3
     if (setMaxCaptures) {
       setMaxCaptures(actualCount)
@@ -248,9 +250,12 @@ const CustomizeScreen = ({
                       style={{ width: `${600 * 0.38}px`, height: `${900 * 0.38}px` }}
                     >
                       {frame.slots?.map((slot, i) => {
-                        const photo = photos?.[slot.number - 1];
+                        const isQr = slot.type === 'qr' || slot.number === 0;
+                        const photo = !isQr ? photos?.[slot.number - 1] : null;
                         const s = 0.38;
-                        const color = SLOT_COLORS[(slot.number - 1) % SLOT_COLORS.length];
+                        const colorIndex = isQr ? 5 : (slot.number - 1); // Use indigo (index 5) for QR
+                        const color = SLOT_COLORS[Math.max(0, colorIndex % SLOT_COLORS.length)];
+                        
                         return (
                           <div
                             key={i}
@@ -262,7 +267,12 @@ const CustomizeScreen = ({
                               height: `${slot.height * s}px`,
                             }}
                           >
-                            {photo ? (
+                            {isQr ? (
+                              <div className={`flex flex-col items-center justify-center ${color.text} opacity-60 animate-pulse`}>
+                                <Sparkles size={24 * s} className="mb-1" />
+                                <span className="text-[8px] font-black italic uppercase leading-none">QR</span>
+                              </div>
+                            ) : photo ? (
                               <img src={photo} className="w-full h-full object-cover" alt="" />
                             ) : (
                               <div className={`flex flex-col items-center justify-center ${color.text} animate-pulse`}>
@@ -314,12 +324,13 @@ const CustomizeScreen = ({
                     style={{ width: `${600 * 0.35}px`, height: `${900 * 0.35}px` }}
                   >
                     {currentFrame?.slots?.map((slot, i) => {
-                      const photo = photos?.[slot.number - 1];
+                      const isQr = slot.type === 'qr' || slot.number === 0;
+                      const photo = !isQr ? photos?.[slot.number - 1] : null;
                       const s = 0.35;
                       return (
                         <div
                           key={i}
-                          className={`absolute overflow-hidden transition-all duration-700 ${filter.class} border border-white/20`}
+                          className={`absolute overflow-hidden transition-all duration-700 ${filter.class} border border-white/20 flex items-center justify-center bg-slate-50/10`}
                           style={{
                             left: `${slot.x * s}px`,
                             top: `${slot.y * s}px`,
@@ -327,7 +338,11 @@ const CustomizeScreen = ({
                             height: `${slot.height * s}px`,
                           }}
                         >
-                          {photo ? (
+                          {isQr ? (
+                            <div className="flex flex-col items-center justify-center opacity-40">
+                              <Sparkles size={20 * s} className="text-slate-400" />
+                            </div>
+                          ) : photo ? (
                             <img src={photo} className="w-full h-full object-cover" alt="" />
                           ) : (
                             <div className="w-full h-full bg-slate-100" />

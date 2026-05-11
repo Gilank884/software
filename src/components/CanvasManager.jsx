@@ -305,11 +305,34 @@ const CanvasManager = ({ user }) => {
     const nextNumber = boxes.length > 0 ? Math.max(...boxes.map(b => b.number)) + 1 : 1
     const newBox = {
       id: newId,
+      type: 'photo',
       number: nextNumber,
       x: 50,
       y: 50,
       width: 200,
       height: 300
+    }
+
+    pushToHistory(frames.map(f =>
+      f.id === activeFrameId ? { ...f, slots: [...f.slots, newBox] } : f
+    ))
+    setSelectedLayerId(newId)
+  }
+
+  const addQrSlot = () => {
+    if (!activeFrameId) {
+      alert('Upload atau Pilih Frame terlebih dahulu!')
+      return
+    }
+    const newId = Date.now()
+    const newBox = {
+      id: newId,
+      type: 'qr',
+      number: 0, // QR doesn't need a photo number
+      x: 50,
+      y: 50,
+      width: 150,
+      height: 150
     }
 
     pushToHistory(frames.map(f =>
@@ -334,10 +357,13 @@ const CanvasManager = ({ user }) => {
     pushToHistory(frames.map(f =>
       f.id === activeFrameId ? {
         ...f,
-        slots: f.slots.filter(box => box.id !== id).map((box, i) => ({
-          ...box,
-          number: i + 1
-        }))
+        slots: f.slots.filter(box => box.id !== id).map((box, i) => {
+          if (box.type === 'qr') return box;
+          // Re-calculate photo numbers only for non-qr slots
+          const photoSlots = f.slots.filter(b => b.id !== id && b.type !== 'qr');
+          const newNumber = photoSlots.findIndex(b => b.id === box.id) + 1;
+          return { ...box, number: newNumber };
+        })
       } : f
     ))
   }
@@ -361,13 +387,15 @@ const CanvasManager = ({ user }) => {
 
     const slotsForDb = boxes.map(box => ({
       number: box.number,
+      type: box.type || 'photo',
       x: Math.round(box.x),
       y: Math.round(box.y),
       width: Math.round(box.width),
       height: Math.round(box.height)
     }))
 
-    const uniquePhotos = [...new Set(slotsForDb.map(s => s.number))]
+    const photoSlots = slotsForDb.filter(s => s.type !== 'qr' && s.number > 0)
+    const uniquePhotos = [...new Set(photoSlots.map(s => s.number))]
     const photoCount = uniquePhotos.length
 
     const { error } = await supabase
@@ -768,6 +796,16 @@ const CanvasManager = ({ user }) => {
                   <Plus size={16} />
                 </div>
                 Add Target Slot
+              </button>
+
+              <button
+                onClick={addQrSlot}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+              >
+                <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center text-white">
+                  <Plus size={16} />
+                </div>
+                Add Target QR
               </button>
 
               <button
