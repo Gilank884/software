@@ -32,7 +32,7 @@ const ScreenEvent = ({ onStart }) => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            src="/Event.png"
+            src="/Event3.png"
             alt="Event"
             className="max-w-[280px] h-auto drop-shadow-xl"
           />

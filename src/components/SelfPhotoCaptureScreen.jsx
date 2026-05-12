@@ -22,7 +22,7 @@ const SelfPhotoCaptureScreen = ({
   const [sessionStarted, setSessionStarted] = useState(false)
   
   const canvasRef = useRef(null)
-  const remoteUrl = `https://latarcerita.com/remote?remoteSession=${remoteSessionId}`
+  const remoteUrl = `https://fotoku.latarcerita.com/remote?remoteSession=${remoteSessionId}`
 
   // Start and Session Timer logic
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Palette, Wand2, Sparkles, Loader2, Image as ImageIcon, ChevronRight, Layers, Heart, Star } from 'lucide-react'
+import { QRCode } from 'react-qr-code'
 import { supabase } from '../lib/supabaseClient'
 
 const FILTER_OPTIONS = [
@@ -9,6 +10,11 @@ const FILTER_OPTIONS = [
   { id: 'sepia', name: 'VINTAGE', class: 'sepia', icon: Sparkles, color: 'from-amber-400 to-orange-900' },
   { id: 'vibrant', name: 'VIVID', class: 'saturate-200 contrast-125', icon: ImageIcon, color: 'from-rose-400 to-purple-600' }
 ];
+
+const CANVAS_BASE = {
+  '4R': { width: 600, height: 900 },
+  'A4': { width: 636, height: 900 }
+};
 
 const SLOT_COLORS = [
   { bg: 'bg-blue-50/50', text: 'text-blue-500', border: 'border-blue-100' },
@@ -243,60 +249,70 @@ const CustomizeScreen = ({
                   )}
 
                   <div className="relative z-10">
+                    {(() => {
+                      const base = CANVAS_BASE[frame.size_type] || CANVAS_BASE['4R'];
+                      const s = 0.38;
+                      return (
+                        <div
+                          className="relative shadow-[0_60px_120px_rgba(0,0,0,0.2)] ring-1 ring-black/5 bg-white overflow-hidden"
+                          style={{ width: `${base.width * s}px`, height: `${base.height * s}px` }}
+                        >
+                          {frame.slots?.map((slot, i) => {
+                            const isQr = slot.type === 'qr' || slot.number === 0;
+                            const photo = !isQr ? photos?.[slot.number - 1] : null;
+                            const colorIndex = isQr ? 5 : (slot.number - 1); // Use indigo (index 5) for QR
+                            const color = SLOT_COLORS[Math.max(0, colorIndex % SLOT_COLORS.length)];
+                            
+                            return (
+                              <div
+                                key={i}
+                                className={`absolute overflow-hidden ${photo ? '' : color.bg} transition-all duration-700 ${filters[selectedFilter]} border border-white/10 flex items-center justify-center`}
+                                style={{
+                                  left: `${slot.x * s}px`,
+                                  top: `${slot.y * s}px`,
+                                  width: `${slot.width * s}px`,
+                                  height: `${slot.height * s}px`,
+                                }}
+                              >
+                                {isQr ? (
+                                  <div className="bg-white p-1 rounded-sm shadow-inner scale-[0.8] opacity-70">
+                                    <QRCode 
+                                      value="https://fotoku.latarcerita.com" 
+                                      size={Math.max(10, Math.min(slot.width * s, slot.height * s) - 4)} 
+                                      level="L"
+                                    />
+                                  </div>
+                                ) : photo ? (
+                                  <img src={photo} className="w-full h-full object-cover" alt="" />
+                                ) : (
+                                  <div className={`flex flex-col items-center justify-center ${color.text} animate-pulse`}>
+                                    <span className="text-4xl font-black italic leading-none opacity-40">
+                                      {slot.number}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
 
-
-                    <div
-                      className="relative shadow-[0_60px_120px_rgba(0,0,0,0.2)] ring-1 ring-black/5 bg-white"
-                      style={{ width: `${600 * 0.38}px`, height: `${900 * 0.38}px` }}
-                    >
-                      {frame.slots?.map((slot, i) => {
-                        const isQr = slot.type === 'qr' || slot.number === 0;
-                        const photo = !isQr ? photos?.[slot.number - 1] : null;
-                        const s = 0.38;
-                        const colorIndex = isQr ? 5 : (slot.number - 1); // Use indigo (index 5) for QR
-                        const color = SLOT_COLORS[Math.max(0, colorIndex % SLOT_COLORS.length)];
-                        
-                        return (
-                          <div
-                            key={i}
-                            className={`absolute overflow-hidden ${photo ? '' : color.bg} transition-all duration-700 ${filters[selectedFilter]} border border-white/10 flex items-center justify-center`}
+                          <div 
+                            className="absolute pointer-events-none z-30"
                             style={{
-                              left: `${slot.x * s}px`,
-                              top: `${slot.y * s}px`,
-                              width: `${slot.width * s}px`,
-                              height: `${slot.height * s}px`,
+                              left: `${(frame.frame_x || 0) * s}px`,
+                              top: `${(frame.frame_y || 0) * s}px`,
+                              width: `${(frame.frame_width || base.width) * s}px`,
+                              height: `${(frame.frame_height || base.height) * s}px`,
                             }}
                           >
-                            {isQr ? (
-                              <div className={`flex flex-col items-center justify-center ${color.text} opacity-60 animate-pulse`}>
-                                <Sparkles size={24 * s} className="mb-1" />
-                                <span className="text-[8px] font-black italic uppercase leading-none">QR</span>
-                              </div>
-                            ) : photo ? (
-                              <img src={photo} className="w-full h-full object-cover" alt="" />
-                            ) : (
-                              <div className={`flex flex-col items-center justify-center ${color.text} animate-pulse`}>
-                                <span className="text-4xl font-black italic leading-none opacity-40">
-                                  {slot.number}
-                                </span>
-                              </div>
-                            )}
+                            <img
+                              src={frame.image_url}
+                              className="w-full h-full object-contain"
+                              alt={frame.name}
+                            />
                           </div>
-                        );
-                      })}
-
-                      <img
-                        src={frame.image_url}
-                        className="absolute inset-0 w-full h-full object-contain pointer-events-none z-30"
-                        alt={frame.name}
-                        style={{
-                          left: `${(frame.frame_x || 0) * 0.38}px`,
-                          top: `${(frame.frame_y || 0) * 0.38}px`,
-                          width: `${(frame.frame_width || 600) * 0.38}px`,
-                          height: `${(frame.frame_height || 900) * 0.38}px`,
-                        }}
-                      />
-                    </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </motion.div>
               ))
@@ -317,54 +333,65 @@ const CustomizeScreen = ({
                 )}
 
                 <div className="relative z-10 flex flex-col items-center">
-
-
-                  <div
-                    className="relative bg-white shadow-[0_60px_120px_rgba(0,0,0,0.2)] overflow-hidden ring-1 ring-black/5"
-                    style={{ width: `${600 * 0.35}px`, height: `${900 * 0.35}px` }}
-                  >
-                    {currentFrame?.slots?.map((slot, i) => {
-                      const isQr = slot.type === 'qr' || slot.number === 0;
-                      const photo = !isQr ? photos?.[slot.number - 1] : null;
-                      const s = 0.35;
-                      return (
-                        <div
-                          key={i}
-                          className={`absolute overflow-hidden transition-all duration-700 ${filter.class} border border-white/20 flex items-center justify-center bg-slate-50/10`}
-                          style={{
-                            left: `${slot.x * s}px`,
-                            top: `${slot.y * s}px`,
-                            width: `${slot.width * s}px`,
-                            height: `${slot.height * s}px`,
-                          }}
-                        >
-                          {isQr ? (
-                            <div className="flex flex-col items-center justify-center opacity-40">
-                              <Sparkles size={20 * s} className="text-slate-400" />
+                  {(() => {
+                    const base = CANVAS_BASE[currentFrame?.size_type] || CANVAS_BASE['4R'];
+                    const s = 0.35;
+                    return (
+                      <div
+                        className="relative bg-white shadow-[0_60px_120px_rgba(0,0,0,0.2)] overflow-hidden ring-1 ring-black/5"
+                        style={{ width: `${base.width * s}px`, height: `${base.height * s}px` }}
+                      >
+                        {currentFrame?.slots?.map((slot, i) => {
+                          const isQr = slot.type === 'qr' || slot.number === 0;
+                          const photo = !isQr ? photos?.[slot.number - 1] : null;
+                          return (
+                            <div
+                              key={i}
+                              className={`absolute overflow-hidden transition-all duration-700 ${filter.class} border border-white/20 flex items-center justify-center bg-slate-50/10`}
+                              style={{
+                                left: `${slot.x * s}px`,
+                                top: `${slot.y * s}px`,
+                                width: `${slot.width * s}px`,
+                                height: `${slot.height * s}px`,
+                              }}
+                            >
+                              {isQr ? (
+                                <div className="bg-white p-1 rounded-sm scale-[0.6] opacity-40">
+                                   <QRCode 
+                                     value="https://fotoku.latarcerita.com" 
+                                     size={Math.max(10, Math.min(slot.width * s, slot.height * s) - 4)} 
+                                     level="L"
+                                   />
+                                </div>
+                              ) : photo ? (
+                                <img src={photo} className="w-full h-full object-cover" alt="" />
+                              ) : (
+                                <div className="w-full h-full bg-slate-100" />
+                              )}
                             </div>
-                          ) : photo ? (
-                            <img src={photo} className="w-full h-full object-cover" alt="" />
-                          ) : (
-                            <div className="w-full h-full bg-slate-100" />
-                          )}
-                        </div>
-                      );
-                    })}
+                          );
+                        })}
 
-                    {currentFrame && (
-                      <img
-                        src={currentFrame.image_url}
-                        className="absolute inset-0 w-full h-full object-contain pointer-events-none z-30"
-                        alt={currentFrame.name}
-                        style={{
-                          left: `${(currentFrame.frame_x || 0) * 0.35}px`,
-                          top: `${(currentFrame.frame_y || 0) * 0.35}px`,
-                          width: `${(currentFrame.frame_width || 600) * 0.35}px`,
-                          height: `${(currentFrame.frame_height || 900) * 0.35}px`,
-                        }}
-                      />
-                    )}
-                  </div>
+                        {currentFrame && (
+                          <div 
+                            className="absolute pointer-events-none z-30"
+                            style={{
+                              left: `${(currentFrame.frame_x || 0) * s}px`,
+                              top: `${(currentFrame.frame_y || 0) * s}px`,
+                              width: `${(currentFrame.frame_width || base.width) * s}px`,
+                              height: `${(currentFrame.frame_height || base.height) * s}px`,
+                            }}
+                          >
+                            <img
+                              src={currentFrame.image_url}
+                              className="w-full h-full object-contain"
+                              alt={currentFrame.name}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </motion.div>
             ))

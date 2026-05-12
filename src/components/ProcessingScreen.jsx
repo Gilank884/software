@@ -29,18 +29,23 @@ const ProcessingScreen = ({
 
   const drawQRCode = (ctx, data, x, y, size) => {
     try {
-      const qr = qrcode(data, { errorCorrectLevel: qrcode.ErrorCorrectLevel.H });
+      // Use qr.js to generate modules
+      const qr = qrcode(data); 
       const modules = qr.modules;
       const moduleSize = size / modules.length;
       
       ctx.save();
+      // Draw white background for the QR code to ensure scannability
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(x, y, size, size);
+      
       ctx.fillStyle = '#000000';
       ctx.translate(x, y);
       modules.forEach((row, rowIndex) => {
         row.forEach((col, colIndex) => {
           if (col) {
-            // Added 0.5 to moduleSize to prevent tiny gaps between modules due to anti-aliasing
-            ctx.fillRect(colIndex * moduleSize, rowIndex * moduleSize, moduleSize + 0.2, moduleSize + 0.2);
+            // Fill the module with a slight overlap to prevent anti-aliasing gaps
+            ctx.fillRect(colIndex * moduleSize, rowIndex * moduleSize, moduleSize + 0.1, moduleSize + 0.1);
           }
         });
       });
@@ -200,7 +205,7 @@ const ProcessingScreen = ({
   }, []);
 
   const getGalleryUrl = (sessionId) => {
-    const galleryBase = import.meta.env.VITE_GALLERY_URL || (import.meta.env.DEV ? window.location.origin : "https://latarcerita.com");
+    const galleryBase = import.meta.env.VITE_GALLERY_URL || (import.meta.env.DEV ? window.location.origin : "https://fotoku.latarcerita.com");
     return `${galleryBase}/?gallery=${sessionId}`;
   };
 
@@ -213,26 +218,32 @@ const ProcessingScreen = ({
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
       
+      const base = {
+        width: selectedFrameData?.frame_width || (selectedFrameData?.size_type === 'A4' ? 636 : 600),
+        height: selectedFrameData?.frame_height || 900
+      };
+
       if (isA4Plus) {
         // Enlarged version (+1.5cm effect)
-        canvas.width = 1350; 
-        canvas.height = 1950; 
+        const scale = 2.35;
+        canvas.width = Math.ceil(base.width * scale); 
+        canvas.height = Math.ceil(base.height * scale); 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.translate(-35, -40); 
-        ctx.scale(2.35, 2.35); 
+        ctx.scale(scale, scale); 
       } else if (isA4) {
         // Standard A4 Fit
-        canvas.width = 1240; 
-        canvas.height = 1840; 
+        const scale = 2.1;
+        canvas.width = Math.ceil(base.width * scale); 
+        canvas.height = Math.ceil(base.height * scale); 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.translate(-10, -10);
-        ctx.scale(2.1, 2.1); 
+        ctx.scale(scale, scale); 
       } else {
         // Standard 4R
-        canvas.width = 1200; 
-        canvas.height = 1800; 
+        const scale = 2;
+        canvas.width = base.width * scale; 
+        canvas.height = base.height * scale; 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.scale(2, 2); 
+        ctx.scale(scale, scale); 
       }
 
       const loadImage = (src) => {
@@ -286,8 +297,8 @@ const ProcessingScreen = ({
           const frameImg = await loadImage(frameUrl);
           const fx = selectedFrameData.frame_x || 0;
           const fy = selectedFrameData.frame_y || 0;
-          const fw = selectedFrameData.frame_width || 600;
-          const fh = selectedFrameData.frame_height || 900;
+          const fw = selectedFrameData.frame_width || base.width;
+          const fh = selectedFrameData.frame_height || base.height;
           const fAspect = frameImg.width / frameImg.height;
           const targetFAspect = fw / fh;
           let fDrawW, fDrawH, fDrawX, fDrawY;
@@ -354,23 +365,29 @@ const ProcessingScreen = ({
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         
+        const base = {
+          width: selectedFrameData?.frame_width || (selectedFrameData?.size_type === 'A4' ? 636 : 600),
+          height: selectedFrameData?.frame_height || 900
+        };
+
         if (isA4Plus) {
-          canvas.width = 1350; 
-          canvas.height = 1950; 
+          const scale = 2.35;
+          canvas.width = Math.ceil(base.width * scale); 
+          canvas.height = Math.ceil(base.height * scale); 
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.translate(-35, -40); 
-          ctx.scale(2.35, 2.35); 
+          ctx.scale(scale, scale); 
         } else if (isA4) {
-          canvas.width = 1240; 
-          canvas.height = 1840; 
+          const scale = 2.1;
+          canvas.width = Math.ceil(base.width * scale); 
+          canvas.height = Math.ceil(base.height * scale); 
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.translate(-10, -10);
-          ctx.scale(2.1, 2.1); 
+          ctx.scale(scale, scale); 
         } else {
-          canvas.width = 1200; 
-          canvas.height = 1800; 
+          const scale = 2;
+          canvas.width = base.width * scale; 
+          canvas.height = base.height * scale; 
           ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.scale(2, 2); 
+          ctx.scale(scale, scale); 
         }
         
         const frameUrl = selectedFrameData.url || selectedFrameData.image_url;
@@ -388,24 +405,35 @@ const ProcessingScreen = ({
 
         const frameImg = await loadImageLocal(frameUrl);
         
-        const videoElements = await Promise.all(videoBlobs.map(async (blob) => {
+        const videoElements = await Promise.all(videoBlobs.map(async (blob, idx) => {
           if (!blob) return null;
-          const video = document.createElement('video');
-          video.src = URL.createObjectURL(blob);
-          video.muted = true;
-          video.loop = true;
-          video.playsInline = true;
-          video.setAttribute('webkit-playsinline', 'true');
-          await new Promise((res) => {
-            video.oncanplay = res;
+          return new Promise((resolve) => {
+            const video = document.createElement('video');
+            video.src = URL.createObjectURL(blob);
+            video.muted = true;
+            video.loop = true;
+            video.playsInline = true;
+            video.setAttribute('webkit-playsinline', 'true');
+            
+            const timeout = setTimeout(() => {
+              console.warn(`Video ${idx} load timeout`);
+              resolve(null);
+            }, 5000);
+
+            video.oncanplay = () => {
+              clearTimeout(timeout);
+              video.play().catch(e => console.warn("Video play error:", e));
+              resolve(video);
+            };
+            
+            video.onerror = () => {
+              clearTimeout(timeout);
+              console.error(`Video ${idx} error`);
+              resolve(null);
+            };
+
             video.load();
           });
-          try {
-            await video.play();
-          } catch (e) {
-            console.warn("Video play failed, but continuing:", e);
-          }
-          return video;
         }));
 
         // Attach canvas to DOM hidden to ensure it's "active" in Electron/Chrome background
@@ -436,7 +464,23 @@ const ProcessingScreen = ({
         };
 
         recorder.start();
+        console.log("MediaRecorder started");
         
+        // Cache QR codes to avoid regenerating them every frame
+        const qrCache = {};
+        const getQrCanvas = (data, size) => {
+          const key = `${data}_${size}`;
+          if (qrCache[key]) return qrCache[key];
+          
+          const qrCanvas = document.createElement('canvas');
+          qrCanvas.width = size;
+          qrCanvas.height = size;
+          const qctx = qrCanvas.getContext('2d');
+          drawQRCode(qctx, data, 0, 0, size);
+          qrCache[key] = qrCanvas;
+          return qrCanvas;
+        };
+
         const startTime = Date.now();
         const recordingDuration = 3500; 
 
@@ -460,11 +504,13 @@ const ProcessingScreen = ({
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           ctx.restore();
 
-          // Draw videos in slots
+          // Draw items in slots
+          const galleryUrl = getGalleryUrl(sessionId);
+          
           selectedFrameData.slots.forEach((slot) => {
             if (slot.type === 'qr') {
-               const galleryUrl = getGalleryUrl(sessionId);
-               drawQRCode(ctx, galleryUrl, slot.x, slot.y, slot.width);
+               const qrCanvas = getQrCanvas(galleryUrl, slot.width);
+               ctx.drawImage(qrCanvas, slot.x, slot.y);
             } else {
               const video = videoElements[slot.number - 1];
               if (video && video.readyState >= 2) {
@@ -507,8 +553,8 @@ const ProcessingScreen = ({
           // Draw frame overlay
           const fx = selectedFrameData.frame_x || 0;
           const fy = selectedFrameData.frame_y || 0;
-          const fw = selectedFrameData.frame_width || 600;
-          const fh = selectedFrameData.frame_height || 900;
+          const fw = selectedFrameData.frame_width || base.width;
+          const fh = selectedFrameData.frame_height || base.height;
           
           const fAspect = frameImg.width / frameImg.height;
           const targetFAspect = fw / fh;

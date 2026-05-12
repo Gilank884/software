@@ -384,7 +384,7 @@ export default function EventsView({ user, events, devices, onRefresh }) {
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        const galleryBase = "https://latarcerita.com";
+                        const galleryBase = import.meta.env.VITE_GALLERY_URL || "https://fotoku.latarcerita.com";
                         const galleryUrl = `${galleryBase}/?gallery=${capture.session_id}`;
                         navigator.clipboard.writeText(galleryUrl);
                         alert('Link Galeri berhasil disalin!');

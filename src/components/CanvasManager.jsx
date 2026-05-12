@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import FrameEditor from './FrameEditor'
-import { Upload, Plus, Save, Trash2, Lock, Unlock, ZoomIn, ZoomOut, Loader2, Check, Copy, Layout, Eraser, Maximize2, RotateCcw, RotateCw, Undo, Redo, Edit2, Palette } from 'lucide-react'
+import { Upload, Plus, Save, Trash2, Lock, Unlock, ZoomIn, ZoomOut, Loader2, Check, Copy, Layout, Eraser, Maximize2, RotateCcw, RotateCw, Undo, Redo, Edit2, Palette, QrCode } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import PageHeader from '../creator/components/dashboard/PageHeader'
 
@@ -916,8 +916,8 @@ const CanvasManager = ({ user }) => {
                   onClick={() => setSelectedLayerId(box.id)}
                   className={`group p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 ${selectedLayerId === box.id ? 'border-blue-500/30 bg-white shadow-md' : 'bg-white/40 border-transparent hover:bg-white/60'}`}
                 >
-                  <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center font-black text-[10px] group-hover:bg-slate-900 group-hover:text-white transition-all">
-                    {box.number}
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[10px] transition-all ${box.type === 'qr' ? 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-900 group-hover:text-white'}`}>
+                    {box.type === 'qr' ? <QrCode size={14} /> : box.number}
                   </div>
                   <div className="flex-1 min-w-0">
                     {editingId === box.id ? (
@@ -930,18 +930,18 @@ const CanvasManager = ({ user }) => {
                         className="w-full bg-blue-50 border border-blue-400 text-[10px] font-black uppercase p-1 rounded-md outline-none"
                       />
                     ) : (
-                      <p
-                        onDoubleClick={() => startRename(box.id, box.name || `Slot #${box.number}`)}
+                      <p 
+                        onDoubleClick={() => startRename(box.id, box.name || (box.type === 'qr' ? 'QR Code' : `Slot #${box.number}`))}
                         className="text-[10px] font-black text-slate-800 truncate tracking-tight"
                       >
-                        {box.name || `Slot #${box.number}`}
+                        {box.name || (box.type === 'qr' ? 'QR Code' : `Slot #${box.number}`)}
                       </p>
                     )}
                     <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{box.width}×{box.height}</p>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
-                      onClick={(e) => { e.stopPropagation(); startRename(box.id, box.name || `Slot #${box.number}`); }}
+                      onClick={(e) => { e.stopPropagation(); startRename(box.id, box.name || (box.type === 'qr' ? 'QR Code' : `Slot #${box.number}`)); }}
                       className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-all"
                       title="Ubah Nama"
                     >

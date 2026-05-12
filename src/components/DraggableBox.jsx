@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react'
 import interact from 'interactjs'
+import { QRCode } from 'react-qr-code'
 
 const DraggableBox = ({ box, onUpdate, onDelete, isSelected, onSelect, isLocked = false, zoom = 1 }) => {
   const boxRef = useRef(null)
@@ -92,15 +93,25 @@ const DraggableBox = ({ box, onUpdate, onDelete, isSelected, onSelect, isLocked 
         position: 'absolute'
       }}
     >
-      <span className={`font-bold text-[10px] pointer-events-none uppercase tracking-widest ${
-        isLocked 
-          ? 'text-slate-400' 
-          : isSelected 
-            ? isQr ? 'text-indigo-600' : 'text-blue-600' 
-            : isQr ? 'text-indigo-400 opacity-60' : 'text-red-400 opacity-60'
-      }`}>
-        {isLocked ? 'Locked' : isQr ? 'QR CODE' : `Foto ${box.number}`}
-      </span>
+      {isLocked ? (
+        <span className="font-bold text-[10px] pointer-events-none uppercase tracking-widest text-slate-400">Locked</span>
+      ) : isQr ? (
+        <div className="p-2 bg-white rounded-sm shadow-inner opacity-80 group-hover:opacity-100 transition-opacity">
+          <QRCode 
+            value="https://fotoku.latarcerita.com" 
+            size={Math.max(10, Math.min(box.width, box.height) - 24)}
+            level="L"
+          />
+        </div>
+      ) : (
+        <span className={`font-bold text-[10px] pointer-events-none uppercase tracking-widest ${
+          isSelected 
+            ? 'text-blue-600' 
+            : 'text-red-400 opacity-60'
+        }`}>
+          {`Foto ${box.number}`}
+        </span>
+      )}
       
       <button
         onClick={() => onDelete(box.id)}

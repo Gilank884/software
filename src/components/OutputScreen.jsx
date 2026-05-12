@@ -5,7 +5,7 @@ import StepWrapper from './StepWrapper'
 
 const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
   // In production/release, we use the main domain for the gallery link
-  const galleryBase = import.meta.env.VITE_GALLERY_URL || (import.meta.env.DEV ? window.location.origin : "https://latarcerita.com");
+  const galleryBase = import.meta.env.VITE_GALLERY_URL || (import.meta.env.DEV ? window.location.origin : "https://fotoku.latarcerita.com");
   
   const galleryUrl = galleryData?.sessionId 
     ? `${galleryBase}/?gallery=${galleryData.sessionId}` 

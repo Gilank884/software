@@ -15,11 +15,13 @@ import {
   Zap,
   Activity,
   Layers,
-  Target
+  Target,
+  QrCode
 } from 'lucide-react'
 import DecorativeBackground from './DecorativeBackground'
 import { motion, AnimatePresence } from 'framer-motion'
 import HandTrackerOverlay from './HandTrackerOverlay'
+import { QRCode } from 'react-qr-code'
 
 const TelemetryBox = ({ title, data, position = 'bottom-left' }) => (
   <div className={`absolute p-4 border border-pink-500/30 bg-black/40 backdrop-blur-md font-mono text-[10px] text-pink-500 min-w-[150px] transition-all z-50 ${
@@ -620,7 +622,17 @@ const CaptureScreen = ({
                           ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center relative">
                               <div className="absolute inset-0 bg-[radial-gradient(#d4a373_1px,transparent_1px)] [background-size:10px_10px] opacity-10" />
-                              <span className="text-amber-900/20 font-black text-8xl font-caveat relative z-10">{slot.number}</span>
+                              {slot.type === 'qr' || slot.number === 0 ? (
+                                <div className="bg-white p-2 rounded-sm shadow-inner opacity-80 group-hover:opacity-100 transition-opacity">
+                                  <QRCode 
+                                    value="https://fotoku.latarcerita.com" 
+                                    size={Math.max(10, Math.min(slot.width, slot.height) - 40)}
+                                    level="L"
+                                  />
+                                </div>
+                              ) : (
+                                <span className="text-amber-900/20 font-black text-8xl font-caveat relative z-10">{slot.number}</span>
+                              )}
                             </div>
                           )}
                         </div>
