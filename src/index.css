@@ -2,8 +2,8 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-primary: #2563eb;
-  --color-brand-secondary: #0ea5e9;
+  --color-brand-primary: #e11d48;
+  --color-brand-secondary: #f43f5e;
   
   --font-caveat: "Caveat", cursive;
 }
@@ -39,8 +39,8 @@
 }
 
 /* Global Brand Gradient Text */
-.text-gradient-blue {
-  @apply text-transparent bg-clip-text bg-gradient-to-br from-blue-400 via-blue-600 to-blue-800;
+.text-gradient-red {
+  @apply text-transparent bg-clip-text bg-gradient-to-br from-rose-400 via-red-600 to-red-800;
 }
 
 @keyframes marquee-horizontal {

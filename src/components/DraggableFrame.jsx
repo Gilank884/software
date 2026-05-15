@@ -69,7 +69,7 @@ const DraggableFrame = ({ url, x, y, width, height, onUpdate, isSelected, onSele
     <div
       ref={frameRef}
       onClick={isLocked ? undefined : onSelect}
-      className={`absolute touch-none select-none z-10 border-2 transition-[border-color,box-shadow,background-color] duration-200 pointer-events-auto ${isLocked ? 'pointer-events-none opacity-80 border-transparent' : 'cursor-pointer border-transparent hover:border-slate-200'} ${isSelected && !isLocked ? 'border-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.3)] ring-4 ring-blue-500/10' : ''}`}
+      className={`absolute touch-none select-none z-10 border-2 transition-[border-color,box-shadow,background-color] duration-200 pointer-events-auto ${isLocked ? 'pointer-events-none opacity-80 border-transparent' : 'cursor-pointer border-transparent hover:border-slate-200'} ${isSelected && !isLocked ? 'border-rose-500 shadow-[0_0_30px_rgba(225,29,72,0.3)] ring-4 ring-rose-500/10' : ''}`}
       style={{
         width,
         height,
@@ -83,7 +83,7 @@ const DraggableFrame = ({ url, x, y, width, height, onUpdate, isSelected, onSele
         alt="Draggable Frame" 
       />
 
-      <div className={`absolute inset-0 bg-blue-500/5 pointer-events-none transition-opacity ${isSelected && !isLocked ? 'opacity-100' : 'opacity-0'}`} />
+      <div className={`absolute inset-0 bg-rose-500/5 pointer-events-none transition-opacity ${isSelected && !isLocked ? 'opacity-100' : 'opacity-0'}`} />
     </div>
   )
 }

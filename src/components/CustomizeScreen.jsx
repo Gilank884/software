@@ -17,12 +17,12 @@ const CANVAS_BASE = {
 };
 
 const SLOT_COLORS = [
-  { bg: 'bg-blue-50/50', text: 'text-blue-500', border: 'border-blue-100' },
-  { bg: 'bg-purple-50/50', text: 'text-purple-500', border: 'border-purple-100' },
   { bg: 'bg-rose-50/50', text: 'text-rose-500', border: 'border-rose-100' },
+  { bg: 'bg-purple-50/50', text: 'text-purple-500', border: 'border-purple-100' },
+  { bg: 'bg-pink-50/50', text: 'text-pink-500', border: 'border-pink-100' },
   { bg: 'bg-amber-50/50', text: 'text-amber-500', border: 'border-amber-100' },
   { bg: 'bg-emerald-50/50', text: 'text-emerald-500', border: 'border-emerald-100' },
-  { bg: 'bg-indigo-50/50', text: 'text-indigo-500', border: 'border-indigo-100' }
+  { bg: 'bg-orange-50/50', text: 'text-orange-500', border: 'border-orange-100' }
 ];
 
 const CustomizeScreen = ({
@@ -170,7 +170,7 @@ const CustomizeScreen = ({
             whileHover={{ scale: 1.05, y: -4 }}
             whileTap={{ scale: 0.95 }}
             onClick={isFrameMode ? onNext : onCetak}
-            className="group relative px-10 py-4 bg-gradient-to-r from-blue-600 via-purple-600 to-rose-600 text-white rounded-[24px] font-black text-sm tracking-[0.2em] shadow-[0_20px_50px_rgba(37,99,235,0.3)] overflow-hidden"
+            className="group relative px-10 py-4 bg-gradient-to-r from-rose-600 via-purple-600 to-rose-600 text-white rounded-[24px] font-black text-sm tracking-[0.2em] shadow-[0_20px_50px_rgba(225,29,72,0.3)] overflow-hidden"
           >
             <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             <div className="relative z-10 flex items-center gap-3">
@@ -201,15 +201,15 @@ const CustomizeScreen = ({
         </div>
 
         {/* Bottom Decorative Divider */}
-        <div className="absolute bottom-0 left-0 right-0 z-30 overflow-hidden py-3 bg-white/40 backdrop-blur-md border-y border-cyan-100">
+        <div className="absolute bottom-0 left-0 right-0 z-30 overflow-hidden py-3 bg-white/40 backdrop-blur-md border-y border-orange-100">
           <div className="flex whitespace-nowrap animate-marquee-horizontal-reverse">
             {[...Array(10)].map((_, i) => (
-              <span key={i} className="text-[10px] font-black text-cyan-500/40 uppercase tracking-[1em] px-4">
+              <span key={i} className="text-[10px] font-black text-orange-500/40 uppercase tracking-[1em] px-4">
                 LATARCERITA OFFICIAL • PREMIUM PHOTOBOOTH • FUN TIMES •
               </span>
             ))}
             {[...Array(10)].map((_, i) => (
-              <span key={i + 10} className="text-[10px] font-black text-blue-500/40 uppercase tracking-[1em] px-4">
+              <span key={i + 10} className="text-[10px] font-black text-rose-500/40 uppercase tracking-[1em] px-4">
                 LATARCERITA OFFICIAL • PREMIUM PHOTOBOOTH • FUN TIMES •
               </span>
             ))}
@@ -228,8 +228,8 @@ const CustomizeScreen = ({
             loadingFrames ? (
               <div className="w-full flex items-center justify-center">
                 <div className="relative">
-                  <Loader2 size={80} className="animate-spin text-blue-600/20" />
-                  <Sparkles size={32} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-blue-600 animate-pulse" />
+                  <Loader2 size={80} className="animate-spin text-rose-600/20" />
+                  <Sparkles size={32} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-rose-600 animate-pulse" />
                 </div>
               </div>
             ) : (
@@ -244,7 +244,7 @@ const CustomizeScreen = ({
                   {selectedFrame === frame.id && (
                     <motion.div
                       layoutId="frame-glow"
-                      className="absolute -inset-24 bg-gradient-to-tr from-rose-400/30 via-purple-400/30 to-cyan-400/30 rounded-full blur-[120px] z-0"
+                      className="absolute -inset-24 bg-gradient-to-tr from-rose-400/30 via-purple-400/30 to-orange-400/30 rounded-full blur-[120px] z-0"
                     />
                   )}
 

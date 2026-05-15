@@ -19,16 +19,16 @@ const AppBackground = ({ mode = 'default', isHidden = false }) => {
   const backgroundIcons = useMemo(() => {
     // ... (rest of the logic stays same)
     const defaultPool = [
-      { Icon: FaCameraRetro, color: 'text-blue-400' },
+      { Icon: FaCameraRetro, color: 'text-rose-400' },
       { Icon: FaRegSmile, color: 'text-orange-400' },
-      { Icon: IoMusicalNotes, color: 'text-indigo-400' },
-      { Icon: IoIceCreamOutline, color: 'text-sky-400' },
-      { Icon: FaRocket, color: 'text-indigo-500' },
-      { Icon: IoSparkles, color: 'text-blue-300' },
+      { Icon: IoMusicalNotes, color: 'text-red-400' },
+      { Icon: IoIceCreamOutline, color: 'text-orange-400' },
+      { Icon: FaRocket, color: 'text-rose-500' },
+      { Icon: IoSparkles, color: 'text-rose-300' },
       { Icon: FaCat, color: 'text-amber-500' },
-      { Icon: FaDog, color: 'text-blue-200' },
-      { Icon: IoAirplaneOutline, color: 'text-sky-300' },
-      { Icon: IoCloudOutline, color: 'text-blue-100' }
+      { Icon: FaDog, color: 'text-rose-200' },
+      { Icon: IoAirplaneOutline, color: 'text-orange-300' },
+      { Icon: IoCloudOutline, color: 'text-rose-100' }
     ]
 
     const eventPool = [
@@ -89,7 +89,7 @@ const AppBackground = ({ mode = 'default', isHidden = false }) => {
       <div className={`absolute inset-0 transition-all duration-1000 z-1 ${
         isEvent 
           ? 'bg-gradient-to-br from-rose-100/30 via-white/60 to-indigo-100/30' 
-          : 'bg-gradient-to-br from-blue-100/20 via-white/40 to-sky-100/20'
+          : 'bg-gradient-to-br from-rose-100/20 via-white/40 to-orange-100/20'
       }`}></div>
 
       {/* Animated Photo Layer - Only show in event mode */}
@@ -171,8 +171,8 @@ const AppBackground = ({ mode = 'default', isHidden = false }) => {
         </>
       ) : (
         <>
-          <div className="absolute top-1/4 -left-20 w-80 h-80 bg-blue-200/20 rounded-full blur-[120px] opacity-60 z-3"></div>
-          <div className="absolute bottom-1/4 -right-20 w-80 h-80 bg-indigo-200/20 rounded-full blur-[120px] opacity-60 z-3"></div>
+          <div className="absolute top-1/4 -left-20 w-80 h-80 bg-rose-200/20 rounded-full blur-[120px] opacity-60 z-3"></div>
+          <div className="absolute bottom-1/4 -right-20 w-80 h-80 bg-red-200/20 rounded-full blur-[120px] opacity-60 z-3"></div>
           <div className="absolute top-3/4 left-1/4 w-64 h-64 bg-pink-100/20 rounded-full blur-[100px] opacity-40 z-3"></div>
         </>
       )}

@@ -19,7 +19,7 @@ const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
           whileHover={{ scale: 1.1, rotate: 5 }}
           whileTap={{ scale: 0.9 }}
           onClick={onAddPrint}
-          className="w-16 h-16 bg-white/80 backdrop-blur-md border-2 border-slate-100 text-slate-800 rounded-2xl flex items-center justify-center shadow-lg hover:border-blue-500 hover:text-blue-600 transition-all group"
+          className="w-16 h-16 bg-white/80 backdrop-blur-md border-2 border-slate-100 text-slate-800 rounded-2xl flex items-center justify-center shadow-lg hover:border-rose-500 hover:text-rose-600 transition-all group"
           title="Cetak Lagi"
         >
           <Printer size={28} className="group-hover:scale-110 transition-transform" />
@@ -31,13 +31,13 @@ const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
       {/* Decorative Floating Elements */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         <motion.div animate={{ y: [0, -20, 0], rotate: [0, 10, 0] }} transition={{ duration: 5, repeat: Infinity }} className="absolute top-[10%] left-[5%] text-rose-300/30"><Heart size={48} /></motion.div>
-        <motion.div animate={{ y: [0, 20, 0], rotate: [0, -10, 0] }} transition={{ duration: 6, repeat: Infinity, delay: 1 }} className="absolute bottom-[10%] right-[5%] text-cyan-300/30"><Sparkles size={56} /></motion.div>
+        <motion.div animate={{ y: [0, 20, 0], rotate: [0, -10, 0] }} transition={{ duration: 6, repeat: Infinity, delay: 1 }} className="absolute bottom-[10%] right-[5%] text-orange-300/30"><Sparkles size={56} /></motion.div>
         <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.4, 0.2] }} transition={{ duration: 4, repeat: Infinity }} className="absolute top-[20%] right-[15%] text-amber-300/20"><Star size={40} /></motion.div>
         <motion.div animate={{ rotate: 360 }} transition={{ duration: 20, repeat: Infinity, ease: "linear" }} className="absolute bottom-[20%] left-[15%] text-purple-300/20"><PartyPopper size={44} /></motion.div>
         
         {/* Soft Background Glows */}
         <div className="absolute top-1/4 left-0 w-96 h-96 bg-rose-400/5 rounded-full blur-[120px]" />
-        <div className="absolute bottom-1/4 right-0 w-96 h-96 bg-cyan-400/5 rounded-full blur-[120px]" />
+        <div className="absolute bottom-1/4 right-0 w-96 h-96 bg-orange-400/5 rounded-full blur-[120px]" />
       </div>
 
       <div className="w-full flex flex-col md:flex-row items-center gap-2 py-2 h-full relative z-10">
@@ -45,7 +45,7 @@ const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
         {/* Leftmost: QR Code Panel (No Card) */}
         <div className="flex flex-col items-center justify-center transition-all duration-1000 pl-12 shrink-0 z-10">
           <div className="flex flex-col items-center animate-in zoom-in-95 duration-700">
-            <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-blue-200">
+            <div className="w-14 h-14 bg-gradient-to-br from-rose-500 to-red-600 text-white rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-rose-200">
                <ScanLine size={28} />
             </div>
             
@@ -66,7 +66,7 @@ const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
               {/* Finish Button */}
               <button
                 onClick={onReset}
-                className="w-full px-10 py-4 bg-slate-900 text-white rounded-[20px] font-black font-sans uppercase text-sm tracking-[0.2em] shadow-xl hover:bg-blue-600 transition-all flex items-center justify-center gap-4 group"
+                className="w-full px-10 py-4 bg-slate-900 text-white rounded-[20px] font-black font-sans uppercase text-sm tracking-[0.2em] shadow-xl hover:bg-rose-600 transition-all flex items-center justify-center gap-4 group"
               >
                 Finish <RefreshCcw size={18} className="group-hover:rotate-180 transition-transform duration-1000" />
               </button>
@@ -80,7 +80,7 @@ const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
 
         {/* Divider: Full Height Vertical Marquee Divider (In Flow) */}
         <div className="hidden md:flex relative w-12 shrink-0 h-20 mx-12 z-0">
-          <div className="absolute top-[-50vh] bottom-[-50vh] left-0 right-0 w-full flex items-center justify-center overflow-hidden border-x-2 border-indigo-500/20 bg-slate-50/30">
+          <div className="absolute top-[-50vh] bottom-[-50vh] left-0 right-0 w-full flex items-center justify-center overflow-hidden border-x-2 border-rose-500/20 bg-slate-50/30">
             <div className="flex flex-col whitespace-nowrap animate-marquee-vertical">
               {[...Array(40)].map((_, i) => (
                 <span key={i} className="text-[10px] font-black text-fun-gradient uppercase tracking-[0.5em] py-4 [writing-mode:vertical-lr] rotate-180">
@@ -177,7 +177,7 @@ const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
           {!galleryData?.compositeUrl && (
             <>
               <h3 className="text-5xl font-black text-slate-900 mb-2 tracking-tight relative z-10">Success!</h3>
-              <p className="text-gradient-blue font-black uppercase tracking-widest font-sans text-[10px] relative z-10">Printing in progress</p>
+              <p className="text-gradient-red font-black uppercase tracking-widest font-sans text-[10px] relative z-10">Printing in progress</p>
             </>
           )}
         </div>

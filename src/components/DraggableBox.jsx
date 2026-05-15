@@ -91,8 +91,8 @@ const DraggableBox = ({ box, onUpdate, onDelete, isSelected, onSelect, isLocked 
           : 'pointer-events-auto cursor-pointer shadow-sm'
       } ${
         isSelected && !isLocked 
-          ? isQr ? 'border-indigo-500 bg-indigo-500/10 shadow-[0_0_20px_rgba(99,102,241,0.5)] ring-2 ring-indigo-500/20' : 'border-blue-500 bg-blue-500/10 shadow-[0_0_20px_rgba(59,130,246,0.5)] ring-2 ring-blue-500/20' 
-          : isQr ? 'border-dashed border-indigo-400 bg-indigo-400/5 hover:border-indigo-500' : 'border-dashed border-red-500 bg-red-500/5 hover:border-red-400'
+          ? isQr ? 'border-orange-500 bg-orange-500/10 shadow-[0_0_20px_rgba(249,115,22,0.5)] ring-2 ring-orange-500/20' : 'border-rose-500 bg-rose-500/10 shadow-[0_0_20px_rgba(225,29,72,0.5)] ring-2 ring-rose-500/20' 
+          : isQr ? 'border-dashed border-orange-400 bg-orange-400/5 hover:border-orange-500' : 'border-dashed border-red-500 bg-red-500/5 hover:border-red-400'
       }`}
       style={{
         width: box.width,
@@ -121,7 +121,7 @@ const DraggableBox = ({ box, onUpdate, onDelete, isSelected, onSelect, isLocked 
       ) : (
         <span className={`font-bold text-[10px] pointer-events-none uppercase tracking-widest ${
           isSelected 
-            ? 'text-blue-600' 
+            ? 'text-rose-600' 
             : 'text-red-400 opacity-60'
         }`}>
           {`Foto ${box.number}`}

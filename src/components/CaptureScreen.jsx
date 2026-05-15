@@ -260,7 +260,7 @@ const CaptureScreen = ({
   }, [countdown, specialCountdown, isSpecialMode, isReviewing, cameraStatus.source, currentShotIndex, setVideoClips]);
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden font-sans bg-slate-900">
+    <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden font-sans bg-[#1a0f0f]">
       {/* Dynamic Marquee CSS */}
       <style>{`
         @keyframes marquee-vertical {
@@ -442,7 +442,7 @@ const CaptureScreen = ({
 
             {!hasStartedSession && (
               <div 
-                className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-3xl z-30 cursor-pointer"
+                className="absolute inset-0 flex flex-col items-center justify-center bg-rose-950/60 backdrop-blur-3xl z-30 cursor-pointer"
                 onClick={onStartSession}
               >
                 <div className="flex flex-col items-center gap-10 max-w-lg text-center animate-in zoom-in-95 duration-700">
@@ -551,26 +551,26 @@ const CaptureScreen = ({
         <div className={`w-full lg:w-[480px] flex flex-col items-center justify-center p-8 lg:p-12 shadow-2xl relative overflow-hidden transition-all duration-700 ${isSpecialMode ? 'bg-slate-950 border-l border-pink-500/30' : 'bg-white border-l border-slate-200'}`}>
           
           {/* Decorative Background Elements */}
-          <div className={`absolute top-[-10%] right-[-10%] w-64 h-64 rounded-full blur-3xl animate-pulse ${isSpecialMode ? 'bg-pink-500/20' : 'bg-blue-400/10'}`} />
-          <div className={`absolute bottom-[-10%] left-[-10%] w-64 h-64 rounded-full blur-3xl animate-pulse delay-1000 ${isSpecialMode ? 'bg-yellow-500/20' : 'bg-purple-400/10'}`} />
-          <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full opacity-30 ${isSpecialMode ? 'bg-[radial-gradient(#ec4899_1px,transparent_1px)] [background-size:30px_30px]' : 'bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:20px_20px]'}`} />
+          <div className={`absolute top-[-10%] right-[-10%] w-64 h-64 rounded-full blur-3xl animate-pulse ${isSpecialMode ? 'bg-pink-500/20' : 'bg-rose-400/10'}`} />
+          <div className={`absolute bottom-[-10%] left-[-10%] w-64 h-64 rounded-full blur-3xl animate-pulse delay-1000 ${isSpecialMode ? 'bg-yellow-500/20' : 'bg-red-400/10'}`} />
+          <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full opacity-30 ${isSpecialMode ? 'bg-[radial-gradient(#ec4899_1px,transparent_1px)] [background-size:30px_30px]' : 'bg-[radial-gradient(#ffe4e6_1px,transparent_1px)] [background-size:20px_20px]'}`} />
 
           <div className="absolute top-8 lg:top-12 text-center mb-12 z-10 font-mono">
-            <h2 className={`text-4xl font-black mb-1 tracking-tight drop-shadow-sm uppercase ${isSpecialMode ? 'text-pink-500' : 'bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent'}`}>
+            <h2 className={`text-4xl font-black mb-1 tracking-tight drop-shadow-sm uppercase ${isSpecialMode ? 'text-pink-500' : 'bg-gradient-to-r from-rose-600 via-red-600 to-orange-600 bg-clip-text text-transparent'}`}>
               Photo Strip
             </h2>
             <div className="flex items-center justify-center gap-3">
-              <div className={`h-[2px] w-8 rounded-full ${isSpecialMode ? 'bg-pink-500/40' : 'bg-gradient-to-r from-transparent to-blue-500'}`} />
+              <div className={`h-[2px] w-8 rounded-full ${isSpecialMode ? 'bg-pink-500/40' : 'bg-gradient-to-r from-transparent to-rose-500'}`} />
               <p className={`text-[10px] font-black uppercase tracking-[0.4em] ${isSpecialMode ? 'text-pink-500/60' : 'text-slate-400'}`}>
                 {isSpecialMode ? 'Neural_Link' : 'Live Session'}
               </p>
-              <div className={`h-[2px] w-8 rounded-full ${isSpecialMode ? 'bg-pink-500/40' : 'bg-gradient-to-l from-transparent to-purple-500'}`} />
+              <div className={`h-[2px] w-8 rounded-full ${isSpecialMode ? 'bg-pink-500/40' : 'bg-gradient-to-l from-transparent to-red-500'}`} />
             </div>
           </div>
 
           <div className="relative mt-24 lg:mt-16 group flex items-center justify-center w-full h-[60vh] z-10">
             {/* Glow behind frame */}
-            <div className={`absolute inset-0 blur-2xl rounded-full scale-90 group-hover:scale-100 transition-transform duration-1000 ${isSpecialMode ? 'bg-pink-500/20' : 'bg-gradient-to-b from-blue-500/5 to-purple-500/5'}`} />
+            <div className={`absolute inset-0 blur-2xl rounded-full scale-90 group-hover:scale-100 transition-transform duration-1000 ${isSpecialMode ? 'bg-pink-500/20' : 'bg-gradient-to-b from-rose-500/5 to-red-500/5'}`} />
             
             {selectedFrameData ? (() => {
               // Standard resolution from database/config
@@ -714,7 +714,7 @@ const CaptureScreen = ({
                     </button>
                     <button 
                       onClick={onContinue}
-                      className={`flex-[2.5] py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex flex-col items-center justify-center gap-1 transition-all shadow-xl shadow-blue-500/25 ${detectedGesture === 'THUMBS_UP' && !gestureCooldown ? 'bg-gradient-to-r from-blue-800 to-indigo-800 text-white scale-105' : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 hover:scale-[1.02] active:scale-95'}`}
+                      className={`flex-[2.5] py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex flex-col items-center justify-center gap-1 transition-all shadow-xl shadow-rose-500/25 ${detectedGesture === 'THUMBS_UP' && !gestureCooldown ? 'bg-gradient-to-r from-rose-800 to-red-800 text-white scale-105' : 'bg-gradient-to-r from-rose-600 to-red-600 text-white hover:from-rose-700 hover:to-red-700 hover:scale-[1.02] active:scale-95'}`}
                     >
                       <div className="flex items-center gap-2">Lanjutkan <ChevronRight size={16} /></div>
                       <span className="text-[7px] opacity-80">(Thumbs Up)</span>
@@ -725,14 +725,14 @@ const CaptureScreen = ({
                 <div className={`p-6 rounded-3xl border transition-all duration-700 font-mono ${isSpecialMode ? 'bg-black/40 border-pink-500/30 shadow-[0_0_20px_rgba(236,72,153,0.1)]' : 'bg-slate-50/50 border-slate-100 shadow-sm'}`}>
                   <div className={`flex items-center justify-between text-[11px] font-black uppercase tracking-[0.2em] mb-4 ${isSpecialMode ? 'text-pink-500' : 'text-slate-400'}`}>
                     <span className="flex items-center gap-2">
-                       <div className={`w-1.5 h-1.5 rounded-full animate-ping ${isSpecialMode ? 'bg-yellow-400' : 'bg-blue-500'}`} />
+                       <div className={`w-1.5 h-1.5 rounded-full animate-ping ${isSpecialMode ? 'bg-yellow-400' : 'bg-rose-500'}`} />
                        {isSpecialMode ? 'Buffer_Status' : 'Progres Sesi'}
                     </span>
-                    <span className={`tabular-nums ${isSpecialMode ? 'text-yellow-400' : 'text-blue-600'}`}>{photos.filter(p => p).length} / {maxCaptures}</span>
+                    <span className={`tabular-nums ${isSpecialMode ? 'text-yellow-400' : 'text-rose-600'}`}>{photos.filter(p => p).length} / {maxCaptures}</span>
                   </div>
                   <div className={`h-4 w-full rounded-full overflow-hidden p-1 shadow-inner ${isSpecialMode ? 'bg-slate-900 border border-pink-500/20' : 'bg-slate-200'}`}>
                     <div 
-                      className={`h-full rounded-full transition-all duration-1000 ease-out shadow-lg ${isSpecialMode ? 'bg-gradient-to-r from-pink-600 via-purple-600 to-cyan-500' : 'bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500'}`} 
+                      className={`h-full rounded-full transition-all duration-1000 ease-out shadow-lg ${isSpecialMode ? 'bg-gradient-to-r from-pink-600 via-purple-600 to-orange-500' : 'bg-gradient-to-r from-rose-400 via-red-500 to-orange-500'}`} 
                       style={{ width: `${(photos.filter(p => p).length / maxCaptures) * 100}%` }}
                     />
                   </div>

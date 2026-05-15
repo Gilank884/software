@@ -283,7 +283,7 @@ function App() {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <AppBackground />
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 z-10"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-rose-600 z-10"></div>
       </div>
     )
   }
@@ -357,7 +357,7 @@ function App() {
   }
 
   return (
-    <div className="h-screen relative overflow-hidden selection:bg-blue-100 selection:text-blue-900 bg-white transition-colors duration-1000">
+    <div className="h-screen relative overflow-hidden selection:bg-rose-100 selection:text-rose-900 bg-white transition-colors duration-1000">
       <AppBackground mode={deviceMode} isHidden={step === STEPS.OUTPUT || step === STEPS.CUSTOMIZE_FRAME || step === STEPS.CUSTOMIZE_FILTER} />
 
       <div className="relative z-10 w-full min-h-screen flex flex-col">

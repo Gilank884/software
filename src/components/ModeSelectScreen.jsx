@@ -9,25 +9,25 @@ const ModeSelectScreen = ({ onSelect }) => {
         {/* Photobooth Mode */}
         <button
           onClick={() => onSelect('photobooth')}
-          className="group relative flex-1 bg-white hover:bg-white/90 backdrop-blur-xl border-4 border-white/50 hover:border-blue-500 hover:shadow-[0_20px_60px_rgba(59,130,246,0.3)] rounded-[3rem] p-10 transition-all duration-300 text-left overflow-hidden"
+          className="group relative flex-1 bg-white hover:bg-white/90 backdrop-blur-xl border-4 border-white/50 hover:border-rose-500 hover:shadow-[0_20px_60px_rgba(225,29,72,0.3)] rounded-[3rem] p-10 transition-all duration-300 text-left overflow-hidden"
         >
           <div className="absolute -right-10 -bottom-10 opacity-[0.03] group-hover:opacity-[0.1] transition-opacity duration-500 scale-150 group-hover:scale-110">
             <MonitorPlay size={300} strokeWidth={1} />
           </div>
 
           <div className="relative z-10">
-            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-3xl flex items-center justify-center mb-8 shadow-inner border border-blue-100/50 group-hover:-translate-y-2 transition-transform duration-500">
+            <div className="w-20 h-20 bg-rose-50 text-rose-600 rounded-3xl flex items-center justify-center mb-8 shadow-inner border border-rose-100/50 group-hover:-translate-y-2 transition-transform duration-500">
               <MonitorPlay size={40} className="group-hover:scale-110 transition-transform" />
             </div>
 
             <h3 className="text-3xl font-black text-slate-800 tracking-tight mb-2">Photobooth</h3>
-            <div className="h-1 w-12 bg-blue-500 rounded-full mb-6 group-hover:w-24 transition-all duration-500"></div>
+            <div className="h-1 w-12 bg-rose-500 rounded-full mb-6 group-hover:w-24 transition-all duration-500"></div>
 
             <p className="text-slate-500 font-medium leading-relaxed mb-6">
               Experience the classic photobox feeling. Quick captures perfectly suited for premium frame layouts. Guaranteed fun in a quick session.
             </p>
 
-            <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-blue-600 bg-blue-50 px-4 py-2 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
+            <span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-rose-600 bg-rose-50 px-4 py-2 rounded-xl group-hover:bg-rose-600 group-hover:text-white transition-colors">
               Standard Mode &rarr;
             </span>
           </div>
