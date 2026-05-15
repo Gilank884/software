@@ -13,6 +13,9 @@ const writeFileAsync = promisify(fs.writeFile);
 const unlinkAsync = promisify(fs.unlink);
 const execAsync = promisify(exec);
 
+const POWERSHELL_PATH = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+const WMIC_PATH = 'C:\\Windows\\System32\\wbem\\wmic.exe';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -85,78 +88,83 @@ const execWithTimeout = (cmd, timeoutMs = 8000) => {
 const getWindowsPrinters = async () => {
   const allPrinters = new Map();
 
-  // FIX: Always use -ExecutionPolicy Bypass so production .exe tidak diblokir
-  // FIX: Semua method dijalankan PARALEL (bukan chain catch), lalu hasil digabung
+  // Helper to run PS with UTF-8 encoding
+  const runPS = (command) => {
+    const utf8Command = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ${command}`;
+    // Try raw 'powershell' first, then absolute path
+    return execWithTimeout(`powershell -ExecutionPolicy Bypass -NoProfile -Command "${utf8Command}"`)
+      .catch(() => execWithTimeout(`"${POWERSHELL_PATH}" -ExecutionPolicy Bypass -NoProfile -Command "${utf8Command}"`));
+  };
+
   const methods = [
-    // Method A: PowerShell Get-Printer (paling reliable)
-    execWithTimeout(
-      'powershell -ExecutionPolicy Bypass -NoProfile -Command "Get-Printer | Select-Object Name,IsDefault | ConvertTo-Json -Compress"'
-    ).then(({ stdout }) => {
-      if (!stdout?.trim()) return;
-      let parsed = JSON.parse(stdout.trim());
-      // Kalau hanya 1 printer, PowerShell return object bukan array
-      if (!Array.isArray(parsed)) parsed = [parsed];
-      parsed.forEach(p => {
-        if (p?.Name) {
-          allPrinters.set(p.Name, {
-            name: p.Name,
-            displayName: p.Name,
-            isDefault: !!p.IsDefault,
-            status: 0,
-            source: 'powershell-json',
+    // Method A: PowerShell Get-Printer (most reliable on modern Win)
+    runPS('Get-Printer | Select-Object Name,IsDefault | ConvertTo-Json -Compress')
+      .then(({ stdout }) => {
+        if (!stdout?.trim()) return;
+        try {
+          let parsed = JSON.parse(stdout.trim());
+          if (!Array.isArray(parsed)) parsed = [parsed];
+          parsed.forEach(p => {
+            if (p?.Name) {
+              allPrinters.set(p.Name, {
+                name: p.Name,
+                displayName: p.Name,
+                isDefault: !!p.IsDefault,
+                status: 0,
+                source: 'powershell-json',
+              });
+            }
           });
-        }
-      });
-    }).catch(e => console.warn('[Printer] Method A (PS JSON) failed:', e.message)),
+        } catch (e) { console.warn('[Printer] Method A Parse failed:', e.message); }
+      }).catch(e => console.warn('[Printer] Method A (PS JSON) failed:', e.message)),
 
-    // Method B: WMI via PowerShell (fallback kalau Get-Printer tidak tersedia)
-    execWithTimeout(
-      'powershell -ExecutionPolicy Bypass -NoProfile -Command "Get-WmiObject Win32_Printer | Select-Object Name,Default | ConvertTo-Json -Compress"'
-    ).then(({ stdout }) => {
-      if (!stdout?.trim()) return;
-      let parsed = JSON.parse(stdout.trim());
-      if (!Array.isArray(parsed)) parsed = [parsed];
-      parsed.forEach(p => {
-        if (p?.Name && !allPrinters.has(p.Name)) {
-          allPrinters.set(p.Name, {
-            name: p.Name,
-            displayName: p.Name,
-            isDefault: !!p.Default,
-            status: 0,
-            source: 'wmi-json',
+    // Method B: WMI via PowerShell (fallback)
+    runPS('Get-WmiObject Win32_Printer | Select-Object Name,Default | ConvertTo-Json -Compress')
+      .then(({ stdout }) => {
+        if (!stdout?.trim()) return;
+        try {
+          let parsed = JSON.parse(stdout.trim());
+          if (!Array.isArray(parsed)) parsed = [parsed];
+          parsed.forEach(p => {
+            if (p?.Name && !allPrinters.has(p.Name)) {
+              allPrinters.set(p.Name, {
+                name: p.Name,
+                displayName: p.Name,
+                isDefault: !!p.Default,
+                status: 0,
+                source: 'wmi-json',
+              });
+            }
           });
-        }
-      });
-    }).catch(e => console.warn('[Printer] Method B (WMI JSON) failed:', e.message)),
+        } catch (e) { console.warn('[Printer] Method B Parse failed:', e.message); }
+      }).catch(e => console.warn('[Printer] Method B (WMI JSON) failed:', e.message)),
 
-    // Method C: Legacy WMIC (Windows 10 lama / Server)
-    execWithTimeout('wmic printer get name,default /format:csv', 6000).then(({ stdout }) => {
-      if (!stdout?.trim()) return;
-      const lines = stdout.split(/\r?\n/).filter(Boolean);
-      // Baris pertama = header (Node,Default,Name), skip
-      lines.slice(1).forEach(line => {
-        const parts = line.split(',');
-        // Format CSV: Node, Default (TRUE/FALSE), Name
-        if (parts.length >= 3) {
-          const name = parts[parts.length - 1]?.trim();
-          const isDefault = parts[parts.length - 2]?.trim().toUpperCase() === 'TRUE';
-          if (name && !allPrinters.has(name)) {
-            allPrinters.set(name, {
-              name,
-              displayName: name,
-              isDefault,
-              status: 0,
-              source: 'wmic-csv',
-            });
+    // Method C: Legacy WMIC (fallback)
+    execWithTimeout('wmic printer get name,default /format:csv', 6000)
+      .catch(() => execWithTimeout(`"${WMIC_PATH}" printer get name,default /format:csv`, 6000))
+      .then(({ stdout }) => {
+        if (!stdout?.trim()) return;
+        const lines = stdout.split(/\r?\n/).filter(Boolean);
+        lines.slice(1).forEach(line => {
+          const parts = line.split(',');
+          if (parts.length >= 3) {
+            const name = parts[parts.length - 1]?.trim();
+            const isDefault = parts[parts.length - 2]?.trim().toUpperCase() === 'TRUE';
+            if (name && !allPrinters.has(name)) {
+              allPrinters.set(name, {
+                name,
+                displayName: name,
+                isDefault,
+                status: 0,
+                source: 'wmic-csv',
+              });
+            }
           }
-        }
-      });
-    }).catch(e => console.warn('[Printer] Method C (WMIC CSV) failed:', e.message)),
+        });
+      }).catch(e => console.warn('[Printer] Method C (WMIC CSV) failed:', e.message)),
   ];
 
-  // Jalankan semua method secara paralel, tunggu semua selesai
   await Promise.allSettled(methods);
-
   return allPrinters;
 };
 
@@ -174,44 +182,62 @@ app.whenReady().then(() => {
   // Stop bridge on app quit
   app.on('will-quit', () => bridge.stop());
 
-  ipcMain.handle('get-printers', async () => {
+  ipcMain.handle('get-printers', async (event) => {
     console.log('[Printer] Starting discovery...');
     const allPrinters = new Map();
 
     // Step 1: Electron built-in API (jalan di dev & production)
-    const windows = BrowserWindow.getAllWindows();
-    for (const win of windows) {
-      try {
-        const printers = await win.webContents.getPrintersAsync();
-        if (printers?.length > 0) {
-          printers.forEach(p => {
-            allPrinters.set(p.name, {
-              name: p.name,
-              isDefault: !!p.isDefault,
-              status: p.status || 0,
-              displayName: p.displayName || p.name,
-              source: 'electron-api',
-            });
+    // Gunakan event.sender (window yang merequest) sebagai prioritas utama
+    try {
+      const printers = await event.sender.getPrintersAsync();
+      if (printers?.length > 0) {
+        printers.forEach(p => {
+          allPrinters.set(p.name, {
+            name: p.name,
+            isDefault: !!p.isDefault,
+            status: p.status || 0,
+            displayName: p.displayName || p.name,
+            source: 'electron-api',
           });
-          console.log(`[Printer] Electron API found ${printers.length} printer(s)`);
-        }
-      } catch (e) {
-        console.warn('[Printer] Electron API failed:', e.message);
+        });
+        console.log(`[Printer] Electron API found ${printers.length} printer(s)`);
+      }
+    } catch (e) {
+      console.warn('[Printer] Native API (event.sender) failed:', e.message);
+      
+      // Fallback: Coba semua window jika sender gagal
+      const windows = BrowserWindow.getAllWindows();
+      for (const win of windows) {
+        try {
+          const printers = await win.webContents.getPrintersAsync();
+          if (printers?.length > 0) {
+            printers.forEach(p => {
+              if (!allPrinters.has(p.name)) {
+                allPrinters.set(p.name, {
+                  name: p.name,
+                  isDefault: !!p.isDefault,
+                  status: p.status || 0,
+                  displayName: p.displayName || p.name,
+                  source: 'electron-api-fallback',
+                });
+              }
+            });
+          }
+        } catch (innerE) { /* ignore */ }
       }
     }
 
     // Step 2: Windows OS-level fallback — SELALU dijalankan di Windows
-    // (bukan hanya kalau Electron API kosong, karena terkadang Electron API
-    //  mengembalikan daftar berbeda dari yang sebenarnya terpasang di sistem)
     if (process.platform === 'win32') {
       console.log('[Printer] Running Windows OS discovery (parallel)...');
       const osPrinters = await getWindowsPrinters();
       osPrinters.forEach((val, key) => {
-        if (!allPrinters.has(key)) {
-          allPrinters.set(key, val);
+        const trimmedKey = key.trim();
+        if (!allPrinters.has(trimmedKey)) {
+          allPrinters.set(trimmedKey, val);
         } else if (val.isDefault) {
-          // Prioritaskan info isDefault dari OS
-          allPrinters.get(key).isDefault = true;
+          // Prioritaskan info isDefault dari OS jika native tidak set
+          allPrinters.get(trimmedKey).isDefault = true;
         }
       });
     }
