@@ -206,6 +206,9 @@ const CaptureScreen = ({
 
   // --- VIDEO RECORDING LOGIC ---
   useEffect(() => {
+    // Video recording is temporarily disabled
+    return;
+    
     const targetCountdown = isSpecialMode ? specialCountdown : countdown;
     
     // Start recording as soon as countdown starts (T-minus 5 or 3 seconds)

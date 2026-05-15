@@ -162,7 +162,8 @@ const ProcessingScreen = ({
         */
         
         let finalVideoUrl = null;
-        if (selectedMode === 'photobooth' && videoClips.length > 0) {
+        // Video generation is temporarily disabled
+        if (false && selectedMode === 'photobooth' && videoClips.length > 0) {
           try {
             setProgress("Generating Framed Video...");
             const videoBlob = await generateCompositeVideo(videoClips, sessionId);

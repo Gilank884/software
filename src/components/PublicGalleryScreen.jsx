@@ -151,7 +151,8 @@ const PublicGalleryScreen = ({ galleryId }) => {
               </div>
               
               <div className="relative w-full bg-white p-2 md:p-3 rounded-[1.5rem] shadow-xl border border-slate-100 overflow-hidden">
-                {data.video_url ? (
+                {/* Video player is temporarily hidden */}
+                {false && data.video_url ? (
                   <video 
                     src={data.video_url} 
                     autoPlay 
@@ -177,7 +178,8 @@ const PublicGalleryScreen = ({ galleryId }) => {
                       <DownloadCloud size={16} /> Download Photo
                     </button>
                   )}
-                  {data.video_url && (
+                  {/* Video download is temporarily hidden */}
+                  {false && data.video_url && (
                     <button 
                       onClick={() => handleDownload(data.video_url, 'latarcerita-video.webm')}
                       className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-black tracking-widest uppercase flex items-center justify-center gap-2 active:scale-95 transition-all shadow-md text-[10px]"
