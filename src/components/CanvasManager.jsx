@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import FrameEditor from './FrameEditor'
-import { Upload, Plus, Save, Trash2, Lock, Unlock, ZoomIn, ZoomOut, Loader2, Check, Copy, Layout, Eraser, Maximize2, RotateCcw, RotateCw, Undo, Redo, Edit2, Palette, QrCode } from 'lucide-react'
+import { Upload, Plus, Save, Trash2, Lock, Unlock, ZoomIn, ZoomOut, Loader2, Check, Copy, Layout, Eraser, Maximize2, RotateCcw, RotateCw, Undo, Redo, Edit2, Palette, QrCode, AlertCircle, X } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import PageHeader from '../creator/components/dashboard/PageHeader'
 
@@ -31,6 +31,26 @@ const CanvasManager = ({ user }) => {
   const [future, setFuture] = useState([])
   const [editingId, setEditingId] = useState(null)
   const [editingName, setEditingName] = useState('')
+  const [editingSizeId, setEditingSizeId] = useState(null)
+  const [editingWidth, setEditingWidth] = useState('')
+  const [editingHeight, setEditingHeight] = useState('')
+
+  const startEditSize = (id, w, h) => {
+    setEditingSizeId(id)
+    setEditingWidth(w.toString())
+    setEditingHeight(h.toString())
+  }
+
+  const handleUpdateSize = () => {
+    if (!editingSizeId) return
+    const w = parseInt(editingWidth)
+    const h = parseInt(editingHeight)
+    if (!isNaN(w) && !isNaN(h)) {
+      updateBox(editingSizeId, { width: w, height: h })
+      setToast({ type: 'success', message: 'Ukuran Berhasil Diperbarui!' })
+    }
+    setEditingSizeId(null)
+  }
 
   const pushToHistory = (newFrames) => {
     setPast(prev => [...prev.slice(-20), frames])
@@ -400,7 +420,7 @@ const CanvasManager = ({ user }) => {
 
     const { error } = await supabase
       .from('frames')
-      .update({ 
+      .update({
         name: activeFrame.name,
         frame_x: Math.round(activeFrame.x),
         frame_y: Math.round(activeFrame.y),
@@ -431,12 +451,12 @@ const CanvasManager = ({ user }) => {
 
   const analyzeAreaPalette = async (rect, shouldClose = true) => {
     if (!activeFrame) return
-    
+
     // Check if we have a thumbnail for instant scanning
     if (thumbnailCanvasRef.current) {
       const thumb = thumbnailCanvasRef.current
       const ctx = thumb.getContext('2d')
-      
+
       // Scale UI coords to thumbnail coords
       const scaleX = thumb.width / activeFrame.width
       const scaleY = thumb.height / activeFrame.height
@@ -534,21 +554,21 @@ const CanvasManager = ({ user }) => {
 
       let pixelsCleared = 0
       const tol = 25
-      
+
       const matchedMap = new Uint8Array(width * height)
-      
+
       for (let y = ry; y < ry + rh; y++) {
         for (let x = rx; x < rx + rw; x++) {
           if (x < 0 || x >= width || y < 0 || y >= height) continue
           const i = (y * width + x) * 4
-          
+
           const dr = Math.abs(data[i] - tr)
-          const dg = Math.abs(data[i+1] - tg)
-          const db = Math.abs(data[i+2] - tb)
-          
+          const dg = Math.abs(data[i + 1] - tg)
+          const db = Math.abs(data[i + 2] - tb)
+
           const matchTol = (tr < 50 && tg < 10 && tb < 10) ? 15 : tol
-          
-          if ((dr <= matchTol && dg <= matchTol && db <= matchTol) || (data[i+3] > 0 && data[i+3] < 80)) {
+
+          if ((dr <= matchTol && dg <= matchTol && db <= matchTol) || (data[i + 3] > 0 && data[i + 3] < 80)) {
             matchedMap[y * width + x] = 1
           }
         }
@@ -559,17 +579,17 @@ const CanvasManager = ({ user }) => {
           const idx = y * width + x
           if (matchedMap[idx] === 1) {
             const i = idx * 4
-            data[i] = data[i+1] = data[i+2] = data[i+3] = 0
+            data[i] = data[i + 1] = data[i + 2] = data[i + 3] = 0
             pixelsCleared++
-            
+
             for (let dy = -1; dy <= 1; dy++) {
               for (let dx = -1; dx <= 1; dx++) {
                 const ny = y + dy, nx = x + dx
                 if (nx >= rx && nx < rx + rw && ny >= ry && ny < ry + rh) {
                   const nIdx = ny * width + nx
                   const ni = nIdx * 4
-                  if (data[ni+3] > 0 && data[ni+3] < 180) {
-                    data[ni] = data[ni+1] = data[ni+2] = data[ni+3] = 0
+                  if (data[ni + 3] > 0 && data[ni + 3] < 180) {
+                    data[ni] = data[ni + 1] = data[ni + 2] = data[ni + 3] = 0
                     pixelsCleared++
                   }
                 }
@@ -587,7 +607,7 @@ const CanvasManager = ({ user }) => {
         if (uploadError) throw uploadError
         const { data: { publicUrl } } = supabase.storage.from('frames').getPublicUrl(fileName)
         const cacheBustedUrl = `${publicUrl}?t=${Date.now()}`
-        
+
         await supabase.from('frames').update({ image_url: publicUrl }).eq('id', activeFrame.id)
         setFrames(prev => prev.map(f => f.id === activeFrameId ? { ...f, url: cacheBustedUrl } : f))
         setToast({ type: 'success', message: `Berhasil Kosongkan Frame!` })
@@ -613,57 +633,57 @@ const CanvasManager = ({ user }) => {
         description="Design and manage your photobox templates with precision using our advanced canvas engine."
         icon={Palette}
       />
-      
+
       <div className="flex flex-1 overflow-hidden bg-white/40 backdrop-blur-2xl rounded-[3rem] border border-white/40 shadow-[0_20px_70px_rgba(0,0,0,0.05)] relative">
-      
-      {/* Center: Editor area */}
-      <main className="flex-1 flex flex-col items-center justify-start p-6 bg-slate-50/20 relative overflow-auto custom-scrollbar transition-all duration-500">
-        <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
 
-        {/* Top Horizontal Toolbar */}
-        <div className="relative z-20 w-full max-w-5xl mx-auto flex items-center justify-between gap-4 p-3 bg-white/60 backdrop-blur-2xl rounded-3xl shadow-[0_15px_60px_rgba(0,0,0,0.06)] border border-white/60 mb-8 px-6">
-          
-          {/* Group 1: History & Navigation */}
-          <div className="flex items-center gap-1.5 p-1 bg-slate-900/5 rounded-2xl">
-            <button onClick={undo} disabled={past.length === 0} className="group relative p-2.5 hover:bg-white rounded-xl text-slate-500 disabled:opacity-30 transition-all font-bold">
-              <RotateCcw size={18} />
-              <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-900/90 backdrop-blur-md text-white text-[8px] font-black uppercase tracking-[0.2em] rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-[100] shadow-2xl border border-white/10 translate-y-2 group-hover:translate-y-0">
-                Batal
-              </span>
-            </button>
-            <div className="w-[1px] h-4 bg-slate-200 mx-1"></div>
-            <button onClick={redo} disabled={future.length === 0} className="group relative p-2.5 hover:bg-white rounded-xl text-slate-500 disabled:opacity-30 transition-all font-bold">
-              <RotateCw size={18} />
-              <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-900/90 backdrop-blur-md text-white text-[8px] font-black uppercase tracking-[0.2em] rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-[100] shadow-2xl border border-white/10 translate-y-2 group-hover:translate-y-0">
-                Ulangi
-              </span>
-            </button>
-          </div>
+        {/* Center: Editor area */}
+        <main className="flex-1 flex flex-col items-center justify-start p-6 bg-slate-50/20 relative overflow-auto custom-scrollbar transition-all duration-500">
+          <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
 
-          <div className="w-[1px] h-8 bg-slate-200 mx-1"></div>
+          {/* Top Horizontal Toolbar */}
+          <div className="relative z-20 w-full max-w-5xl mx-auto flex items-center justify-between gap-4 p-3 bg-white/60 backdrop-blur-2xl rounded-3xl shadow-[0_15px_60px_rgba(0,0,0,0.06)] border border-white/60 mb-8 px-6">
 
-          {/* Group 2: Format Switcher */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100/50 rounded-2xl border border-slate-200/50">
-            {Object.keys(CANVAS_CONFIG).map(size => (
-              <button
-                key={size}
-                onClick={() => {
-                  if (canvasSize === size) return
-                  setActiveFrameId(null)
-                  setCanvasSize(size)
-                }}
-                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${canvasSize === size ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-              >
-                {size}
+            {/* Group 1: History & Navigation */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-900/5 rounded-2xl">
+              <button onClick={undo} disabled={past.length === 0} className="group relative p-2.5 hover:bg-white rounded-xl text-slate-500 disabled:opacity-30 transition-all font-bold">
+                <RotateCcw size={18} />
+                <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-900/90 backdrop-blur-md text-white text-[8px] font-black uppercase tracking-[0.2em] rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-[100] shadow-2xl border border-white/10 translate-y-2 group-hover:translate-y-0">
+                  Batal
+                </span>
               </button>
-            ))}
-          </div>
+              <div className="w-[1px] h-4 bg-slate-200 mx-1"></div>
+              <button onClick={redo} disabled={future.length === 0} className="group relative p-2.5 hover:bg-white rounded-xl text-slate-500 disabled:opacity-30 transition-all font-bold">
+                <RotateCw size={18} />
+                <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-900/90 backdrop-blur-md text-white text-[8px] font-black uppercase tracking-[0.2em] rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-[100] shadow-2xl border border-white/10 translate-y-2 group-hover:translate-y-0">
+                  Ulangi
+                </span>
+              </button>
+            </div>
 
-          <div className="flex-1"></div>
+            <div className="w-[1px] h-8 bg-slate-200 mx-1"></div>
 
-          {/* Group 3: Gunting Masal */}
-          <div className="flex items-center gap-2">
-            <button
+            {/* Group 2: Format Switcher */}
+            <div className="flex items-center gap-1 p-1 bg-slate-100/50 rounded-2xl border border-slate-200/50">
+              {Object.keys(CANVAS_CONFIG).map(size => (
+                <button
+                  key={size}
+                  onClick={() => {
+                    if (canvasSize === size) return
+                    setActiveFrameId(null)
+                    setCanvasSize(size)
+                  }}
+                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${canvasSize === size ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1"></div>
+
+            {/* Group 3: Gunting Masal */}
+            <div className="flex items-center gap-2">
+              <button
                 onClick={() => {
                   if (eraserGuide) {
                     setEraserGuide(null)
@@ -678,109 +698,109 @@ const CanvasManager = ({ user }) => {
                 <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-900/90 backdrop-blur-md text-white text-[8px] font-black uppercase tracking-[0.2em] rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-[100] shadow-2xl border border-white/10 translate-y-2 group-hover:translate-y-0">
                   Gunting Masal
                 </span>
-            </button>
+              </button>
+            </div>
+
+            <div className="flex-1"></div>
+
+            {/* Group 4: Zoom Controls */}
+            <div className="flex items-center gap-2 p-1 bg-white rounded-2xl shadow-inner border border-slate-100">
+              <button onClick={() => setZoom(z => Math.max(0.2, z - 0.1))} className="group relative p-2 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-slate-900 transition-all">
+                <ZoomOut size={16} />
+                <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-900/90 backdrop-blur-md text-white text-[8px] font-black uppercase tracking-[0.2em] rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-[100] shadow-2xl border border-white/10 translate-y-2 group-hover:translate-y-0">
+                  Perkecil
+                </span>
+              </button>
+              <div className="w-12 text-center">
+                <span className="text-[10px] font-black text-slate-700 tabular-nums">{Math.round(zoom * 100)}%</span>
+              </div>
+              <button onClick={() => setZoom(z => Math.min(2, z + 0.1))} className="group relative p-2 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-slate-900 transition-all">
+                <ZoomIn size={16} />
+                <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-900/90 backdrop-blur-md text-white text-[8px] font-black uppercase tracking-[0.2em] rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-[100] shadow-2xl border border-white/10 translate-y-2 group-hover:translate-y-0">
+                  Perbesar
+                </span>
+              </button>
+              <div className="w-[1px] h-4 bg-slate-200 mx-1"></div>
+              <button onClick={() => setZoom(0.8)} className="group relative px-3 py-1.5 text-[8px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors">
+                Reset
+                <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-900/90 backdrop-blur-md text-white text-[8px] font-black uppercase tracking-[0.2em] rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-[100] shadow-2xl border border-white/10 translate-y-2 group-hover:translate-y-0">
+                  Normal
+                </span>
+              </button>
+            </div>
           </div>
 
-          <div className="flex-1"></div>
-
-          {/* Group 4: Zoom Controls */}
-          <div className="flex items-center gap-2 p-1 bg-white rounded-2xl shadow-inner border border-slate-100">
-            <button onClick={() => setZoom(z => Math.max(0.2, z - 0.1))} className="group relative p-2 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-slate-900 transition-all">
-              <ZoomOut size={16} />
-              <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-900/90 backdrop-blur-md text-white text-[8px] font-black uppercase tracking-[0.2em] rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-[100] shadow-2xl border border-white/10 translate-y-2 group-hover:translate-y-0">
-                Perkecil
-              </span>
-            </button>
-            <div className="w-12 text-center">
-              <span className="text-[10px] font-black text-slate-700 tabular-nums">{Math.round(zoom * 100)}%</span>
+          <div className="relative transform origin-center transition-all duration-700 ease-out-expo">
+            <div className="flex flex-col items-center gap-10">
+              <div className="drop-shadow-[0_25px_50px_rgba(0,0,0,0.15)] bg-white p-2 rounded-sm ring-1 ring-slate-200">
+                <FrameEditor
+                  key={activeFrameId || canvasSize}
+                  frame={activeFrame}
+                  boxes={boxes}
+                  onUpdateBox={updateBox}
+                  onDeleteBox={deleteBox}
+                  onUpdateFrame={updateFrame}
+                  frameVisible={layersVisibility.frame}
+                  hiddenSlotIds={hiddenSlots}
+                  selectedLayerId={selectedLayerId}
+                  onSelectLayer={setSelectedLayerId}
+                  lockedLayerIds={lockedLayers}
+                  zoom={zoom}
+                  eraserGuide={eraserGuide}
+                  onUpdateEraserGuide={handleUpdateEraserGuide}
+                  width={CANVAS_CONFIG[canvasSize].width}
+                  height={CANVAS_CONFIG[canvasSize].height}
+                  canvasSize={canvasSize}
+                  pxPerCm={CANVAS_CONFIG[canvasSize].pxPerCm}
+                />
+              </div>
+              <p className="text-slate-400 text-[10px] font-black tracking-[0.4em] uppercase opacity-50">Editor Area ({CANVAS_CONFIG[canvasSize].label})</p>
             </div>
-            <button onClick={() => setZoom(z => Math.min(2, z + 0.1))} className="group relative p-2 hover:bg-slate-50 rounded-xl text-slate-400 hover:text-slate-900 transition-all">
-              <ZoomIn size={16} />
-              <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-900/90 backdrop-blur-md text-white text-[8px] font-black uppercase tracking-[0.2em] rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-[100] shadow-2xl border border-white/10 translate-y-2 group-hover:translate-y-0">
-                Perbesar
-              </span>
-            </button>
-            <div className="w-[1px] h-4 bg-slate-200 mx-1"></div>
-            <button onClick={() => setZoom(0.8)} className="group relative px-3 py-1.5 text-[8px] font-black uppercase text-slate-400 hover:text-blue-600 transition-colors">
-              Reset
-              <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-slate-900/90 backdrop-blur-md text-white text-[8px] font-black uppercase tracking-[0.2em] rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none whitespace-nowrap z-[100] shadow-2xl border border-white/10 translate-y-2 group-hover:translate-y-0">
-                Normal
-              </span>
-            </button>
           </div>
-        </div>
 
-        <div className="relative transform origin-center transition-all duration-700 ease-out-expo">
-          <div className="flex flex-col items-center gap-10">
-            <div className="drop-shadow-[0_25px_50px_rgba(0,0,0,0.15)] bg-white p-2 rounded-sm ring-1 ring-slate-200">
-              <FrameEditor
-                key={activeFrameId || canvasSize}
-                frame={activeFrame}
-                boxes={boxes}
-                onUpdateBox={updateBox}
-                onDeleteBox={deleteBox}
-                onUpdateFrame={updateFrame}
-                frameVisible={layersVisibility.frame}
-                hiddenSlotIds={hiddenSlots}
-                selectedLayerId={selectedLayerId}
-                onSelectLayer={setSelectedLayerId}
-                lockedLayerIds={lockedLayers}
-                zoom={zoom}
-                eraserGuide={eraserGuide}
-                onUpdateEraserGuide={handleUpdateEraserGuide}
-                width={CANVAS_CONFIG[canvasSize].width}
-                height={CANVAS_CONFIG[canvasSize].height}
-                canvasSize={canvasSize}
-                pxPerCm={CANVAS_CONFIG[canvasSize].pxPerCm}
-              />
+          {/* Toast Pop-up */}
+          {toast && (
+            <div className={`fixed bottom-12 left-1/2 -translate-x-1/2 z-[200] px-8 py-4 rounded-2xl border-2 shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-6 duration-500 ${toast.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
+                {toast.type === 'success' ? <Check size={18} /> : <Trash2 size={18} />}
+              </div>
+              <p className="text-[10px] font-black tracking-widest uppercase">{toast.message}</p>
             </div>
-            <p className="text-slate-400 text-[10px] font-black tracking-[0.4em] uppercase opacity-50">Editor Area ({CANVAS_CONFIG[canvasSize].label})</p>
-          </div>
-        </div>
+          )}
+        </main>
 
-        {/* Toast Pop-up */}
-        {toast && (
-          <div className={`fixed bottom-12 left-1/2 -translate-x-1/2 z-[200] px-8 py-4 rounded-2xl border-2 shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-6 duration-500 ${toast.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
-              {toast.type === 'success' ? <Check size={18} /> : <Trash2 size={18} />}
-            </div>
-            <p className="text-[10px] font-black tracking-widest uppercase">{toast.message}</p>
-          </div>
-        )}
-      </main>
-
-      {/* Right: Photoshop-style Pro Sidebar */}
-      <aside 
-        className={`transition-all duration-500 ease-in-out border-l border-white/40 flex flex-col bg-white/30 backdrop-blur-xl relative ${isSidebarOpen ? 'w-80 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
-      >
-        {/* Sidebar Toggle Button (Inside Sidebar but visible at edge) */}
-        {!isSidebarOpen && (
-          <button 
-            onClick={() => setIsSidebarOpen(true)}
-            className="fixed right-6 top-1/2 -translate-y-1/2 w-10 h-20 bg-white/80 backdrop-blur-md rounded-l-3xl border border-white/40 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:w-12 transition-all shadow-xl z-[100] group"
-          >
-            <Plus size={24} className="group-hover:rotate-180 transition-transform duration-500" />
-          </button>
-        )}
-
-        <div className="flex-1 flex flex-col p-6 overflow-y-auto custom-scrollbar gap-8">
-          {/* Header Action */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">Control Panel</h3>
-              <p className="text-xs font-black text-slate-800 mt-1">Master Inspector</p>
-            </div>
-            <button 
-              onClick={() => setIsSidebarOpen(false)}
-              className="p-2 hover:bg-white rounded-xl text-slate-400 transition-colors"
+        {/* Right: Photoshop-style Pro Sidebar */}
+        <aside
+          className={`transition-all duration-500 ease-in-out border-l border-white/40 flex flex-col bg-white/30 backdrop-blur-xl relative ${isSidebarOpen ? 'w-80 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
+        >
+          {/* Sidebar Toggle Button (Inside Sidebar but visible at edge) */}
+          {!isSidebarOpen && (
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="fixed right-6 top-1/2 -translate-y-1/2 w-10 h-20 bg-white/80 backdrop-blur-md rounded-l-3xl border border-white/40 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:w-12 transition-all shadow-xl z-[100] group"
             >
-              <Plus size={18} className="rotate-45" />
+              <Plus size={24} className="group-hover:rotate-180 transition-transform duration-500" />
             </button>
-          </div>
+          )}
 
-          {/* Quick Actions Panel */}
-          <div className="space-y-3">
-             <label className="group flex items-center gap-3 w-full px-4 py-3 bg-white/40 border border-slate-200 hover:border-blue-500 rounded-2xl cursor-pointer transition-all">
+          <div className="flex-1 flex flex-col p-6 overflow-y-auto custom-scrollbar gap-8">
+            {/* Header Action */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">Control Panel</h3>
+                <p className="text-xs font-black text-slate-800 mt-1">Master Inspector</p>
+              </div>
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                className="p-2 hover:bg-white rounded-xl text-slate-400 transition-colors"
+              >
+                <Plus size={18} className="rotate-45" />
+              </button>
+            </div>
+
+            {/* Quick Actions Panel */}
+            <div className="space-y-3">
+              <label className="group flex items-center gap-3 w-full px-4 py-3 bg-white/40 border border-slate-200 hover:border-blue-500 rounded-2xl cursor-pointer transition-all">
                 <div className="w-8 h-8 bg-white rounded-xl flex items-center justify-center text-slate-400 group-hover:text-blue-500 shadow-sm transition-all">
                   <Upload size={16} />
                 </div>
@@ -818,150 +838,205 @@ const CanvasManager = ({ user }) => {
                 </div>
                 Commit Changes
               </button>
-          </div>
+            </div>
 
-          {/* Palette Analyzer Panel */}
-          <div className="p-5 bg-white/40 rounded-3xl border border-white/60">
-            <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Palette Analyzer</h4>
-            <div className="grid grid-cols-4 gap-2">
-              {[...Array(8)].map((_, idx) => {
-                const rgb = selectionPalette[idx];
-                return (
-                  <div key={idx} className="relative group aspect-square">
-                    {rgb ? (
-                      <button
-                        onClick={() => eraseSpecificColor(rgb, eraserGuide)}
-                        className="w-full h-full rounded-lg border border-slate-200 shadow-sm transition-transform hover:scale-110"
-                        style={{ backgroundColor: `rgb(${rgb})` }}
-                        title="Click to erase this color"
-                      >
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/20 rounded-lg">
-                          <Eraser size={10} className="text-white" />
+            {/* Palette Analyzer Panel */}
+            <div className="p-5 bg-white/40 rounded-3xl border border-white/60">
+              <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Palette Analyzer</h4>
+              <div className="grid grid-cols-4 gap-2">
+                {[...Array(8)].map((_, idx) => {
+                  const rgb = selectionPalette[idx];
+                  return (
+                    <div key={idx} className="relative group aspect-square">
+                      {rgb ? (
+                        <button
+                          onClick={() => eraseSpecificColor(rgb, eraserGuide)}
+                          className="w-full h-full rounded-lg border border-slate-200 shadow-sm transition-transform hover:scale-110"
+                          style={{ backgroundColor: `rgb(${rgb})` }}
+                          title="Click to erase this color"
+                        >
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/20 rounded-lg">
+                            <Eraser size={10} className="text-white" />
+                          </div>
+                        </button>
+                      ) : (
+                        <div className="w-full h-full rounded-lg border border-dashed border-slate-200 bg-slate-50/50 flex items-center justify-center">
+                          <div className="w-1 h-1 bg-slate-200 rounded-full" />
                         </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex items-center gap-2 mb-4 px-1">
+                <div className="w-1 h-3 bg-blue-600 rounded-full" />
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Layer Hierarchy</span>
+              </div>
+
+              <div className="space-y-2 overflow-y-auto flex-1 custom-scrollbar pr-1">
+                {activeFrame && (
+                  <div
+                    onClick={() => setSelectedLayerId(activeFrame.id)}
+                    className={`group p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 ${selectedLayerId === activeFrame.id ? 'border-blue-500/30 bg-white shadow-md' : 'bg-white/40 border-transparent hover:bg-white/60'}`}
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-blue-500 text-white flex items-center justify-center shadow-sm">
+                      <Layout size={14} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {editingId === activeFrame.id ? (
+                        <input
+                          autoFocus
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleRename()}
+                          onBlur={handleRename}
+                          className="w-full bg-blue-50 border border-blue-400 text-[10px] font-black uppercase p-1 rounded-md outline-none"
+                        />
+                      ) : (
+                        <p
+                          onDoubleClick={() => startRename(activeFrame.id, activeFrame.name)}
+                          className="text-[10px] font-black text-slate-800 truncate uppercase tracking-tight"
+                        >
+                          {activeFrame.name}
+                        </p>
+                      )}
+                      <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Frame</p>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startRename(activeFrame.id, activeFrame.name); }}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-all"
+                        title="Ubah Nama"
+                      >
+                        <Edit2 size={12} />
                       </button>
-                    ) : (
-                      <div className="w-full h-full rounded-lg border border-dashed border-slate-200 bg-slate-50/50 flex items-center justify-center">
-                        <div className="w-1 h-1 bg-slate-200 rounded-full" />
-                      </div>
-                    )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleLock(activeFrame.id); }}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${lockedLayers.includes(activeFrame.id) ? 'text-amber-500 bg-amber-50' : 'text-slate-300 hover:bg-slate-50'}`}
+                      >
+                        {lockedLayers.includes(activeFrame.id) ? <Lock size={12} /> : <Unlock size={12} />}
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteFrame(activeFrame.id); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all"><Trash2 size={12} /></button>
+                    </div>
                   </div>
-                );
-              })}
+                )}
+
+                {activeFrame && boxes.length > 0 && (
+                  <div className="my-4 h-px bg-slate-100 flex items-center justify-center">
+                    <span className="bg-white/80 px-2 text-[7px] font-black text-slate-300 uppercase tracking-[0.2em] rounded-full">Nodes</span>
+                  </div>
+                )}
+
+                {[...boxes].reverse().map(box => (
+                  <div
+                    key={box.id}
+                    onClick={() => setSelectedLayerId(box.id)}
+                    className={`group p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 ${selectedLayerId === box.id ? 'border-blue-500/30 bg-white shadow-md' : 'bg-white/40 border-transparent hover:bg-white/60'}`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[10px] transition-all ${box.type === 'qr' ? 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-900 group-hover:text-white'}`}>
+                      {box.type === 'qr' ? <QrCode size={14} /> : box.number}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {editingId === box.id ? (
+                        <input
+                          autoFocus
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleRename()}
+                          onBlur={handleRename}
+                          className="w-full bg-blue-50 border border-blue-400 text-[10px] font-black uppercase p-1 rounded-md outline-none"
+                        />
+                      ) : (
+                        <p
+                          onDoubleClick={() => startRename(box.id, box.name || (box.type === 'qr' ? 'QR Code' : `Slot #${box.number}`))}
+                          className="text-[10px] font-black text-slate-800 truncate tracking-tight"
+                        >
+                          {box.name || (box.type === 'qr' ? 'QR Code' : `Slot #${box.number}`)}
+                        </p>
+                      )}
+                      {editingSizeId === box.id ? (
+                        <div className="flex items-center gap-1 mt-1" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            autoFocus
+                            type="text"
+                            value={editingWidth}
+                            onChange={(e) => setEditingWidth(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleUpdateSize()}
+                            className="w-10 bg-slate-50 border border-slate-200 text-[8px] font-black p-0.5 rounded outline-none text-center"
+                          />
+                          <span className="text-[8px] text-slate-400">×</span>
+                          <input
+                            type="text"
+                            value={editingHeight}
+                            onChange={(e) => setEditingHeight(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleUpdateSize()}
+                            className="w-10 bg-slate-50 border border-slate-200 text-[8px] font-black p-0.5 rounded outline-none text-center"
+                          />
+                          <button
+                            onClick={handleUpdateSize}
+                            className="ml-1 p-0.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                          >
+                            <Check size={8} />
+                          </button>
+                        </div>
+                      ) : (
+                        <p
+                          onClick={(e) => { e.stopPropagation(); startEditSize(box.id, box.width, box.height); }}
+                          className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 cursor-pointer hover:text-blue-600 hover:underline underline-offset-2 decoration-blue-500/30"
+                        >
+                          {box.width}×{box.height}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); startRename(box.id, box.name || (box.type === 'qr' ? 'QR Code' : `Slot #${box.number}`)); }}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-all"
+                        title="Ubah Nama"
+                      >
+                        <Edit2 size={12} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleLock(box.id); }}
+                        className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${lockedLayers.includes(box.id) ? 'text-amber-500 bg-amber-50' : 'text-slate-300 hover:bg-slate-50'}`}
+                      >
+                        {lockedLayers.includes(box.id) ? <Lock size={12} /> : <Unlock size={12} />}
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); deleteBox(box.id); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all"><Trash2 size={12} /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-
-          <div className="flex-1 flex flex-col min-h-0">
-            <div className="flex items-center gap-2 mb-4 px-1">
-              <div className="w-1 h-3 bg-blue-600 rounded-full" />
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Layer Hierarchy</span>
+        </aside>
+      </div>
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className={`flex items-center gap-3 px-6 py-4 rounded-[2rem] border shadow-2xl backdrop-blur-xl ${
+            toast.type === 'error' 
+              ? 'bg-rose-50/90 border-rose-100 text-rose-600 shadow-rose-500/10' 
+              : 'bg-emerald-50/90 border-emerald-100 text-emerald-600 shadow-emerald-500/10'
+          }`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              toast.type === 'error' ? 'bg-rose-500 text-white' : 'bg-emerald-500 text-white'
+            }`}>
+              {toast.type === 'error' ? <AlertCircle size={16} strokeWidth={3} /> : <Check size={16} strokeWidth={3} />}
             </div>
-
-            <div className="space-y-2 overflow-y-auto flex-1 custom-scrollbar pr-1">
-              {activeFrame && (
-                <div
-                  onClick={() => setSelectedLayerId(activeFrame.id)}
-                  className={`group p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 ${selectedLayerId === activeFrame.id ? 'border-blue-500/30 bg-white shadow-md' : 'bg-white/40 border-transparent hover:bg-white/60'}`}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-blue-500 text-white flex items-center justify-center shadow-sm">
-                    <Layout size={14} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    {editingId === activeFrame.id ? (
-                      <input
-                        autoFocus
-                        value={editingName}
-                        onChange={(e) => setEditingName(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleRename()}
-                        onBlur={handleRename}
-                        className="w-full bg-blue-50 border border-blue-400 text-[10px] font-black uppercase p-1 rounded-md outline-none"
-                      />
-                    ) : (
-                      <p
-                        onDoubleClick={() => startRename(activeFrame.id, activeFrame.name)}
-                        className="text-[10px] font-black text-slate-800 truncate uppercase tracking-tight"
-                      >
-                        {activeFrame.name}
-                      </p>
-                    )}
-                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Frame</p>
-                  </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); startRename(activeFrame.id, activeFrame.name); }}
-                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-all"
-                      title="Ubah Nama"
-                    >
-                      <Edit2 size={12} />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); toggleLock(activeFrame.id); }}
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${lockedLayers.includes(activeFrame.id) ? 'text-amber-500 bg-amber-50' : 'text-slate-300 hover:bg-slate-50'}`}
-                    >
-                      {lockedLayers.includes(activeFrame.id) ? <Lock size={12} /> : <Unlock size={12} />}
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); deleteFrame(activeFrame.id); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all"><Trash2 size={12} /></button>
-                  </div>
-                </div>
-              )}
-
-              {activeFrame && boxes.length > 0 && (
-                <div className="my-4 h-px bg-slate-100 flex items-center justify-center">
-                  <span className="bg-white/80 px-2 text-[7px] font-black text-slate-300 uppercase tracking-[0.2em] rounded-full">Nodes</span>
-                </div>
-              )}
-
-              {[...boxes].reverse().map(box => (
-                <div
-                  key={box.id}
-                  onClick={() => setSelectedLayerId(box.id)}
-                  className={`group p-3 rounded-2xl border transition-all cursor-pointer flex items-center gap-3 ${selectedLayerId === box.id ? 'border-blue-500/30 bg-white shadow-md' : 'bg-white/40 border-transparent hover:bg-white/60'}`}
-                >
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-[10px] transition-all ${box.type === 'qr' ? 'bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-slate-900 group-hover:text-white'}`}>
-                    {box.type === 'qr' ? <QrCode size={14} /> : box.number}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    {editingId === box.id ? (
-                      <input
-                        autoFocus
-                        value={editingName}
-                        onChange={(e) => setEditingName(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleRename()}
-                        onBlur={handleRename}
-                        className="w-full bg-blue-50 border border-blue-400 text-[10px] font-black uppercase p-1 rounded-md outline-none"
-                      />
-                    ) : (
-                      <p 
-                        onDoubleClick={() => startRename(box.id, box.name || (box.type === 'qr' ? 'QR Code' : `Slot #${box.number}`))}
-                        className="text-[10px] font-black text-slate-800 truncate tracking-tight"
-                      >
-                        {box.name || (box.type === 'qr' ? 'QR Code' : `Slot #${box.number}`)}
-                      </p>
-                    )}
-                    <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">{box.width}×{box.height}</p>
-                  </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); startRename(box.id, box.name || (box.type === 'qr' ? 'QR Code' : `Slot #${box.number}`)); }}
-                      className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-all"
-                      title="Ubah Nama"
-                    >
-                      <Edit2 size={12} />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); toggleLock(box.id); }}
-                      className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${lockedLayers.includes(box.id) ? 'text-amber-500 bg-amber-50' : 'text-slate-300 hover:bg-slate-50'}`}
-                    >
-                      {lockedLayers.includes(box.id) ? <Lock size={12} /> : <Unlock size={12} />}
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); deleteBox(box.id); }} className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all"><Trash2 size={12} /></button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <p className="text-[11px] font-black uppercase tracking-widest">{toast.message}</p>
+            <button 
+              onClick={() => setToast(null)}
+              className="ml-2 hover:opacity-50 transition-opacity"
+            >
+              <X size={14} />
+            </button>
           </div>
         </div>
-      </aside>
-      </div>
+      )}
     </div>
   )
 }

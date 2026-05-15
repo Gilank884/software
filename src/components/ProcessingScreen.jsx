@@ -27,29 +27,37 @@ const ProcessingScreen = ({
     vibrant: "saturate(1.5)",
   };
 
-  const drawQRCode = (ctx, data, x, y, size) => {
+  const drawQRCode = (ctx, data, x, y, width, height) => {
     try {
-      // Use qr.js to generate modules
       const qr = qrcode(data); 
       const modules = qr.modules;
+      
+      // QR is always square, so use the smaller dimension as the base size
+      const size = Math.min(width, height);
       const moduleSize = size / modules.length;
       
-      ctx.save();
-      // Draw white background for the QR code to ensure scannability
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(x, y, size, size);
+      // Calculate offsets to center the QR in the slot
+      const offsetX = (width - size) / 2;
+      const offsetY = (height - size) / 2;
       
-      ctx.fillStyle = '#000000';
-      ctx.translate(x, y);
-      modules.forEach((row, rowIndex) => {
-        row.forEach((col, colIndex) => {
-          if (col) {
-            // Fill the module with a slight overlap to prevent anti-aliasing gaps
-            ctx.fillRect(colIndex * moduleSize, rowIndex * moduleSize, moduleSize + 0.1, moduleSize + 0.1);
-          }
+      ctx.save();
+      try {
+        // Draw white background for the QR code to ensure scannability
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(x + offsetX, y + offsetY, size, size);
+        
+        ctx.fillStyle = '#000000';
+        ctx.translate(x + offsetX, y + offsetY);
+        modules.forEach((row, rowIndex) => {
+          row.forEach((col, colIndex) => {
+            if (col) {
+              ctx.fillRect(colIndex * moduleSize, rowIndex * moduleSize, moduleSize + 0.1, moduleSize + 0.1);
+            }
+          });
         });
-      });
-      ctx.restore();
+      } finally {
+        ctx.restore();
+      }
     } catch (err) {
       console.error("QR Draw Error:", err);
     }
@@ -102,9 +110,16 @@ const ProcessingScreen = ({
         
         // 1. Upload Composite Image
         const compositeFileName = `captures/${user?.id}/${Date.now()}_composite.png`;
+        console.log('Uploading composite:', compositeFileName, 'Blob size:', compositeBlob.size);
+        
         const { error: compErr } = await supabase.storage.from('frames').upload(compositeFileName, compositeBlob);
-        if (compErr) throw compErr;
+        if (compErr) {
+          console.error('Composite Upload Error Details:', compErr);
+          throw compErr;
+        }
+        
         const { data: { publicUrl: compositeUrl } } = supabase.storage.from('frames').getPublicUrl(compositeFileName);
+        console.log('Composite Public URL:', compositeUrl);
 
         setProgress("Uploading raw photos...");
         
@@ -262,7 +277,7 @@ const ProcessingScreen = ({
           for (const slot of selectedFrameData.slots) {
             if (slot.type === 'qr') {
               const galleryUrl = getGalleryUrl(sessionId);
-              drawQRCode(ctx, galleryUrl, slot.x, slot.y, slot.width);
+              drawQRCode(ctx, galleryUrl, slot.x, slot.y, slot.width, slot.height);
             } else {
               const photoSrc = compositePhotos[slot.number - 1];
               if (photoSrc) {
@@ -468,15 +483,15 @@ const ProcessingScreen = ({
         
         // Cache QR codes to avoid regenerating them every frame
         const qrCache = {};
-        const getQrCanvas = (data, size) => {
-          const key = `${data}_${size}`;
+        const getQrCanvas = (data, width, height) => {
+          const key = `${data}_${width}_${height}`;
           if (qrCache[key]) return qrCache[key];
           
           const qrCanvas = document.createElement('canvas');
-          qrCanvas.width = size;
-          qrCanvas.height = size;
+          qrCanvas.width = width;
+          qrCanvas.height = height;
           const qctx = qrCanvas.getContext('2d');
-          drawQRCode(qctx, data, 0, 0, size);
+          drawQRCode(qctx, data, 0, 0, width, height);
           qrCache[key] = qrCanvas;
           return qrCanvas;
         };
@@ -509,7 +524,7 @@ const ProcessingScreen = ({
           
           selectedFrameData.slots.forEach((slot) => {
             if (slot.type === 'qr') {
-               const qrCanvas = getQrCanvas(galleryUrl, slot.width);
+               const qrCanvas = getQrCanvas(galleryUrl, slot.width, slot.height);
                ctx.drawImage(qrCanvas, slot.x, slot.y);
             } else {
               const video = videoElements[slot.number - 1];

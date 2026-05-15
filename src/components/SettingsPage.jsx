@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import FrameEditor from './FrameEditor'
-import { Home, Upload, Plus, Save, Trash2, Lock, Unlock, ZoomIn, ZoomOut, Loader2, Maximize2, Eraser, Check, Layout, RotateCcw, RotateCw, Edit2, Camera, Monitor, Smartphone, RefreshCw, AlertCircle, Settings2 } from 'lucide-react'
+import { Home, Upload, Plus, Save, Trash2, Lock, Unlock, ZoomIn, ZoomOut, Loader2, Maximize2, Eraser, Check, Layout, RotateCcw, RotateCw, Edit2, Camera, Monitor, Smartphone, RefreshCw, AlertCircle, Settings2, X } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useCamera } from '../hooks/useCamera'
 import TestCamera from './TestCamera'
@@ -27,9 +27,9 @@ const SettingsPage = ({ user }) => {
   const [toast, setToast] = useState(null)
   const thumbnailCanvasRef = useRef(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
-  
+
   const { status: camStatus, setCameraSource } = useCamera()
-  
+
   // Undo/Redo State
   const [past, setPast] = useState([])
   const [future, setFuture] = useState([])
@@ -88,7 +88,7 @@ const SettingsPage = ({ user }) => {
     setFrames(next)
     setFuture(newFuture)
   }
-  
+
 
   // Toast auto-hide
   useEffect(() => {
@@ -421,7 +421,7 @@ const SettingsPage = ({ user }) => {
 
   const analyzeAreaPalette = async (rect, shouldClose = true) => {
     if (!activeFrame) return
-    
+
     if (thumbnailCanvasRef.current) {
       const thumb = thumbnailCanvasRef.current
       const ctx = thumb.getContext('2d')
@@ -501,9 +501,9 @@ const SettingsPage = ({ user }) => {
         for (let x = rx; x < rx + rw; x++) {
           if (x < 0 || x >= width || y < 0 || y >= height) continue
           const i = (y * width + x) * 4
-          const dr = Math.abs(data[i] - tr), dg = Math.abs(data[i+1] - tg), db = Math.abs(data[i+2] - tb)
+          const dr = Math.abs(data[i] - tr), dg = Math.abs(data[i + 1] - tg), db = Math.abs(data[i + 2] - tb)
           const matchTol = (tr < 50 && tg < 10 && tb < 10) ? 15 : tol
-          if ((dr <= matchTol && dg <= matchTol && db <= matchTol) || (data[i+3] > 0 && data[i+3] < 80)) {
+          if ((dr <= matchTol && dg <= matchTol && db <= matchTol) || (data[i + 3] > 0 && data[i + 3] < 80)) {
             matchedMap[y * width + x] = 1
           }
         }
@@ -514,15 +514,15 @@ const SettingsPage = ({ user }) => {
           const idx = y * width + x
           if (matchedMap[idx] === 1) {
             const i = idx * 4
-            data[i] = data[i+1] = data[i+2] = data[i+3] = 0
+            data[i] = data[i + 1] = data[i + 2] = data[i + 3] = 0
             pixelsCleared++
             for (let dy = -1; dy <= 1; dy++) {
               for (let dx = -1; dx <= 1; dx++) {
                 const ny = y + dy, nx = x + dx
                 if (nx >= rx && nx < rx + rw && ny >= ry && ny < ry + rh) {
                   const nIdx = ny * width + nx, ni = nIdx * 4
-                  if (data[ni+3] > 0 && data[ni+3] < 180) {
-                    data[ni] = data[ni+1] = data[ni+2] = data[ni+3] = 0
+                  if (data[ni + 3] > 0 && data[ni + 3] < 180) {
+                    data[ni] = data[ni + 1] = data[ni + 2] = data[ni + 3] = 0
                     pixelsCleared++
                   }
                 }
@@ -540,7 +540,7 @@ const SettingsPage = ({ user }) => {
         if (uploadError) throw uploadError
         const { data: { publicUrl } } = supabase.storage.from('frames').getPublicUrl(fileName)
         const cacheBustedUrl = `${publicUrl}?t=${Date.now()}`
-        
+
         await supabase.from('frames').update({ image_url: publicUrl }).eq('id', activeFrame.supabaseId || activeFrame.id)
         setFrames(prev => prev.map(f => f.id === activeFrameId ? { ...f, url: cacheBustedUrl } : f))
         setToast({ type: 'success', message: `Berhasil Kosongkan Frame!` })
@@ -560,13 +560,13 @@ const SettingsPage = ({ user }) => {
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden relative">
       <div className="flex-1 flex overflow-hidden">
-        
+
         {/* Main Workspace Area */}
         <main className="flex-1 flex flex-col relative bg-slate-50/50">
-          
+
           {/* Top Horizontal Toolbar (Photoshop Style) */}
           <div className="h-20 bg-white border-b border-slate-200 px-8 flex items-center justify-between gap-6 relative z-10 shadow-sm">
-            
+
             {/* Group 1: Navigation */}
             <div className="flex items-center gap-1.5 p-1 bg-slate-100/50 rounded-2xl">
               <button onClick={undo} disabled={past.length === 0} className="group relative p-2.5 hover:bg-white rounded-xl text-slate-400 hover:text-slate-900 disabled:opacity-20 transition-all">
@@ -631,7 +631,7 @@ const SettingsPage = ({ user }) => {
               </button>
             </div>
           </div>
-          
+
           <div className="flex flex-col items-center gap-10">
             <div className="drop-shadow-[0_25px_50px_rgba(0,0,0,0.15)] bg-white p-2 rounded-sm ring-1 ring-slate-200">
               <FrameEditor
@@ -670,11 +670,11 @@ const SettingsPage = ({ user }) => {
         </main>
 
         {/* Right Sidebar: Photoshop-style Pro Panel */}
-        <aside 
+        <aside
           className={`transition-all duration-500 ease-in-out bg-white border-l border-slate-200 flex flex-col relative ${isSidebarOpen ? 'w-96 opacity-100' : 'w-0 opacity-0 pointer-events-none'}`}
         >
           {!isSidebarOpen && (
-            <button 
+            <button
               onClick={() => setIsSidebarOpen(true)}
               className="fixed right-6 top-1/2 -translate-y-1/2 w-10 h-20 bg-white border border-slate-200 rounded-l-3xl flex items-center justify-center text-slate-400 hover:text-blue-600 transition-all shadow-xl z-[100] group"
             >
@@ -688,7 +688,7 @@ const SettingsPage = ({ user }) => {
                 <span className="w-8 h-8 bg-slate-900 text-white rounded-xl flex items-center justify-center text-[10px] font-black">P</span>
                 Pro Panel
               </h2>
-              <button 
+              <button
                 onClick={() => setIsSidebarOpen(false)}
                 className="p-2 hover:bg-slate-50 rounded-xl text-slate-400 transition-colors"
                 title="Sembunyikan Panel"
@@ -812,7 +812,7 @@ const SettingsPage = ({ user }) => {
               <TestCamera />
             </div>
             <div className="flex-1 flex flex-col min-h-0">
-               <div className="flex items-center gap-2 mb-6">
+              <div className="flex items-center gap-2 mb-6">
                 <div className="w-1 h-4 bg-blue-600 rounded-full" />
                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Layer Hierarchy</h3>
               </div>
@@ -872,7 +872,7 @@ const SettingsPage = ({ user }) => {
 
                 {boxes.length > 0 && (
                   <div className="pt-2">
-                     {[...boxes].reverse().map(box => {
+                    {[...boxes].reverse().map(box => {
                       const isHidden = hiddenSlots.includes(box.id);
                       return (
                         <div
@@ -940,6 +940,29 @@ const SettingsPage = ({ user }) => {
           </div>
         </aside>
       </div>
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className={`flex items-center gap-3 px-6 py-4 rounded-[2rem] border shadow-2xl backdrop-blur-xl ${
+            toast.type === 'error' 
+              ? 'bg-rose-50/90 border-rose-100 text-rose-600 shadow-rose-500/10' 
+              : 'bg-emerald-50/90 border-emerald-100 text-emerald-600 shadow-emerald-500/10'
+          }`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              toast.type === 'error' ? 'bg-rose-500 text-white' : 'bg-emerald-500 text-white'
+            }`}>
+              {toast.type === 'error' ? <AlertCircle size={16} strokeWidth={3} /> : <Check size={16} strokeWidth={3} />}
+            </div>
+            <p className="text-[11px] font-black uppercase tracking-widest">{toast.message}</p>
+            <button 
+              onClick={() => setToast(null)}
+              className="ml-2 hover:opacity-50 transition-opacity"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

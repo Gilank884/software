@@ -4,12 +4,11 @@ import { Mail, Lock, User, LogIn, UserPlus, AlertCircle, Loader2 } from 'lucide-
 import AppBackground from './AppBackground';
 
 const AuthScreen = ({ onAuthSuccess, initialIsLogin = true }) => {
-  const [isLogin, setIsLogin] = useState(initialIsLogin);
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isLogin, setIsLogin] = useState(initialIsLogin);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -17,35 +16,52 @@ const AuthScreen = ({ onAuthSuccess, initialIsLogin = true }) => {
     setLoading(true);
 
     try {
-      if (isLogin) {
-        const { data, error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (signInError) throw signInError;
-        onAuthSuccess(data.user);
+      // 1. Try to find a real profile for this email to get a valid UUID
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('email', email)
+        .maybeSingle();
+
+      let userData;
+
+      if (profile) {
+        // User exists, use their real ID
+        userData = {
+          id: profile.id,
+          email: profile.email,
+          user_metadata: { full_name: profile.full_name },
+          isAdmin: true // Allow bypass-user to act as admin
+        };
       } else {
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              full_name: fullName,
-            },
-          },
-        });
-        if (signUpError) throw signUpError;
+        // New user or dummy mode
+        // If not login mode, we could theoretically insert into profiles here
+        // but for a simple bypass, we just use a dummy UUID
+        userData = {
+          id: '00000000-0000-0000-0000-000000000000',
+          email: email,
+          user_metadata: { full_name: fullName || 'Guest User' },
+          isAdmin: true
+        };
         
-        if (data.session) {
-          onAuthSuccess(data.session); // ✅ kirim session (bukan hanya user)
-        } else if (data.user && !data.session) {
-          // Confirm email masih ON di Supabase Dashboard — user dibuat tapi belum aktif
-          setError("✅ Akun berhasil dibuat! Silakan cek email Anda untuk konfirmasi, lalu login.");
+        if (!isLogin) {
+          // Attempt to create a profile if it's "Register" mode
+          // Note: This might fail if the dummy ID is already taken or if FKs are strict
+          await supabase.from('profiles').insert({
+            id: userData.id,
+            email: email,
+            full_name: fullName
+          });
         }
       }
+
+      // Store in localStorage for persistence (since we're bypassing Supabase Auth)
+      localStorage.setItem('pb_mock_session', JSON.stringify({ user: userData }));
+      
+      onAuthSuccess({ user: userData });
     } catch (err) {
       console.error("Auth Error:", err);
-      setError(err.message);
+      setError("Gagal masuk: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -61,10 +77,10 @@ const AuthScreen = ({ onAuthSuccess, initialIsLogin = true }) => {
         </div>
         
         <h1 className="text-3xl font-bold text-slate-900 mb-2 text-center">
-          {isLogin ? "Selamat Datang" : "Daftar Akun"}
+          Login Cepat
         </h1>
         <p className="text-slate-500 mb-8 text-center text-sm font-medium">
-          {isLogin ? "Masuk ke portal Photobooth Anda" : "Mulai kelola Photobooth Anda sendiri"}
+          Masukkan email untuk langsung masuk ke portal
         </p>
 
         {error && (
@@ -101,18 +117,6 @@ const AuthScreen = ({ onAuthSuccess, initialIsLogin = true }) => {
             />
           </div>
 
-          <div className="relative">
-            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
-            <input 
-              type="password" 
-              placeholder="Kata Sandi" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full bg-slate-100/50 border border-slate-200 rounded-2xl py-4 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500 transition-all"
-            />
-          </div>
-
           <button 
             type="submit" 
             disabled={loading}
@@ -122,19 +126,22 @@ const AuthScreen = ({ onAuthSuccess, initialIsLogin = true }) => {
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <>
-                {isLogin ? <LogIn className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
-                <span>{isLogin ? "Masuk Sekarang" : "Buat Akun"}</span>
+                <LogIn className="w-5 h-5" />
+                <span>Masuk Sekarang</span>
               </>
             )}
           </button>
         </form>
 
         <button 
-          onClick={() => setIsLogin(!isLogin)}
+          onClick={() => {
+            setIsLogin(!isLogin);
+            setError(null);
+          }}
           disabled={loading}
           className="mt-8 text-slate-400 hover:text-blue-600 transition-colors text-xs font-bold uppercase tracking-widest"
         >
-          {isLogin ? "Belum punya akun? Daftar di sini" : "Sudah punya akun? Masuk di sini"}
+          {isLogin ? "Daftar User Baru" : "Sudah punya email? Masuk"}
         </button>
       </div>
     </div>

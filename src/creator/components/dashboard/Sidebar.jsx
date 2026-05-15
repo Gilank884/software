@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Smartphone, LayoutGrid, Palette, BarChart3, Settings, ChevronLeft, ChevronRight, Calendar } from 'lucide-react'
+import { Smartphone, LayoutGrid, Palette, BarChart3, Settings, ChevronLeft, ChevronRight, Calendar, LogOut } from 'lucide-react'
 
 export default function Sidebar({ activeTab, onTabChange, onSignOut, user }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -63,7 +63,7 @@ export default function Sidebar({ activeTab, onTabChange, onSignOut, user }) {
 
       <button 
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="p-4 hover:bg-blue-600/10 text-slate-400 hover:text-blue-600 rounded-full transition-all active:scale-90 border border-transparent hover:border-blue-100/50 group"
+        className="p-4 hover:bg-blue-600/10 text-slate-400 hover:text-blue-600 rounded-full transition-all active:scale-90 border border-transparent hover:border-blue-100/50 group mb-4"
         title={isCollapsed ? "Expand" : "Collapse"}
       >
         <motion.div
@@ -73,6 +73,24 @@ export default function Sidebar({ activeTab, onTabChange, onSignOut, user }) {
           <ChevronLeft size={22} strokeWidth={2.5} />
         </motion.div>
       </button>
+
+      <div className="w-full px-4 mt-auto mb-8">
+        <button 
+          onClick={onSignOut}
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'px-5'} py-4 rounded-3xl font-bold transition-all group text-rose-500 hover:bg-rose-50 hover:text-rose-600`}
+        >
+          <LogOut size={20} strokeWidth={2.5} />
+          {!isCollapsed && (
+            <motion.span 
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="ml-4 text-[13px] tracking-tight"
+            >
+              Sign Out
+            </motion.span>
+          )}
+        </button>
+      </div>
     </motion.aside>
   )
 }

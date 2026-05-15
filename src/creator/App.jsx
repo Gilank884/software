@@ -12,7 +12,7 @@ import EventsView from './components/dashboard/EventsView'
 
 export default function CreatorApp() {
   const [session, setSession] = useState(null)
-  
+
   useEffect(() => {
     // Ensure body is scrollable in dashboard
     document.body.style.overflow = 'auto';
@@ -20,6 +20,13 @@ export default function CreatorApp() {
   }, []);
 
   useEffect(() => {
+    // Check for mock session first
+    const savedMock = localStorage.getItem('pb_mock_session');
+    if (savedMock) {
+      setSession(JSON.parse(savedMock));
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
     })
@@ -29,19 +36,18 @@ export default function CreatorApp() {
     return () => subscription.unsubscribe()
   }, [])
 
+  const handleSignOut = async () => {
+    localStorage.removeItem('pb_mock_session');
+    await supabase.auth.signOut();
+    setSession(null);
+  };
+
   if (!session) {
-    const isLocal = window.location.hostname === 'localhost'
-    const isNetlify = window.location.hostname.endsWith('netlify.app')
-    
-    if (isLocal || isNetlify) {
-      return <CreatorDashboard user={{ id: 'admin', email: 'admin@local', isAdmin: true }} onSignOut={() => setSession(null)} />
-    }
-    
     const isSignupPath = window.location.pathname.endsWith('/daftar')
     return <AuthScreen onAuthSuccess={setSession} initialIsLogin={!isSignupPath} />
   }
 
-  return <CreatorDashboard user={session.user} onSignOut={() => supabase.auth.signOut()} />
+  return <CreatorDashboard user={session.user} onSignOut={handleSignOut} />
 }
 
 function CreatorDashboard({ user, onSignOut }) {
@@ -54,7 +60,7 @@ function CreatorDashboard({ user, onSignOut }) {
   const [frames, setFrames] = useState([])
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
-  
+
   // Initial tab from URL or default to 'devices'
   const getInitialTab = () => {
     const path = window.location.pathname
@@ -96,7 +102,7 @@ function CreatorDashboard({ user, onSignOut }) {
   const fetchDevices = async () => {
     setLoading(true)
     let query = supabase.from('devices').select('*')
-    
+
     if (!user.isAdmin) {
       query = query.eq('creator_id', user.id)
     }
@@ -108,7 +114,7 @@ function CreatorDashboard({ user, onSignOut }) {
 
   const fetchEvents = async () => {
     let query = supabase.from('events').select('*')
-    
+
     if (!user.isAdmin) {
       query = query.eq('creator_id', user.id)
     }
@@ -119,7 +125,7 @@ function CreatorDashboard({ user, onSignOut }) {
 
   const fetchFrames = async () => {
     let query = supabase.from('frames').select('*')
-    
+
     if (!user.isAdmin) {
       query = query.eq('user_id', user.id)
     }
@@ -131,7 +137,7 @@ function CreatorDashboard({ user, onSignOut }) {
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col relative overflow-y-auto font-sans">
       <CreatorBackground />
-      
+
       {/* Top Navbar */}
       <nav className="relative z-50 bg-white/30 backdrop-blur-xl border-b border-white/40 px-8 py-4 flex items-center justify-between transition-all duration-500">
         <div className="flex items-center gap-5 cursor-pointer group" onClick={() => handleTabChange('analytics', '/analytics')}>
@@ -162,38 +168,38 @@ function CreatorDashboard({ user, onSignOut }) {
       </nav>
 
       <div className="flex-1 flex max-w-[1700px] w-full mx-auto relative z-10 px-10 py-12 gap-10 overflow-y-auto">
-        <Sidebar 
-          activeTab={activeTab} 
-          onTabChange={handleTabChange} 
-          onSignOut={onSignOut} 
-          user={user} 
+        <Sidebar
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          onSignOut={onSignOut}
+          user={user}
         />
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto flex flex-col">
           {activeTab === 'events' && (
-            <EventsView 
-              user={user} 
-              events={events} 
+            <EventsView
+              user={user}
+              events={events}
               devices={devices}
-              onRefresh={fetchEvents} 
+              onRefresh={fetchEvents}
             />
           )}
 
           {activeTab === 'devices' && (
-            <DevicesView 
-              user={user} 
-              devices={devices} 
-              frames={frames} 
-              events={events} 
-              onRefresh={fetchDevices} 
+            <DevicesView
+              user={user}
+              devices={devices}
+              frames={frames}
+              events={events}
+              onRefresh={fetchDevices}
             />
           )}
 
           {activeTab === 'analytics' && (
-            <AnalyticsView 
-              user={user} 
-              devices={devices} 
+            <AnalyticsView
+              user={user}
+              devices={devices}
             />
           )}
 
@@ -204,11 +210,11 @@ function CreatorDashboard({ user, onSignOut }) {
           {activeTab === 'canvas' && (
             <CanvasManager user={user} />
           )}
-          
+
           {activeTab === 'settings' && (
-             <div className="flex-1 flex items-center justify-center text-slate-400 font-bold uppercase tracking-widest text-xs italic">
-               Common Settings Coming Soon
-             </div>
+            <div className="flex-1 flex items-center justify-center text-slate-400 font-bold uppercase tracking-widest text-xs italic">
+              Common Settings Coming Soon
+            </div>
           )}
         </main>
       </div>

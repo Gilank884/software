@@ -41,32 +41,40 @@ const DraggableBox = ({ box, onUpdate, onDelete, isSelected, onSelect, isLocked 
         }
       })
 
-    if (!isQr) {
-      interactObj.resizable({
-        edges: { left: true, right: true, bottom: true, top: true },
-        listeners: {
-          move(event) {
-            const z = propsRef.current.zoom
-            posRef.current.width += event.deltaRect.right / z - event.deltaRect.left / z
-            posRef.current.height += event.deltaRect.bottom / z - event.deltaRect.top / z
-            posRef.current.x += event.deltaRect.left / z
-            posRef.current.y += event.deltaRect.top / z
+    interactObj.resizable({
+      edges: { left: true, right: true, bottom: true, top: true },
+      margin: 10,
+      listeners: {
+        move(event) {
+          const z = propsRef.current.zoom
+          posRef.current.width += event.deltaRect.right / z - event.deltaRect.left / z
+          posRef.current.height += event.deltaRect.bottom / z - event.deltaRect.top / z
+          posRef.current.x += event.deltaRect.left / z
+          posRef.current.y += event.deltaRect.top / z
 
-            node.style.width = `${posRef.current.width}px`
-            node.style.height = `${posRef.current.height}px`
-            node.style.transform = `translate(${posRef.current.x}px, ${posRef.current.y}px)`
-          },
-          end() {
-            propsRef.current.onUpdate(box.id, { 
-              x: posRef.current.x, 
-              y: posRef.current.y, 
-              width: posRef.current.width, 
-              height: posRef.current.height 
-            })
+          node.style.width = `${posRef.current.width}px`
+          node.style.height = `${posRef.current.height}px`
+          node.style.transform = `translate(${posRef.current.x}px, ${posRef.current.y}px)`
+          
+          if (isQr) {
+            const qrContainer = node.querySelector('.qr-container')
+            if (qrContainer) {
+              const s = Math.max(10, Math.min(posRef.current.width, posRef.current.height) - 10)
+              qrContainer.style.width = `${s}px`
+              qrContainer.style.height = `${s}px`
+            }
           }
+        },
+        end() {
+          propsRef.current.onUpdate(box.id, { 
+            x: posRef.current.x, 
+            y: posRef.current.y, 
+            width: posRef.current.width, 
+            height: posRef.current.height 
+          })
         }
-      })
-    }
+      }
+    })
 
     return () => {
       interact(node).unset()
@@ -96,10 +104,17 @@ const DraggableBox = ({ box, onUpdate, onDelete, isSelected, onSelect, isLocked 
       {isLocked ? (
         <span className="font-bold text-[10px] pointer-events-none uppercase tracking-widest text-slate-400">Locked</span>
       ) : isQr ? (
-        <div className="p-2 bg-white rounded-sm shadow-inner opacity-80 group-hover:opacity-100 transition-opacity">
+        <div 
+          className="qr-container p-1 bg-white rounded-sm shadow-inner opacity-80 group-hover:opacity-100 transition-opacity flex items-center justify-center overflow-hidden"
+          style={{
+            width: Math.max(10, Math.min(box.width, box.height) - 10),
+            height: Math.max(10, Math.min(box.width, box.height) - 10)
+          }}
+        >
           <QRCode 
             value="https://fotoku.latarcerita.com" 
-            size={Math.max(10, Math.min(box.width, box.height) - 24)}
+            size={256}
+            style={{ width: '100%', height: '100%' }}
             level="L"
           />
         </div>
