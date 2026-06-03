@@ -6,9 +6,10 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig(({ mode }) => {
   const target = process.env.VITE_APP_TARGET || 'main';
   const isCreator = target === 'creator';
+  const isWeb = process.env.VITE_DEPLOY === 'web';
 
   return {
-    base: '/',
+    base: isWeb ? '/' : './',
     plugins: [
       react(),
       tailwindcss(),

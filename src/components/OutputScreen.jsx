@@ -1,9 +1,12 @@
-import { CheckCircle2, RefreshCcw, ScanLine, Printer, Sparkles, Heart, Star, PartyPopper } from 'lucide-react'
+import { useState } from 'react'
+import { CheckCircle2, RefreshCcw, ScanLine, Printer, Sparkles, Heart, Star, PartyPopper, X } from 'lucide-react'
 import { QRCode } from 'react-qr-code'
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import StepWrapper from './StepWrapper'
 
 const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
+  const [activeMedia, setActiveMedia] = useState(null)
+
   // In production/release, we use the main domain for the gallery link
   const galleryBase = import.meta.env.VITE_GALLERY_URL || (import.meta.env.DEV ? window.location.origin : "https://fotoku.latarcerita.com");
   
@@ -111,7 +114,8 @@ const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: idx * 0.1 }}
-                    className="relative group/raw"
+                    className="relative group/raw cursor-zoom-in"
+                    onClick={() => setActiveMedia({ type: 'image', url })}
                   >
                     <div className="bg-white p-2 rounded-lg shadow-md border border-slate-100 transform transition-transform group-hover/raw:scale-110 group-hover/raw:rotate-2">
                       <img 
@@ -128,7 +132,8 @@ const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
               <motion.div 
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="relative group/framed"
+                className="relative group/framed cursor-zoom-in"
+                onClick={() => setActiveMedia(galleryData.videoUrl ? { type: 'video', url: galleryData.videoUrl } : { type: 'image', url: galleryData.compositeUrl })}
               >
                 <div className="absolute -inset-4 bg-gradient-to-tr from-rose-400/20 via-purple-400/20 to-cyan-400/20 rounded-[2rem] blur-2xl opacity-0 group-hover/framed:opacity-100 transition-opacity duration-700" />
                 <div className="relative bg-white p-2 rounded-[1.5rem] shadow-2xl border border-slate-100 overflow-hidden transform transition-transform group-hover/framed:scale-105 duration-500">
@@ -182,6 +187,71 @@ const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
           )}
         </div>
       </div>
+
+      {/* Premium Media Zoom Popup */}
+      <AnimatePresence>
+        {activeMedia && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setActiveMedia(null)}
+            className="fixed inset-0 bg-slate-950/90 backdrop-blur-xl z-[200] flex flex-col items-center justify-center p-6 cursor-zoom-out"
+          >
+            {/* Close Button */}
+            <motion.button
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveMedia(null);
+              }}
+              className="absolute top-6 right-6 w-12 h-12 bg-white/10 hover:bg-white/20 text-white rounded-full flex items-center justify-center border border-white/10 hover:border-white/20 transition-all cursor-pointer shadow-lg backdrop-blur-md"
+            >
+              <X size={24} />
+            </motion.button>
+
+            {/* Media Container */}
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-[90vw] max-h-[80vh] bg-white p-3 rounded-[2rem] shadow-[0_25px_60px_rgba(0,0,0,0.5)] border border-white/20 overflow-hidden flex items-center justify-center"
+            >
+              {activeMedia.type === 'video' ? (
+                <video
+                  src={activeMedia.url}
+                  autoPlay
+                  loop
+                  controls
+                  playsInline
+                  className="rounded-[1.5rem] max-w-full max-h-[75vh] object-contain shadow-inner"
+                />
+              ) : (
+                <img
+                  src={activeMedia.url}
+                  alt="Expanded Photo Preview"
+                  className="rounded-[1.5rem] max-w-full max-h-[75vh] object-contain shadow-inner"
+                />
+              )}
+            </motion.div>
+
+            {/* Subtle Hint */}
+            <motion.p
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 0.6, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ delay: 0.2 }}
+              className="mt-4 text-white/60 text-xs font-sans font-bold uppercase tracking-[0.2em] pointer-events-none"
+            >
+              Click anywhere to close preview
+            </motion.p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </StepWrapper>
   )
 }

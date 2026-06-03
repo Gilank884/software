@@ -15,7 +15,8 @@
     "electron:dist:win": "npm run build && electron-builder --win",
     "dist:mac:universal": "npm run build && electron-builder --mac --universal",
     "build:main": "export VITE_APP_TARGET=main && vite build",
-    "build:creator": "export VITE_APP_TARGET=creator && vite build"
+    "build:creator": "export VITE_APP_TARGET=creator && vite build",
+    "build:web": "export VITE_DEPLOY=web VITE_APP_TARGET=main && vite build && export VITE_DEPLOY=web VITE_APP_TARGET=creator && vite build"
   },
   "build": {
     "appId": "com.latarcerita.photobooth",
@@ -75,12 +76,9 @@
     "@supabase/supabase-js": "^2.100.0",
     "electron-is-dev": "^3.0.1",
     "framer-motion": "^12.38.0",
-    "gifshot": "^0.4.5",
-    "interactjs": "^1.10.27",
     "lucide-react": "^0.577.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-icons": "^5.6.0",
     "react-qr-code": "^2.0.18",
     "tslib": "^2.8.1"
   },

@@ -27,16 +27,6 @@ const ScreenEvent = ({ onStart }) => {
           <span className="bg-gradient-to-r from-rose-600 via-indigo-600 to-amber-600 bg-clip-text text-transparent px-4">Latar Cerita</span>
         </h1>
 
-        <div className="flex flex-col items-center -mt-2 relative z-10">
-          <motion.img
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            src="/Event3.png"
-            alt="Event"
-            className="max-w-[280px] h-auto drop-shadow-xl"
-          />
-        </div>
       </div>
 
       <div className="flex flex-col items-center gap-4 animate-pulse group-hover:animate-none group-hover:scale-110 transition-transform duration-500 pointer-events-none">

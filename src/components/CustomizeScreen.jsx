@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Palette, Wand2, Sparkles, Loader2, Image as ImageIcon, ChevronRight, Layers, Heart, Star } from 'lucide-react'
+import { Palette, Wand2, Sparkles, Loader2, Image as ImageIcon, ChevronLeft, ChevronRight, Layers, Heart, Star, ArrowLeft } from 'lucide-react'
 import { QRCode } from 'react-qr-code'
 import { supabase } from '../lib/supabaseClient'
 
@@ -36,6 +36,7 @@ const CustomizeScreen = ({
   setSelectedFilter,
   onCetak,
   onNext,
+  onBack,
   maxCaptures,
   setMaxCaptures,
   user,
@@ -44,6 +45,7 @@ const CustomizeScreen = ({
   const [dbFrames, setDbFrames] = useState([])
   const [loadingFrames, setLoadingFrames] = useState(true)
   const carouselRef = useRef(null)
+  const isFrameMode = mode === "frame";
 
   const filters = {
     none: "",
@@ -97,16 +99,22 @@ const CustomizeScreen = ({
     loadFrames()
   }, [mode, appMode, user?.id, user?.availableFrames])
 
+  // Scroll selected item into view whenever it changes or mode changes
   useEffect(() => {
-    if (mode === 'filter' && carouselRef.current) {
-      const container = carouselRef.current
-      const selectedEl = container.querySelector(`[data-id="${selectedFrame}"]`)
+    if (!carouselRef.current) return
+    const container = carouselRef.current
+    const targetId = isFrameMode ? selectedFrame : selectedFilter
+    
+    const timer = setTimeout(() => {
+      const selectedEl = container.querySelector(`[data-id="${targetId}"]`)
       if (selectedEl) {
         const scrollLeft = selectedEl.offsetLeft - container.offsetWidth / 2 + selectedEl.offsetWidth / 2
         container.scrollTo({ left: scrollLeft, behavior: 'smooth' })
       }
-    }
-  }, [mode])
+    }, 100)
+    
+    return () => clearTimeout(timer)
+  }, [selectedFrame, selectedFilter, mode, isFrameMode, dbFrames, loadingFrames])
 
   const handleFrameSelect = (frame) => {
     setSelectedFrame(frame.id)
@@ -127,7 +135,35 @@ const CustomizeScreen = ({
     }
   }
 
-  const isFrameMode = mode === "frame";
+  const handlePrevItem = () => {
+    if (isFrameMode) {
+      if (dbFrames.length === 0) return
+      const currentIndex = dbFrames.findIndex(f => f.id === selectedFrame)
+      const prevIndex = (currentIndex - 1 + dbFrames.length) % dbFrames.length
+      handleFrameSelect(dbFrames[prevIndex])
+    } else {
+      const currentIndex = FILTER_OPTIONS.findIndex(f => f.id === selectedFilter)
+      const prevIndex = (currentIndex - 1 + FILTER_OPTIONS.length) % FILTER_OPTIONS.length
+      handleFilterSelect(FILTER_OPTIONS[prevIndex].id)
+    }
+  }
+
+  const handleNextItem = () => {
+    if (isFrameMode) {
+      if (dbFrames.length === 0) return
+      const currentIndex = dbFrames.findIndex(f => f.id === selectedFrame)
+      const nextIndex = (currentIndex + 1) % dbFrames.length
+      handleFrameSelect(dbFrames[nextIndex])
+    } else {
+      const currentIndex = FILTER_OPTIONS.findIndex(f => f.id === selectedFilter)
+      const nextIndex = (currentIndex + 1) % FILTER_OPTIONS.length
+      handleFilterSelect(FILTER_OPTIONS[nextIndex].id)
+    }
+  }
+
+  const showNavButtons = isFrameMode 
+    ? dbFrames.length > 1 
+    : FILTER_OPTIONS.length > 1;
   const currentFrame = selectedFrameData || dbFrames.find(f => f.id === selectedFrame)
 
   return (
@@ -220,6 +256,31 @@ const CustomizeScreen = ({
         <div className="absolute inset-y-0 left-0 w-[20vw] bg-gradient-to-r from-slate-50/90 to-transparent z-20 pointer-events-none" />
         <div className="absolute inset-y-0 right-0 w-[20vw] bg-gradient-to-l from-slate-50/90 to-transparent z-20 pointer-events-none" />
 
+        {/* Left and Right Navigation Buttons */}
+        {showNavButtons && (
+          <>
+            <motion.button
+              whileHover={{ scale: 1.1, x: -4 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={handlePrevItem}
+              className="absolute left-10 z-40 p-5 rounded-full bg-white/70 backdrop-blur-md border border-rose-100/50 shadow-[0_15px_35px_rgba(225,29,72,0.15)] text-rose-500 hover:text-rose-600 hover:bg-white hover:border-rose-200 transition-colors duration-300 flex items-center justify-center cursor-pointer animate-pulse"
+              style={{ animationDuration: '3s' }}
+            >
+              <ChevronLeft size={36} strokeWidth={2.5} />
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.1, x: 4 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={handleNextItem}
+              className="absolute right-10 z-40 p-5 rounded-full bg-white/70 backdrop-blur-md border border-rose-100/50 shadow-[0_15px_35px_rgba(225,29,72,0.15)] text-rose-500 hover:text-rose-600 hover:bg-white hover:border-rose-200 transition-colors duration-300 flex items-center justify-center cursor-pointer animate-pulse"
+              style={{ animationDuration: '3s' }}
+            >
+              <ChevronRight size={36} strokeWidth={2.5} />
+            </motion.button>
+          </>
+        )}
+
         <div
           ref={carouselRef}
           className="w-full h-full flex items-center overflow-x-auto overflow-y-hidden custom-scrollbar-none px-[35vw] snap-x snap-mandatory gap-20 py-8"
@@ -236,6 +297,7 @@ const CustomizeScreen = ({
               dbFrames.map((frame) => (
                 <motion.div
                   key={frame.id}
+                  data-id={frame.id}
                   onClick={() => handleFrameSelect(frame)}
                   className={`snap-center flex-shrink-0 relative transition-all duration-700 cursor-pointer ${selectedFrame === frame.id ? 'scale-110 z-30' : 'scale-90 opacity-20 grayscale-[0.5] z-10'}`}
                   style={{ willChange: 'transform, opacity' }}
@@ -321,6 +383,7 @@ const CustomizeScreen = ({
             FILTER_OPTIONS.map((filter) => (
               <motion.div
                 key={filter.id}
+                data-id={filter.id}
                 onClick={() => handleFilterSelect(filter.id)}
                 className={`snap-center flex-shrink-0 relative transition-all duration-700 cursor-pointer ${selectedFilter === filter.id ? 'scale-110 z-30' : 'scale-90 opacity-20 grayscale-[0.5] z-10'}`}
                 style={{ willChange: 'transform, opacity' }}
@@ -399,12 +462,28 @@ const CustomizeScreen = ({
         </div>
       </div>
 
-      {/* Bottom Status Info */}
-      <div className="w-full px-16 py-4 flex items-center justify-center gap-12 z-50 shrink-0">
-        <div className="flex items-center gap-3">
+      {/* Bottom Bar */}
+      <div className="w-full px-16 py-4 flex items-center justify-between z-50 shrink-0">
+        {/* Tombol Kembali */}
+        {onBack && (
+          <motion.button
+            whileHover={{ scale: 1.05, x: -4 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={onBack}
+            className="flex items-center gap-2 px-5 py-2.5 bg-white/70 backdrop-blur-md border border-slate-200 text-slate-500 hover:text-slate-800 hover:border-slate-300 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-sm"
+          >
+            <ArrowLeft size={14} />
+            Kembali
+          </motion.button>
+        )}
+
+        <div className="flex items-center gap-3 mx-auto">
           <Heart size={14} className="text-rose-500" />
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Latarcerita Photobooth</span>
         </div>
+
+        {/* Spacer agar tengah tetap center */}
+        {onBack && <div className="w-[100px]" />}
       </div>
 
     </div>

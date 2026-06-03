@@ -11,4 +11,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   printTestPage: (printerName, pageSize, autoEpsonMatte) => ipcRenderer.send('print-test-page', { printerName, pageSize, autoEpsonMatte }),
   printImage: (imageUrl, copies, printerName, pageSize, autoEpsonMatte) => ipcRenderer.send('print-image', { imageUrl, copies, printerName, pageSize, autoEpsonMatte }),
   getPrinters: () => ipcRenderer.invoke('get-printers'),
+  deleteCaptures: () => ipcRenderer.invoke('delete-captures'),
+  minimizeWindow: () => ipcRenderer.send('minimize-window'),
 });

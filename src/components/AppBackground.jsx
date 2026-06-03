@@ -1,17 +1,12 @@
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import DecorativeBackground from './DecorativeBackground'
-import { 
-  FaCameraRetro, FaRegHeart, FaRegStar, FaRegSmile, FaMagic, 
-  FaGlassCheers, FaCloud, FaBirthdayCake, FaGamepad, FaMusic, 
-  FaPalette, FaRocket, FaCrown, FaGem, FaGhost, FaLaughWink, FaGrinHearts,
-  FaCat, FaDog, FaPizzaSlice, FaIceCream, FaHamburger, FaCocktail, FaGraduationCap
-} from 'react-icons/fa'
-import { 
-  IoMusicalNotes, IoSparkles, IoBalloonOutline, IoIceCreamOutline,
-  IoHeartOutline, IoStarOutline, IoCameraOutline, IoAirplaneOutline,
-  IoPlanetOutline, IoSunnyOutline, IoMoonOutline, IoCloudOutline
-} from 'react-icons/io5'
+import {
+  Camera, Heart, Star, Smile, Wand2, Wine, Cloud, Cake,
+  Gamepad2, Music, Palette, Rocket, Crown, Gem, Ghost,
+  Cat, Dog, Pizza, IceCreamCone, Sandwich, GraduationCap,
+  Sparkles, Plane, Globe, Sun, Moon, PartyPopper
+} from 'lucide-react'
 
 const AppBackground = ({ mode = 'default', isHidden = false }) => {
   const isEvent = mode === 'event'
@@ -19,29 +14,29 @@ const AppBackground = ({ mode = 'default', isHidden = false }) => {
   const backgroundIcons = useMemo(() => {
     // ... (rest of the logic stays same)
     const defaultPool = [
-      { Icon: FaCameraRetro, color: 'text-rose-400' },
-      { Icon: FaRegSmile, color: 'text-orange-400' },
-      { Icon: IoMusicalNotes, color: 'text-red-400' },
-      { Icon: IoIceCreamOutline, color: 'text-orange-400' },
-      { Icon: FaRocket, color: 'text-rose-500' },
-      { Icon: IoSparkles, color: 'text-rose-300' },
-      { Icon: FaCat, color: 'text-amber-500' },
-      { Icon: FaDog, color: 'text-rose-200' },
-      { Icon: IoAirplaneOutline, color: 'text-orange-300' },
-      { Icon: IoCloudOutline, color: 'text-rose-100' }
+      { Icon: Camera, color: 'text-rose-400' },
+      { Icon: Smile, color: 'text-orange-400' },
+      { Icon: Music, color: 'text-red-400' },
+      { Icon: IceCreamCone, color: 'text-orange-400' },
+      { Icon: Rocket, color: 'text-rose-500' },
+      { Icon: Sparkles, color: 'text-rose-300' },
+      { Icon: Cat, color: 'text-amber-500' },
+      { Icon: Dog, color: 'text-rose-200' },
+      { Icon: Plane, color: 'text-orange-300' },
+      { Icon: Cloud, color: 'text-rose-100' }
     ]
 
     const eventPool = [
-      { Icon: FaGlassCheers, color: 'text-amber-400' },
-      { Icon: IoBalloonOutline, color: 'text-rose-400' },
-      { Icon: FaCrown, color: 'text-yellow-500' },
-      { Icon: FaGem, color: 'text-indigo-400' },
-      { Icon: FaRegHeart, color: 'text-pink-400' },
-      { Icon: FaRegStar, color: 'text-yellow-400' },
-      { Icon: IoSparkles, color: 'text-yellow-300' },
-      { Icon: FaBirthdayCake, color: 'text-rose-500' },
-      { Icon: FaCocktail, color: 'text-emerald-400' },
-      { Icon: FaGraduationCap, color: 'text-indigo-600' }
+      { Icon: Wine, color: 'text-amber-400' },
+      { Icon: PartyPopper, color: 'text-rose-400' },
+      { Icon: Crown, color: 'text-yellow-500' },
+      { Icon: Gem, color: 'text-indigo-400' },
+      { Icon: Heart, color: 'text-pink-400' },
+      { Icon: Star, color: 'text-yellow-400' },
+      { Icon: Sparkles, color: 'text-yellow-300' },
+      { Icon: Cake, color: 'text-rose-500' },
+      { Icon: Ghost, color: 'text-emerald-400' },
+      { Icon: GraduationCap, color: 'text-indigo-600' }
     ]
 
     const iconPool = isEvent ? [...eventPool, ...defaultPool.slice(0, 5)] : [...defaultPool, ...eventPool.slice(0, 5)]

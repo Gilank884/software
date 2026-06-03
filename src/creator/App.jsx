@@ -7,7 +7,7 @@ import Sidebar from './components/dashboard/Sidebar'
 import AnalyticsView from './components/dashboard/AnalyticsView'
 import DevicesView from './components/dashboard/DevicesView'
 import AuthScreen from '../components/AuthScreen'
-import { Monitor, LogOut, Calendar } from 'lucide-react'
+import { Monitor, LogOut, Calendar, RefreshCw } from 'lucide-react'
 import EventsView from './components/dashboard/EventsView'
 
 export default function CreatorApp() {
@@ -60,6 +60,7 @@ function CreatorDashboard({ user, onSignOut }) {
   const [frames, setFrames] = useState([])
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
   // Initial tab from URL or default to 'devices'
   const getInitialTab = () => {
@@ -74,6 +75,12 @@ function CreatorDashboard({ user, onSignOut }) {
   }
 
   const [activeTab, setActiveTab] = useState(getInitialTab())
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await Promise.all([fetchDevices(), fetchFrames(), fetchEvents()])
+    setRefreshing(false)
+  }
 
   const handleTabChange = (tabId, path) => {
     const basePath = getBasePath()
@@ -100,7 +107,6 @@ function CreatorDashboard({ user, onSignOut }) {
   }, [user?.id])
 
   const fetchDevices = async () => {
-    setLoading(true)
     let query = supabase.from('devices').select('*')
 
     if (!user.isAdmin) {
@@ -155,9 +161,17 @@ function CreatorDashboard({ user, onSignOut }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 hover:bg-white/80 active:scale-95 text-slate-500 hover:text-blue-500 border border-transparent hover:border-blue-100/30 rounded-xl font-semibold text-xs transition-all duration-300 disabled:opacity-50"
+          >
+            <RefreshCw size={14} strokeWidth={2.5} className={refreshing ? 'animate-spin' : ''} />
+            Refresh
+          </button>
           <div className="h-6 w-[1px] bg-slate-200/40 hidden md:block" />
-          <button 
+          <button
             onClick={onSignOut}
             className="flex items-center gap-2 px-5 py-2 hover:bg-white/80 active:scale-95 text-slate-500 hover:text-rose-500 border border-transparent hover:border-rose-100/30 rounded-xl font-semibold text-xs transition-all duration-300"
           >

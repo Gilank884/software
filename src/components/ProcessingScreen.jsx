@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCcw } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
-import gifshot from 'gifshot';
 import qrcode from 'qr.js';
 
 const ProcessingScreen = ({ 
@@ -83,15 +82,14 @@ const ProcessingScreen = ({
         setProgress("Generating layout...");
         const compositeBlob = await generateCompositeImage(sessionId);
 
-        // Trigger Printing Immediately
+        // Trigger Printing Immediately — paper size auto-detected from frame's size_type
         const selectedPrinter = localStorage.getItem('selectedPrinter') || '';
-        const selectedPaperSize = localStorage.getItem('selectedPaperSize') || '4r';
         const autoEpsonMatte = localStorage.getItem('autoEpsonMatte') === 'true';
+        const frameSizeType = (selectedFrameData?.size_type || '4R').toUpperCase();
+        const printerPaperSize = frameSizeType === 'A4' ? 'a4' : '4r';
         if (window.electronAPI?.printImage) {
           const reader = new FileReader();
           reader.onloadend = () => {
-             // Map a4_plus back to a4 for the actual printer driver paper size
-             const printerPaperSize = selectedPaperSize === 'a4_plus' ? 'a4' : selectedPaperSize;
              window.electronAPI.printImage(reader.result, printQuantity, selectedPrinter, printerPaperSize, autoEpsonMatte);
           };
           reader.readAsDataURL(compositeBlob);
@@ -197,6 +195,11 @@ const ProcessingScreen = ({
         const { error: insertError } = await supabase.from('captures').insert(insertData);
         if (insertError) throw insertError;
 
+        // Clean up local captures folder (DSLR hot-folder mode)
+        if (window.electronAPI?.deleteCaptures) {
+          window.electronAPI.deleteCaptures();
+        }
+
         setProgress("Done!");
         
         setTimeout(() => {
@@ -227,39 +230,40 @@ const ProcessingScreen = ({
 
   const generateCompositeImage = (sessionId) => {
     return new Promise((resolve, reject) => {
-      const selectedPaperSize = localStorage.getItem('selectedPaperSize') || '4r';
-      const isA4 = selectedPaperSize === 'a4';
-      const isA4Plus = selectedPaperSize === 'a4_plus';
-      
+      // Auto-detect size from frame's size_type; a4_plus from settings adds extra scale for A4 frames
+      const frameSizeType = (selectedFrameData?.size_type || '4R').toUpperCase();
+      const isA4 = frameSizeType === 'A4';
+      const isA4Plus = isA4 && localStorage.getItem('selectedPaperSize') === 'a4_plus';
+
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
-      
+
       const base = {
-        width: selectedFrameData?.frame_width || (selectedFrameData?.size_type === 'A4' ? 636 : 600),
+        width: selectedFrameData?.frame_width || (isA4 ? 636 : 600),
         height: selectedFrameData?.frame_height || 900
       };
 
       if (isA4Plus) {
-        // Enlarged version (+1.5cm effect)
-        const scale = 2.35;
-        canvas.width = Math.ceil(base.width * scale); 
-        canvas.height = Math.ceil(base.height * scale); 
+        // A4 + extra scale (~300 DPI)
+        const scale = 3.9;
+        canvas.width = Math.ceil(base.width * scale);
+        canvas.height = Math.ceil(base.height * scale);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.scale(scale, scale); 
+        ctx.scale(scale, scale);
       } else if (isA4) {
-        // Standard A4 Fit
-        const scale = 2.1;
-        canvas.width = Math.ceil(base.width * scale); 
-        canvas.height = Math.ceil(base.height * scale); 
+        // A4 standard — scale 3.5 untuk ~270 DPI (kualitas bagus)
+        const scale = 3.5;
+        canvas.width = Math.ceil(base.width * scale);
+        canvas.height = Math.ceil(base.height * scale);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.scale(scale, scale); 
+        ctx.scale(scale, scale);
       } else {
-        // Standard 4R
+        // 4R — scale 2 = tepat 300 DPI pada kertas 4x6 inch
         const scale = 2;
-        canvas.width = base.width * scale; 
-        canvas.height = base.height * scale; 
+        canvas.width = base.width * scale;
+        canvas.height = base.height * scale;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.scale(scale, scale); 
+        ctx.scale(scale, scale);
       }
 
       const loadImage = (src) => {

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Camera, LogOut, Settings, Printer, X, Monitor, RefreshCw, Settings2, AlertCircle, CheckCircle2, Calendar } from 'lucide-react'
+import { Sparkles, Camera, LogOut, Settings, Printer, X, Monitor, RefreshCw, Settings2, AlertCircle, CheckCircle2, Calendar, Minimize2 } from 'lucide-react'
 import { useCamera } from '../hooks/useCamera'
 import ScreenDefault from './ScreenDefault'
 import ScreenEvent from './ScreenEvent'
@@ -71,7 +71,7 @@ const StartScreen = ({ onStart, user, onLogout }) => {
     const timer = setTimeout(() => {
       checkPrinters()
     }, 1500) // 1.5s delay to let hardware/electron settle
-    
+
     return () => clearTimeout(timer)
   }, [])
 
@@ -80,6 +80,17 @@ const StartScreen = ({ onStart, user, onLogout }) => {
       className="flex-1 flex flex-col items-center justify-center cursor-pointer group px-4 relative overflow-hidden select-none touch-none"
       onClick={handleStart}
     >
+      {/* Minimize Button in Top Left */}
+      <div className="absolute top-10 left-10 z-[150]">
+        <button
+          onClick={(e) => { e.stopPropagation(); window.electronAPI?.minimizeWindow(); }}
+          className="w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg border border-white/20 active:scale-90 bg-white/10 backdrop-blur-md text-white/40 hover:text-white/80 hover:bg-white/20"
+          title="Minimize"
+        >
+          <Minimize2 size={26} />
+        </button>
+      </div>
+
       {/* Settings Button in Top Right */}
       <div className="absolute top-10 right-10 z-[150]">
         <button
@@ -292,8 +303,8 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                       key={mode.id}
                       onClick={(e) => { e.stopPropagation(); setCameraSource(mode.id); }}
                       className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border transition-all relative ${isActive
-                          ? 'bg-slate-900 border-slate-900 text-white shadow-lg'
-                          : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200 hover:bg-slate-50'
+                        ? 'bg-slate-900 border-slate-900 text-white shadow-lg'
+                        : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200 hover:bg-slate-50'
                         }`}
                     >
                       <mode.icon size={14} />
@@ -331,8 +342,8 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                           key={device.id}
                           onClick={(e) => { e.stopPropagation(); setWebcamDevice(device.id); }}
                           className={`px-4 py-2 rounded-xl border text-[10px] font-bold transition-all ${status.currentWebcamId === device.id
-                              ? 'bg-blue-600 border-blue-600 text-white shadow-md'
-                              : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'
+                            ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                            : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'
                             }`}
                         >
                           {device.label}
@@ -431,8 +442,8 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                         key={size.id}
                         onClick={() => { setSelectedPaperSize(size.id); localStorage.setItem('selectedPaperSize', size.id); }}
                         className={`p-3 rounded-2xl border-2 transition-all flex flex-col items-start gap-0.5 text-left ${selectedPaperSize === size.id
-                            ? 'bg-blue-600 border-blue-600 text-white shadow-lg'
-                            : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-lg'
+                          : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'
                           }`}
                       >
                         <span className="text-sm font-black tracking-tight">{size.label}</span>
@@ -483,8 +494,8 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                     <button
                       onClick={() => { setSelectedPrinter(''); localStorage.removeItem('selectedPrinter'); }}
                       className={`w-full text-left px-6 py-4 rounded-2xl border-2 transition-all font-bold text-sm ${!selectedPrinter
-                          ? 'bg-slate-900 border-slate-900 text-white shadow-lg'
-                          : 'bg-white border-slate-100 text-slate-500 hover:bg-slate-50'
+                        ? 'bg-slate-900 border-slate-900 text-white shadow-lg'
+                        : 'bg-white border-slate-100 text-slate-500 hover:bg-slate-50'
                         }`}
                     >
                       Default System Printer
@@ -495,16 +506,16 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                           key={printer.name}
                           onClick={() => { setSelectedPrinter(printer.name); localStorage.setItem('selectedPrinter', printer.name); }}
                           className={`w-full text-left px-6 py-4 rounded-2xl border-2 transition-all font-bold text-sm flex items-center justify-between group ${selectedPrinter === printer.name
-                              ? 'bg-slate-900 border-slate-900 text-white shadow-lg'
-                              : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200 hover:bg-slate-50'
+                            ? 'bg-slate-900 border-slate-900 text-white shadow-lg'
+                            : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200 hover:bg-slate-50'
                             }`}
                           title={printer.name}
                         >
                           <div className="flex items-center gap-3 overflow-hidden">
-                             <div className={`w-2 h-2 rounded-full shrink-0 ${printer.isDefault ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
-                             <span className="truncate">{printer.name}</span>
+                            <div className={`w-2 h-2 rounded-full shrink-0 ${printer.isDefault ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
+                            <span className="truncate">{printer.name}</span>
                           </div>
-                          
+
                           {printer.isDefault && (
                             <span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter ${selectedPrinter === printer.name ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}`}>
                               Default
@@ -514,10 +525,10 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                       ))
                     ) : (
                       <div className="py-8 px-4 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-                         <AlertCircle size={32} className="mx-auto mb-3 text-slate-300" />
-                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">
-                            {window.electronAPI ? "Tidak ada printer terdeteksi di sistem" : "Fitur printer hanya aktif di Software Desktop (Electron)"}
-                         </p>
+                        <AlertCircle size={32} className="mx-auto mb-3 text-slate-300" />
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-relaxed">
+                          {window.electronAPI ? "Tidak ada printer terdeteksi di sistem" : "Fitur printer hanya aktif di Software Desktop (Electron)"}
+                        </p>
                       </div>
                     )}
                   </div>

@@ -1,5 +1,4 @@
 import { useRef, useEffect } from 'react'
-import interact from 'interactjs'
 import { Move, Maximize2 } from 'lucide-react'
 
 const EraserGuideBox = ({ box, onUpdate, zoom = 1 }) => {
@@ -17,56 +16,38 @@ const EraserGuideBox = ({ box, onUpdate, zoom = 1 }) => {
     posRef.current = { x: box.x, y: box.y, width: box.width, height: box.height }
   }, [box.x, box.y, box.width, box.height])
 
+  const dragRef = useRef(null)
+
   useEffect(() => {
     const node = boxRef.current
     if (!node) return
 
-    interact(node)
-      .draggable({
-        listeners: {
-          move(event) {
-            const z = propsRef.current.zoom
-            posRef.current.x += event.dx / z
-            posRef.current.y += event.dy / z
-            node.style.transform = `translate(${posRef.current.x}px, ${posRef.current.y}px)`
-          },
-          end() {
-            propsRef.current.onUpdate({ 
-              x: posRef.current.x, 
-              y: posRef.current.y,
-              width: posRef.current.width,
-              height: posRef.current.height
-            })
-          }
-        }
-      })
-      .resizable({
-        edges: { left: true, right: true, bottom: true, top: true },
-        listeners: {
-          move(event) {
-            const z = propsRef.current.zoom
-            posRef.current.width += event.deltaRect.right / z - event.deltaRect.left / z
-            posRef.current.height += event.deltaRect.bottom / z - event.deltaRect.top / z
-            posRef.current.x += event.deltaRect.left / z
-            posRef.current.y += event.deltaRect.top / z
+    const onMouseDown = (e) => {
+      e.preventDefault()
+      dragRef.current = { startX: e.clientX, startY: e.clientY, startPos: { ...posRef.current } }
+    }
 
-            node.style.width = `${posRef.current.width}px`
-            node.style.height = `${posRef.current.height}px`
-            node.style.transform = `translate(${posRef.current.x}px, ${posRef.current.y}px)`
-          },
-          end() {
-            propsRef.current.onUpdate({ 
-              x: posRef.current.x, 
-              y: posRef.current.y, 
-              width: posRef.current.width, 
-              height: posRef.current.height 
-            })
-          }
-        }
-      })
+    const onMouseMove = (e) => {
+      if (!dragRef.current) return
+      const z = propsRef.current.zoom
+      posRef.current.x = dragRef.current.startPos.x + (e.clientX - dragRef.current.startX) / z
+      posRef.current.y = dragRef.current.startPos.y + (e.clientY - dragRef.current.startY) / z
+      node.style.transform = `translate(${posRef.current.x}px, ${posRef.current.y}px)`
+    }
 
+    const onMouseUp = () => {
+      if (!dragRef.current) return
+      dragRef.current = null
+      propsRef.current.onUpdate({ ...posRef.current })
+    }
+
+    node.addEventListener('mousedown', onMouseDown)
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
     return () => {
-      interact(node).unset()
+      node.removeEventListener('mousedown', onMouseDown)
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
     }
   }, [])
 

@@ -490,6 +490,7 @@ function App() {
                 setStep(STEPS.CUSTOMIZE_FILTER)
               }
             }}
+            onBack={resetSession}
             maxCaptures={maxCaptures}
             setMaxCaptures={setMaxCaptures}
             user={currentUser}

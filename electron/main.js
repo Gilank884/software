@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import isDev from 'electron-is-dev';
 import { CameraManagerBackend } from './camera/cameraManager.js';
 import { FolderBridge } from './camera/FolderBridge.js';
@@ -25,16 +25,26 @@ app.commandLine.appendSwitch('use-fake-ui-for-media-stream'); // Auto-accept med
 
 let mainWindow;
 
+const doMinimize = () => {
+  if (!mainWindow) return;
+  if (mainWindow.isFullScreen()) {
+    mainWindow.setFullScreen(false); // keluar fullscreen → muncul frame dengan tombol X - □
+  } else {
+    mainWindow.minimize();
+  }
+};
+
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    fullscreen: true,
+    kiosk: false,
+    frame: true,
     icon: path.join(__dirname, '../public/Logo.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: false, // Ensure sandbox doesn't block hardware
+      sandbox: false,
     },
   });
 
@@ -63,13 +73,23 @@ function createWindow() {
 
   const startUrl = isDev
     ? 'http://localhost:3000'
-    : `file://${path.join(__dirname, '../dist/index.html')}`;
+    : pathToFileURL(path.join(__dirname, '../dist/index.html')).href;
 
   mainWindow.loadURL(startUrl);
 
-  if (isDev) {
-    mainWindow.webContents.openDevTools();
-  }
+
+  // ESC → minimize ke taskbar (seperti klik tombol _ di Chrome)
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'Escape' && input.type === 'keyDown') {
+      event.preventDefault();
+      doMinimize();
+    }
+  });
+
+  // Double-click title bar → kembali fullscreen
+  mainWindow.on('maximize', () => {
+    mainWindow.setFullScreen(true);
+  });
 
   return mainWindow;
 }
@@ -175,12 +195,23 @@ app.whenReady().then(() => {
   new CameraManagerBackend(mainWindow);
 
   // Initialize Automated Hot Folder Bridge
-  const projectRoot = path.join(__dirname, '..');
-  const bridge = new FolderBridge(projectRoot);
-  bridge.start();
+  // Use userData (writable) in packaged app; project root in dev
+  const capturesRoot = app.isPackaged ? app.getPath('userData') : path.join(__dirname, '..');
+  let bridge = null;
+  try {
+    bridge = new FolderBridge(capturesRoot);
+    bridge.start();
+  } catch (e) {
+    console.error('[FolderBridge] Failed to start:', e.message);
+  }
 
   // Stop bridge on app quit
-  app.on('will-quit', () => bridge.stop());
+  app.on('will-quit', () => bridge?.stop());
+
+  ipcMain.on('minimize-window', () => {
+    if (!mainWindow) return;
+    doMinimize();
+  });
 
   ipcMain.handle('get-printers', async (event) => {
     console.log('[Printer] Starting discovery...');
@@ -253,34 +284,39 @@ app.whenReady().then(() => {
 
     if (isEpson && autoEpsonMatte) {
       if (isMac) {
-        console.log(`Using lp command for Epson Matte printing on Mac: ${printerName}`);
+        console.log(`[lp] Specialized printing for Epson Matte on Mac: ${printerName}`);
         const tempDir = os.tmpdir();
         const fileName = `print_${Date.now()}.png`;
         const filePath = path.join(tempDir, fileName);
 
         try {
-          const base64Data = imageUrl.replace(/^data:image\/png;base64,/, '');
-          await writeFileAsync(filePath, base64Data, 'base64');
+          if (imageUrl.startsWith('http')) {
+             // Handle URL - Download image
+             const response = await fetch(imageUrl);
+             const buffer = Buffer.from(await response.arrayBuffer());
+             await writeFileAsync(filePath, buffer);
+          } else {
+             // Handle Base64
+             const base64Data = imageUrl.replace(/^data:image\/png;base64,/, '');
+             await writeFileAsync(filePath, base64Data, 'base64');
+          }
 
           const mediaOption = pageSize.toLowerCase() === 'a4' ? 'A4' : '4x6.FullBleed';
           const copiesOption = copies > 1 ? `-n ${copies}` : '';
 
           const lpCommand = `lp -d "${printerName}" ${copiesOption} -o media=${mediaOption} -o MediaType=Matte -o EP_MATTE=True "${filePath}"`;
 
-          console.log(`Executing: ${lpCommand}`);
+          console.log(`[lp] Executing: ${lpCommand}`);
           await execAsync(lpCommand);
-          console.log('Print command sent successfully via lp');
+          console.log('[lp] Success: Command sent to CUPS');
 
-          await unlinkAsync(filePath);
+          setTimeout(() => fs.existsSync(filePath) && fs.unlinkSync(filePath), 5000);
           return true;
         } catch (err) {
-          console.error('Lp Print Failed, falling back to standard print:', err);
-          if (fs.existsSync(filePath)) await unlinkAsync(filePath);
+          console.error('[lp] Failed:', err);
+          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
           return false;
         }
-      } else if (process.platform === 'win32') {
-        console.log(`Epson Matte requested on Windows for: ${printerName}. Using standard print.`);
-        return false;
       }
     }
     return false;
@@ -303,7 +339,7 @@ app.whenReady().then(() => {
           <div style="width:150px; height:6px; background:#000; margin: 20px 0;"></div>
           <p style="font-size:18px; color: #000; font-weight: bold; text-transform: uppercase; letter-spacing: 0.2em;">Latarcerita Photobooth</p>
           <p style="font-size:12px; color: #666; margin-top: 10px;">Format: ${pageSize.toUpperCase()}</p>
-          <p style="font-size:10px; color: #999; margin-top: 5px;">300 DPI High-Quality</p>
+          <p style="font-size:10px; color: #999; margin-top: 5px;">600 DPI Fine-Quality</p>
         </body>
       </html>
     `;
@@ -317,7 +353,7 @@ app.whenReady().then(() => {
         deviceName: printerName || '',
         color: true,
         margins: { marginType: 'none' },
-        dpi: { horizontal: 300, vertical: 300 },
+        dpi: { horizontal: 600, vertical: 600 },
         pageSize: pageSize.toLowerCase() === 'a4' ? 'A4' : { width: 101600, height: 152400 },
       }, (success, failureReason) => {
         if (!success) console.error('Print Failed:', failureReason);
@@ -327,23 +363,31 @@ app.whenReady().then(() => {
   });
 
   ipcMain.on('print-image', async (event, { imageUrl, copies = 1, printerName = '', pageSize = '4r', autoEpsonMatte = false }) => {
-    console.log(`Printing image: ${imageUrl.substring(0, 50)}... x${copies} (Matte: ${autoEpsonMatte})`);
+    console.log(`[Print] Request received. Printer: ${printerName || 'Default'}, Paper: ${pageSize}, Copies: ${copies}`);
 
     const lpSuccess = await printWithLp(imageUrl, printerName, pageSize, copies, autoEpsonMatte);
     if (lpSuccess) return;
 
     const printWindow = new BrowserWindow({
       show: false,
-      webPreferences: { offscreen: true },
+      webPreferences: { 
+        offscreen: true,
+        contextIsolation: true,
+        sandbox: false
+      },
     });
 
     const html = `
       <html>
-        <body style="margin:0; padding:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:white;">
+        <head><meta charset="utf-8"></head>
+        <body>
           <style>
+             * { margin: 0; padding: 0; box-sizing: border-box; }
              @page { size: ${pageSize.toLowerCase() === 'a4' ? '210mm 297mm' : '4in 6in'}; margin: 0; }
+             html, body { width: 100%; height: 100%; overflow: hidden; background: white; }
+             img { display: block; width: 100vw; height: 100vh; object-fit: fill; }
           </style>
-          <img src="${imageUrl}" style="width:100%; height:100%; object-fit:contain;" />
+          <img src="${imageUrl}" />
         </body>
       </html>
     `;
@@ -351,6 +395,7 @@ app.whenReady().then(() => {
     printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
 
     printWindow.webContents.on('did-finish-load', () => {
+      console.log('[Print] Content loaded, starting hardware communication...');
       printWindow.webContents.print({
         silent: true,
         printBackground: true,
@@ -358,13 +403,39 @@ app.whenReady().then(() => {
         copies: copies,
         color: true,
         margins: { marginType: 'none' },
-        dpi: { horizontal: 300, vertical: 300 },
+        dpi: { horizontal: 600, vertical: 600 },
         pageSize: pageSize.toLowerCase() === 'a4' ? 'A4' : { width: 101600, height: 152400 },
       }, (success, failureReason) => {
-        if (!success) console.error('Photo Print Failed:', failureReason);
+        if (!success) {
+          console.error('[Print] Failed:', failureReason);
+        } else {
+          console.log('[Print] Success: Data sent to OS spooler');
+        }
         printWindow.close();
       });
     });
+  });
+
+  // Delete all files inside captures/ folder after successful session upload
+  ipcMain.handle('delete-captures', async () => {
+    const capturesRoot = app.isPackaged ? app.getPath('userData') : path.join(__dirname, '..');
+    const capturesDir = path.join(capturesRoot, 'captures');
+    try {
+      if (fs.existsSync(capturesDir)) {
+        const files = fs.readdirSync(capturesDir);
+        for (const file of files) {
+          const filePath = path.join(capturesDir, file);
+          try {
+            if (fs.statSync(filePath).isFile()) fs.unlinkSync(filePath);
+          } catch (_) { /* skip locked files */ }
+        }
+        console.log('[Captures] Cleaned up local captures folder');
+      }
+      return { success: true };
+    } catch (err) {
+      console.error('[Captures] Cleanup failed:', err.message);
+      return { success: false };
+    }
   });
 
   app.on('activate', () => {

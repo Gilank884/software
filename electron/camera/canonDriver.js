@@ -1,6 +1,10 @@
 import path from 'path';
 import fs from 'fs';
 import { EventEmitter } from 'events';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * CanonDriver handles communication with Canon EDSDK.
@@ -19,8 +23,8 @@ export class CanonDriver extends EventEmitter {
   async init() {
     console.log("Initializing Canon EDSDK...");
     
-    // Check for EDSDK libraries in bin folder
-    const binPath = path.join(process.cwd(), 'electron', 'camera', 'bin');
+    // Check for EDSDK libraries in bin folder (relative to this file)
+    const binPath = path.join(__dirname, 'bin');
     const hasSDK = fs.existsSync(binPath) && fs.readdirSync(binPath).length > 0;
 
     if (!hasSDK) {

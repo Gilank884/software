@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity, ChevronRight, ArrowLeft, Download, Eye, Smartphone, ImageIcon, RefreshCcw, Printer } from 'lucide-react'
+import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity, ChevronRight, ArrowLeft, Download, Eye, Smartphone, ImageIcon, RefreshCcw, Printer, AlertCircle } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 import PageHeader from './PageHeader'
 
@@ -19,10 +19,33 @@ export default function EventsView({ user, events, devices, onRefresh }) {
   const [selectedEvent, setSelectedEvent] = useState(null)
   const [eventCaptures, setEventCaptures] = useState([])
   const [loadingCaptures, setLoadingCaptures] = useState(false)
+  const [selectedCapture, setSelectedCapture] = useState(null)
+
+  // Printer Settings State
+  const [printers, setPrinters] = useState([])
+  const [selectedPrinter, setSelectedPrinter] = useState(localStorage.getItem('selectedPrinter') || '')
+  const [selectedPaperSize, setSelectedPaperSize] = useState(localStorage.getItem('selectedPaperSize') || '4r')
+  const [autoEpsonMatte, setAutoEpsonMatte] = useState(localStorage.getItem('autoEpsonMatte') === 'true')
+  const [isElectron, setIsElectron] = useState(!!window.electronAPI)
 
   useEffect(() => {
     if (user?.id) {
       fetchAllCaptures()
+    }
+    
+    // Fetch printers if in Electron
+    if (window.electronAPI?.getPrinters) {
+      window.electronAPI.getPrinters().then(list => {
+        setPrinters(list || [])
+        // If no printer selected but there are printers, default to system default if available
+        if (!selectedPrinter && list?.length > 0) {
+          const defaultPrinter = list.find(p => p.isDefault)
+          if (defaultPrinter) {
+            setSelectedPrinter(defaultPrinter.name)
+            localStorage.setItem('selectedPrinter', defaultPrinter.name)
+          }
+        }
+      })
     }
   }, [user?.id])
 
@@ -67,31 +90,30 @@ export default function EventsView({ user, events, devices, onRefresh }) {
   }
 
   const handlePrint = async (imageUrl) => {
+    alert('Memulai proses cetak... Mohon tunggu.');
+    
     // 1. Try specialized Electron printing if available (Direct/Silent Print)
     if (window.electronAPI?.printImage) {
       try {
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
-        const reader = new FileReader();
+        console.log(`[AutoPrint] Sending URL to main process: ${imageUrl}`);
+        const printerPaperSize = selectedPaperSize === 'a4_plus' ? 'a4' : selectedPaperSize;
         
-        reader.onloadend = () => {
-          const selectedPrinter = localStorage.getItem('selectedPrinter') || '';
-          const selectedPaperSize = localStorage.getItem('selectedPaperSize') || '4r';
-          const autoEpsonMatte = localStorage.getItem('autoEpsonMatte') === 'true';
-          const printerPaperSize = selectedPaperSize === 'a4_plus' ? 'a4' : selectedPaperSize;
-          
-          window.electronAPI.printImage(reader.result, 1, selectedPrinter, printerPaperSize, autoEpsonMatte);
-        };
+        // Pass URL directly to main process - it's much faster and avoids large string limits
+        window.electronAPI.printImage(imageUrl, 1, selectedPrinter, printerPaperSize, autoEpsonMatte);
         
-        reader.readAsDataURL(blob);
+        // Give immediate visual feedback
+        setTimeout(() => {
+          alert('Perintah cetak telah dikirim ke printer.');
+        }, 1000);
         return;
       } catch (err) {
         console.error('Electron Print Error:', err);
+        alert('Gagal mencetak secara otomatis. Mencoba metode alternatif...');
       }
     }
 
     // 2. Fallback to standard browser printing using a Hidden Iframe
-    // This is more seamless than window.open as it doesn't open a new tab/window
+    // If we are here, we are likely in a standard browser where silent print is not possible
     let printFrame = document.getElementById('print-frame');
     if (!printFrame) {
       printFrame = document.createElement('iframe');
@@ -112,26 +134,32 @@ export default function EventsView({ user, events, devices, onRefresh }) {
         <head>
           <title>Print - Latarcerita</title>
           <style>
-            body { margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; }
+            body { margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; background: white; }
             img { width: 100%; height: auto; }
             @media print {
               @page { margin: 0; size: auto; }
               body { margin: 0; }
+              img { width: 100%; }
             }
           </style>
         </head>
         <body>
-          <img src="${imageUrl}" onload="window.focus(); window.print();" />
+          <img src="${imageUrl}" onload="this.loaded=true;" />
+          <script>
+            function tryPrint() {
+              if (document.querySelector('img').complete) {
+                window.focus();
+                window.print();
+              } else {
+                setTimeout(tryPrint, 100);
+              }
+            }
+            window.onload = tryPrint;
+          </script>
         </body>
       </html>
     `);
     frameDoc.close();
-
-    // Trigger print from the iframe context
-    setTimeout(() => {
-      printFrame.contentWindow.focus();
-      printFrame.contentWindow.print();
-    }, 500);
   }
 
   const handleDownload = async (imageUrl, filename) => {
@@ -312,268 +340,399 @@ export default function EventsView({ user, events, devices, onRefresh }) {
     setIsAdding(true)
   }
 
-  if (selectedEvent) {
-    return (
-      <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 overflow-y-auto pr-6 pb-20 custom-scrollbar">
-        <div className="flex items-center justify-between">
-          <button 
-            onClick={() => setSelectedEvent(null)}
-            className="flex items-center gap-2 text-slate-400 hover:text-blue-600 font-black text-[10px] uppercase tracking-widest transition-colors"
-          >
-            <ArrowLeft size={16} />
-            Back to Events
-          </button>
-          <div className="flex items-center gap-3">
-             <div className="text-right">
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none">{selectedEvent.name}</h2>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Event Gallery Results</p>
-             </div>
-             <div className="w-12 h-12 bg-white border border-slate-100 text-slate-400 rounded-2xl flex items-center justify-center overflow-hidden shadow-lg">
-                {selectedEvent.logo_url ? (
-                  <img src={selectedEvent.logo_url} className="w-full h-full object-cover" alt="Logo" />
-                ) : (
-                  <ImageIcon size={24} />
-                )}
-             </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4 border-b border-slate-100 pb-8">
-           <button 
-             onClick={() => clearEvent(selectedEvent)}
-             className="px-6 py-3 bg-white border border-slate-200 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all shadow-sm"
-           >
-             <RefreshCcw size={14} />
-             Clear Photos
-           </button>
-           <button 
-             onClick={(e) => {
-               deleteEvent(e, selectedEvent);
-               setSelectedEvent(null);
-             }}
-             className="px-6 py-3 bg-white border border-slate-200 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all shadow-sm"
-           >
-             <Trash2 size={14} />
-             Delete Event
-           </button>
-        </div>
-
-        {loadingCaptures ? (
-          <div className="flex flex-col items-center justify-center py-40 gap-4">
-            <Loader2 className="animate-spin text-blue-600" size={48} />
-            <p className="font-black text-slate-300 uppercase tracking-widest text-[10px]">Synchronizing Results...</p>
-          </div>
-        ) : eventCaptures.length === 0 ? (
-          <div className="text-center py-40 bg-white/20 rounded-[3rem] border-2 border-dashed border-slate-200">
-            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <ImageIcon size={40} className="text-slate-200" />
+  return (
+    <>
+      {selectedCapture && (
+        <div className="fixed inset-0 z-[9999] bg-slate-900 flex flex-col animate-in fade-in zoom-in-95 duration-300">
+          {/* Detail Header */}
+          <div className="p-6 flex items-center justify-between border-b border-white/10 bg-black/20 backdrop-blur-md">
+            <button 
+              onClick={() => setSelectedCapture(null)}
+              className="flex items-center gap-3 text-white/60 hover:text-white transition-colors"
+            >
+              <ArrowLeft size={24} />
+              <span className="font-black text-xs uppercase tracking-[0.2em]">Back to Gallery</span>
+            </button>
+            <div className="flex items-center gap-4">
+               <button 
+                  onClick={() => handleDownload(selectedCapture.image_url, `capture-${selectedCapture.id.slice(0,8)}.png`)}
+                  className="w-12 h-12 rounded-2xl bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-all"
+                  title="Download Photo"
+               >
+                  <Download size={20} />
+               </button>
+               <button 
+                  onClick={() => {
+                    const galleryBase = import.meta.env.VITE_GALLERY_URL || "https://fotoku.latarcerita.com";
+                    const galleryUrl = `${galleryBase}/?gallery=${selectedCapture.session_id}`;
+                    navigator.clipboard.writeText(galleryUrl);
+                    alert('Link Galeri berhasil disalin!');
+                  }}
+                  className="px-6 h-12 rounded-2xl bg-white/10 text-white flex items-center gap-3 hover:bg-white/20 transition-all font-black text-[10px] uppercase tracking-widest"
+               >
+                  <Plus className="rotate-45" size={16} />
+                  Copy Link
+               </button>
             </div>
-            <p className="text-slate-400 font-black uppercase tracking-widest text-xs">No Photos Captured Yet</p>
-            <p className="text-slate-300 text-[10px] mt-2 italic font-medium">Session results will appear here once guests start posing.</p>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-            {eventCaptures.map((capture) => (
-              <div 
-                key={capture.id}
-                className="group bg-white/60 backdrop-blur-xl border border-white/40 rounded-none p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.08)] transition-all duration-700"
-              >
-                <div className="relative aspect-[2/3] rounded-none overflow-hidden bg-slate-100 mb-6">
-                  <img src={capture.image_url} alt="Capture" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                  <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col items-center justify-center gap-4">
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const galleryBase = import.meta.env.VITE_GALLERY_URL || "https://fotoku.latarcerita.com";
-                        const galleryUrl = `${galleryBase}/?gallery=${capture.session_id}`;
-                        navigator.clipboard.writeText(galleryUrl);
-                        alert('Link Galeri berhasil disalin!');
-                      }}
-                      className="bg-white text-slate-900 px-6 py-3 rounded-none font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all transform hover:scale-105 flex items-center gap-2 shadow-xl"
-                    >
-                      <Plus className="rotate-45" size={16} />
-                      Salin Link Galeri
-                    </button>
-                    <div className="flex gap-2">
-                       <a href={capture.image_url} target="_blank" rel="noopener noreferrer" className="w-10 h-10 bg-white/20 backdrop-blur-md border border-white/20 rounded-none flex items-center justify-center text-white hover:bg-white hover:text-slate-900 transition-all">
-                         <Eye size={16} />
-                       </a>
-                       <button 
-                         onClick={(e) => { e.stopPropagation(); handleDownload(capture.image_url, `capture-${capture.id.slice(0,8)}.png`); }}
-                         className="w-10 h-10 bg-white/20 backdrop-blur-md border border-white/20 rounded-none flex items-center justify-center text-white hover:bg-white hover:text-slate-900 transition-all"
-                       >
-                         <Download size={16} />
-                       </button>
-                       <button 
-                         onClick={(e) => { e.stopPropagation(); handlePrint(capture.image_url); }}
-                         className="w-10 h-10 bg-white/20 backdrop-blur-md border border-white/20 rounded-none flex items-center justify-center text-white hover:bg-blue-600 transition-all"
-                       >
-                         <Printer size={16} />
-                       </button>
+
+          {/* Detail Content */}
+          <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+            {/* Image Side */}
+            <div className="flex-1 bg-black p-8 flex items-center justify-center relative overflow-hidden group">
+              <img 
+                src={selectedCapture.image_url} 
+                alt="Detail" 
+                className="max-h-full max-w-full object-contain shadow-[0_0_100px_rgba(0,0,0,0.5)] transition-transform duration-700"
+              />
+            </div>
+
+            {/* Action Side */}
+            <div className="w-full md:w-96 bg-white flex flex-col p-10 border-l border-slate-200">
+               <div className="mb-10">
+                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-3 py-1 rounded-full">Photo Identity</span>
+                  <h3 className="text-3xl font-black text-slate-900 mt-4 tracking-tight">#{selectedCapture.id.slice(0, 8).toUpperCase()}</h3>
+                  <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2">
+                    Captured at {new Date(selectedCapture.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </p>
+               </div>
+
+               <div className="space-y-6">
+                  <div className="p-6 bg-slate-50 border border-slate-100 rounded-[2rem] space-y-4">
+                     <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Printer Configuration</span>
+                        {isElectron ? (
+                           <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">Connected</span>
+                        ) : (
+                           <span className="text-[8px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">Browser Mode</span>
+                        )}
+                     </div>
+                     
+                     <div className="space-y-3">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Device</label>
+                          <select 
+                            value={selectedPrinter}
+                            onChange={(e) => { setSelectedPrinter(e.target.value); localStorage.setItem('selectedPrinter', e.target.value); }}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:border-blue-500"
+                          >
+                            <option value="">Default System</option>
+                            {printers.map(p => <option key={p.name} value={p.name}>{p.displayName || p.name}</option>)}
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Paper Size</label>
+                          <select 
+                            value={selectedPaperSize}
+                            onChange={(e) => { setSelectedPaperSize(e.target.value); localStorage.setItem('selectedPaperSize', e.target.value); }}
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:border-blue-500"
+                          >
+                            <option value="4r">4R (4x6)</option>
+                            <option value="a4">A4 Standard</option>
+                            <option value="a4_plus">A4 Full</option>
+                          </select>
+                        </div>
+                     </div>
+                  </div>
+
+                  <button 
+                    onClick={() => handlePrint(selectedCapture.image_url)}
+                    className="w-full py-8 bg-blue-600 hover:bg-blue-700 text-white rounded-[2.5rem] font-black text-xl uppercase tracking-widest transition-all shadow-2xl shadow-blue-500/40 active:scale-95 flex items-center justify-center gap-4 border-b-8 border-blue-800"
+                  >
+                    <Printer size={32} />
+                    Print Now
+                  </button>
+               </div>
+
+               <div className="mt-auto pt-10 text-center">
+                  <p className="text-[10px] text-slate-300 font-bold uppercase tracking-[0.3em]">Software Photobooth v2.4</p>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedEvent ? (
+        <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 overflow-y-auto pr-6 pb-20 custom-scrollbar">
+          <div className="flex items-center gap-4 border-b border-slate-100 pb-8">
+             <div className="flex-1 flex items-center gap-4">
+                <button 
+                  onClick={() => setSelectedEvent(null)}
+                  className="flex items-center gap-2 text-slate-400 hover:text-blue-600 font-black text-[10px] uppercase tracking-widest transition-colors mr-4"
+                >
+                  <ArrowLeft size={16} />
+                  Back
+                </button>
+                <div className="h-8 w-[1px] bg-slate-100 mx-2" />
+                {isElectron ? (
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col">
+                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1">Target Printer (Auto)</span>
+                      <select 
+                        value={selectedPrinter}
+                        onChange={(e) => {
+                          setSelectedPrinter(e.target.value);
+                          localStorage.setItem('selectedPrinter', e.target.value);
+                        }}
+                        className="bg-blue-50 border border-blue-100 text-blue-600 rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-widest focus:outline-none shadow-sm"
+                      >
+                        <option value="">Default System</option>
+                        {printers.map(p => (
+                          <option key={p.name} value={p.name}>{p.displayName || p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-1">Paper</span>
+                      <select 
+                        value={selectedPaperSize}
+                        onChange={(e) => {
+                          setSelectedPaperSize(e.target.value);
+                          localStorage.setItem('selectedPaperSize', e.target.value);
+                        }}
+                        className="bg-slate-50 border border-slate-100 text-slate-600 rounded-lg px-3 py-2 text-[10px] font-black uppercase tracking-widest focus:outline-none shadow-sm"
+                      >
+                        <option value="4r">4R (4x6)</option>
+                        <option value="a4">A4 Standard</option>
+                        <option value="a4_plus">A4 Full</option>
+                      </select>
                     </div>
                   </div>
+                ) : (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-100 rounded-xl">
+                    <AlertCircle size={14} className="text-amber-500" />
+                    <span className="text-[9px] font-black text-amber-600 uppercase tracking-widest">
+                      Standard Browser Mode: Dialog Print Enabled
+                    </span>
+                  </div>
+                )}
+             </div>
+
+             <div className="flex items-center gap-3">
+                <div className="text-right">
+                   <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none">{selectedEvent.name}</h2>
+                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Event Gallery Results</p>
                 </div>
-                <div className="px-2 pb-2 text-center">
-                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none">
-                     {new Date(capture.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                   </p>
+                <div className="w-12 h-12 bg-white border border-slate-100 text-slate-400 rounded-2xl flex items-center justify-center overflow-hidden shadow-lg">
+                   {selectedEvent.logo_url ? (
+                     <img src={selectedEvent.logo_url} className="w-full h-full object-cover" alt="Logo" />
+                   ) : (
+                     <ImageIcon size={24} />
+                   )}
                 </div>
-              </div>
-            ))}
+             </div>
           </div>
-        )}
-      </div>
-    )
-  }
 
-  return (
-    <div className="space-y-12 overflow-y-auto pr-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700 custom-scrollbar">
-      <PageHeader
-        badge="EVENT COORDINATOR • PROGRAM MANAGER"
-        titleMain="Active"
-        titleHighlight="Events"
-        description="Organize your photobooth sessions by specific high-traffic events for better fleet tracking."
-        icon={Calendar}
-      >
-        <button 
-          onClick={() => { 
-            setIsAdding(true); 
-            setEditingEvent(null); 
-            setName(''); 
-            setDescription(''); 
-            setLogoFile(null); 
-            setLogoUrl(''); 
-            setSelectedDeviceIds([]);
-          }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-[1.25rem] font-black text-xs uppercase tracking-[0.2em] border-b-4 border-blue-800 active:scale-95 transition-all flex items-center gap-3 shadow-xl shadow-blue-500/20"
-        >
-          <Plus size={20} />
-          Create New Event
-        </button>
-      </PageHeader>
+          <div className="flex items-center gap-4 border-b border-slate-100 pb-8">
+             <button 
+               onClick={() => clearEvent(selectedEvent)}
+               className="px-6 py-3 bg-white border border-slate-200 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all shadow-sm"
+             >
+               <RefreshCcw size={14} />
+               Clear Photos
+             </button>
+             <button 
+               onClick={(e) => {
+                 deleteEvent(e, selectedEvent);
+                 setSelectedEvent(null);
+               }}
+               className="px-6 py-3 bg-white border border-slate-200 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all shadow-sm"
+             >
+               <Trash2 size={14} />
+               Delete Event
+             </button>
+          </div>
 
-      {/* Events Table */}
-      <div className="bg-white/40 backdrop-blur-xl border border-white/40 rounded-none overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
-        <div className="px-10 py-8 border-b border-white/40 flex items-center justify-between bg-white/20">
-          <h3 className="text-lg font-black text-slate-900 tracking-tight">Ecosystem Events List</h3>
-          <div className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest">Real-time Session Monitoring</div>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50/30">
-                <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Event Identity</th>
-                <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Operational Date</th>
-                <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Linked Fleet</th>
-                <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Total Captures</th>
-                <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100/50">
-              {events.map((event) => {
-                const eventDevices = devices.filter(d => d.event_id === event.id)
-                const photoCount = allCaptures.filter(c => c.event_id === event.id).length
-                
-                return (
-                  <tr 
-                    key={event.id} 
-                    onClick={() => handleEventClick(event)}
-                    className="group hover:bg-white/60 transition-all duration-300 cursor-pointer"
-                  >
-                    <td className="px-10 py-7">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-none flex items-center justify-center border border-slate-100 overflow-hidden group-hover:border-blue-200 transition-all duration-500">
-                          {event.logo_url ? (
-                            <img src={event.logo_url} className="w-full h-full object-cover" alt="Logo" />
-                          ) : (
-                            <Calendar size={20} />
-                          )}
-                        </div>
-                        <div>
-                          <span className="block text-base font-black text-slate-800 truncate max-w-[250px]">{event.name}</span>
-                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest line-clamp-1 max-w-[200px]">
-                            {event.description || 'Global Session Event'}
-                          </span>
-                        </div>
+          {loadingCaptures ? (
+            <div className="flex flex-col items-center justify-center py-40 gap-4">
+              <Loader2 className="animate-spin text-blue-600" size={48} />
+              <p className="font-black text-slate-300 uppercase tracking-widest text-[10px]">Synchronizing Results...</p>
+            </div>
+          ) : eventCaptures.length === 0 ? (
+            <div className="text-center py-40 bg-white/20 rounded-[3rem] border-2 border-dashed border-slate-200">
+              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                <ImageIcon size={40} className="text-slate-200" />
+              </div>
+              <p className="text-slate-400 font-black uppercase tracking-widest text-xs">No Photos Captured Yet</p>
+              <p className="text-slate-300 text-[10px] mt-2 italic font-medium">Session results will appear here once guests start posing.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+              {eventCaptures.map((capture) => (
+                <div 
+                  key={capture.id}
+                  onClick={() => setSelectedCapture(capture)}
+                  className="group bg-white/60 backdrop-blur-xl border border-white/40 rounded-none p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.08)] transition-all duration-700 cursor-pointer"
+                >
+                  <div className="relative aspect-[2/3] rounded-none overflow-hidden bg-slate-100 mb-6">
+                    <img src={capture.image_url} alt="Capture" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                    <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col items-center justify-center gap-4">
+                      <div className="bg-white/20 backdrop-blur-md border border-white/20 p-4 rounded-full text-white">
+                         <Eye size={32} />
                       </div>
-                    </td>
-                    <td className="px-10 py-7">
-                       <div>
-                         <span className="block text-[11px] font-black text-slate-700">
-                           {new Date(event.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                         </span>
-                         <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Initialization Date</span>
-                       </div>
-                    </td>
-                    <td className="px-10 py-7">
-                       <div className="flex items-center gap-3">
-                         <div className="flex -space-x-3">
-                            {eventDevices.slice(0, 3).map(d => (
-                              <div key={d.id} className="w-8 h-8 rounded-xl bg-slate-100 border-2 border-white flex items-center justify-center text-slate-400 shadow-sm" title={d.name}>
-                                <Smartphone size={14} />
-                              </div>
-                            ))}
-                            {eventDevices.length > 3 && (
-                              <div className="w-8 h-8 rounded-xl bg-blue-50 border-2 border-white flex items-center justify-center text-blue-600 text-[10px] font-black shadow-sm">
-                                +{eventDevices.length - 3}
-                              </div>
-                            )}
-                         </div>
-                         <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                           {eventDevices.length} Units
-                         </span>
-                       </div>
-                    </td>
-                    <td className="px-10 py-7 text-center">
-                       <div className="inline-flex flex-col items-center px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-blue-50 group-hover:border-blue-100 transition-colors">
-                         <span className="text-xl font-black text-slate-900 group-hover:text-blue-600 tabular-nums">{photoCount}</span>
-                         <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Captures</span>
-                       </div>
-                    </td>
-                    <td className="px-10 py-7">
-                       <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button 
-                           onClick={(e) => startEdit(e, event)}
-                           className="p-3 bg-white hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-xl border border-slate-100 hover:border-blue-100 transition-all"
-                           title="Edit Event"
-                         >
-                           <Edit2 size={16} />
-                         </button>
-                         <button 
-                           onClick={(e) => deleteEvent(e, event)}
-                           className="p-3 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl border border-slate-100 hover:border-rose-100 transition-all"
-                           title="Delete Event"
-                         >
-                           <Trash2 size={16} />
-                         </button>
-                         <div className="p-3 text-slate-300">
-                           <ChevronRight size={20} />
-                         </div>
-                       </div>
-                    </td>
-                  </tr>
-                )
-              })}
-              {events.length === 0 && (
-                <tr>
-                  <td colSpan="5" className="px-10 py-32 text-center">
-                     <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-200">
-                       <Calendar size={40} />
-                     </div>
-                     <p className="text-slate-400 font-black uppercase tracking-widest text-xs">No Events Found</p>
-                     <p className="text-slate-300 text-[10px] mt-2 italic font-medium">Synchronize your ecosystem to see active sessions.</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                      <p className="text-white font-black text-[10px] uppercase tracking-[0.2em] animate-pulse">View & Print</p>
+                    </div>
+                  </div>
+                  <div className="px-2 pb-2 text-center">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none">
+                       {new Date(capture.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                     </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      </div>
+      ) : (
+        <div className="space-y-12 overflow-y-auto pr-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-700 custom-scrollbar">
+          <PageHeader
+            badge="EVENT COORDINATOR • PROGRAM MANAGER"
+            titleMain="Active"
+            titleHighlight="Events"
+            description="Organize your photobooth sessions by specific high-traffic events for better fleet tracking."
+            icon={Calendar}
+          >
+            <button 
+              onClick={() => { 
+                setIsAdding(true); 
+                setEditingEvent(null); 
+                setName(''); 
+                setDescription(''); 
+                setLogoFile(null); 
+                setLogoUrl(''); 
+                setSelectedDeviceIds([]);
+              }}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-[1.25rem] font-black text-xs uppercase tracking-[0.2em] border-b-4 border-blue-800 active:scale-95 transition-all flex items-center gap-3 shadow-xl shadow-blue-500/20"
+            >
+              <Plus size={20} />
+              Create New Event
+            </button>
+          </PageHeader>
+
+          {/* Events Table */}
+          <div className="bg-white/40 backdrop-blur-xl rounded-none overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <div className="px-10 py-8 border-b border-white/40 flex items-center justify-between bg-white/20">
+              <h3 className="text-lg font-black text-slate-900 tracking-tight">Ecosystem Events List</h3>
+              <div className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase tracking-widest">Real-time Session Monitoring</div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-50/30">
+                    <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Event Identity</th>
+                    <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Operational Date</th>
+                    <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Linked Fleet</th>
+                    <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Total Captures</th>
+                    <th className="px-10 py-5 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100/50">
+                  {events.map((event) => {
+                    const eventDevices = devices.filter(d => d.event_id === event.id)
+                    const photoCount = allCaptures.filter(c => c.event_id === event.id).length
+                    
+                    return (
+                      <tr 
+                        key={event.id} 
+                        onClick={() => handleEventClick(event)}
+                        className="group hover:bg-white/60 transition-all duration-300 cursor-pointer"
+                      >
+                        <td className="px-10 py-7">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 bg-slate-50 text-slate-400 rounded-none flex items-center justify-center border border-slate-100 overflow-hidden group-hover:border-blue-200 transition-all duration-500">
+                              {event.logo_url ? (
+                                <img src={event.logo_url} className="w-full h-full object-cover" alt="Logo" />
+                              ) : (
+                                <Calendar size={20} />
+                              )}
+                            </div>
+                            <div>
+                              <span className="block text-base font-black text-slate-800 truncate max-w-[250px]">{event.name}</span>
+                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest line-clamp-1 max-w-[200px]">
+                                {event.description || 'Global Session Event'}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-10 py-7">
+                           <div>
+                             <span className="block text-[11px] font-black text-slate-700">
+                               {new Date(event.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                             </span>
+                             <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Initialization Date</span>
+                           </div>
+                        </td>
+                        <td className="px-10 py-7">
+                           <div className="flex items-center gap-3">
+                             <div className="flex -space-x-3">
+                                {eventDevices.slice(0, 3).map(d => (
+                                  <div key={d.id} className="w-8 h-8 rounded-xl bg-slate-100 border-2 border-white flex items-center justify-center text-slate-400 shadow-sm" title={d.name}>
+                                    <Smartphone size={14} />
+                                  </div>
+                                ))}
+                                {eventDevices.length > 3 && (
+                                  <div className="w-8 h-8 rounded-xl bg-blue-50 border-2 border-white flex items-center justify-center text-blue-600 text-[10px] font-black shadow-sm">
+                                    +{eventDevices.length - 3}
+                                  </div>
+                                )}
+                             </div>
+                             <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                               {eventDevices.length} Units
+                             </span>
+                           </div>
+                        </td>
+                        <td className="px-10 py-7 text-center">
+                           <div className="inline-flex flex-col items-center px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100 group-hover:bg-blue-50 group-hover:border-blue-100 transition-colors">
+                             <span className="text-xl font-black text-slate-900 group-hover:text-blue-600 tabular-nums">{photoCount}</span>
+                             <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em]">Captures</span>
+                           </div>
+                        </td>
+                        <td className="px-10 py-7">
+                           <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                             <button 
+                               onClick={(e) => startEdit(e, event)}
+                               className="p-3 bg-white hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-xl border border-slate-100 hover:border-blue-100 transition-all"
+                               title="Edit Event"
+                             >
+                               <Edit2 size={16} />
+                             </button>
+                             <button 
+                               onClick={(e) => deleteEvent(e, event)}
+                               className="p-3 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl border border-slate-100 hover:border-rose-100 transition-all"
+                               title="Delete Event"
+                             >
+                               <Trash2 size={16} />
+                             </button>
+                             <div className="p-3 text-slate-300">
+                               <ChevronRight size={20} />
+                             </div>
+                           </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {events.length === 0 && (
+                    <tr>
+                      <td colSpan="5" className="px-10 py-32 text-center">
+                         <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-200">
+                           <Calendar size={40} />
+                         </div>
+                         <p className="text-slate-400 font-black uppercase tracking-widest text-xs">No Events Found</p>
+                         <p className="text-slate-300 text-[10px] mt-2 italic font-medium">Synchronize your ecosystem to see active sessions.</p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Modal (Remains same structure but styled) */}
       {isAdding && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="relative bg-white rounded-none shadow-[0_30px_90px_rgba(0,0,0,0.2)] w-full max-w-2xl animate-in zoom-in-95 duration-300 border border-slate-200 overflow-hidden">
+          <div className="relative bg-white rounded-none shadow-[0_30px_90px_rgba(0,0,0,0.2)] w-full max-w-2xl animate-in zoom-in-95 duration-300 overflow-hidden">
             
             <div className="flex flex-col md:flex-row divide-x divide-slate-100">
               {/* Left Column: Form */}
@@ -719,6 +878,6 @@ export default function EventsView({ user, events, devices, onRefresh }) {
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
