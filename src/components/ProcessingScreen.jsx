@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { RefreshCcw } from 'lucide-react';
+import { RefreshCcw, WifiOff, CheckCircle } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { queueAdd, isNetworkError } from '../lib/offlineQueue';
 import qrcode from 'qr.js';
 
 const ProcessingScreen = ({ 
@@ -16,6 +17,7 @@ const ProcessingScreen = ({
   videoClips = []
 }) => {
   const [progress, setProgress] = useState("Preparing Layout...");
+  const [savedOffline, setSavedOffline] = useState(false);
   const canvasRef = useRef(null);
   const doneRef = useRef(false);
 
@@ -104,112 +106,95 @@ const ProcessingScreen = ({
           return;
         }
 
-        setProgress("Creating Session Gallery...");
-        
-        // 1. Upload Composite Image
-        const compositeFileName = `captures/${user?.id}/${Date.now()}_composite.png`;
-        console.log('Uploading composite:', compositeFileName, 'Blob size:', compositeBlob.size);
-        
-        const { error: compErr } = await supabase.storage.from('frames').upload(compositeFileName, compositeBlob);
-        if (compErr) {
-          console.error('Composite Upload Error Details:', compErr);
-          throw compErr;
-        }
-        
-        const { data: { publicUrl: compositeUrl } } = supabase.storage.from('frames').getPublicUrl(compositeFileName);
-        console.log('Composite Public URL:', compositeUrl);
-
-        setProgress("Uploading raw photos...");
-        
-        // 2. Upload Raw Photos
-        const rawPhotoUrls = [];
-        
-        for (let i = 0; i < rawPhotos.length; i++) {
-          if (!rawPhotos[i]) continue;
-          setProgress(`Uploading photo ${i + 1} of ${rawPhotos.length}...`);
-          const res = await fetch(rawPhotos[i]);
-          const blob = await res.blob();
-          const rawFileName = `captures/${user?.id}/${sessionId}_raw_${i}.jpg`;
-          const { error: rawErr } = await supabase.storage.from('frames').upload(rawFileName, blob);
-          if (!rawErr) {
-             const { data: { publicUrl: rawUrl } } = supabase.storage.from('frames').getPublicUrl(rawFileName);
-             rawPhotoUrls.push(rawUrl);
-          }
-        }
-
-        // 3. Generate Video
-        // GIF Generation is disabled for now
-        /*
-        let gifUrl = null;
-        if (selectedMode === 'photobooth') {
-          try {
-            setProgress("Generating animated GIF...");
-            const { blob: gifBlob, extension } = await generateGifFromPhotos(rawPhotoUrls);
-            const gifFileName = `captures/${user?.id}/${sessionId}_animation.${extension}`;
-            const { error: videoErr } = await supabase.storage.from('frames').upload(gifFileName, gifBlob, {
-              contentType: 'image/gif'
-            });
-            if (!videoErr) {
-              const { data: { publicUrl: vUrl } } = supabase.storage.from('frames').getPublicUrl(gifFileName);
-              gifUrl = vUrl;
-            }
-          } catch (vidErr) {
-            console.error("Video Generation Error:", vidErr);
-          }
-        }
-        */
-        
-        let finalVideoUrl = null;
-        // Video generation is temporarily disabled
-        if (false && selectedMode === 'photobooth' && videoClips.length > 0) {
-          try {
-            setProgress("Generating Framed Video...");
-            const videoBlob = await generateCompositeVideo(videoClips, sessionId);
-            const videoFileName = `captures/${user?.id}/${sessionId}_framed_video.webm`;
-            const { error: videoErr } = await supabase.storage.from('frames').upload(videoFileName, videoBlob, {
-              contentType: 'video/webm'
-            });
-            if (!videoErr) {
-              const { data: { publicUrl: vUrl } } = supabase.storage.from('frames').getPublicUrl(videoFileName);
-              finalVideoUrl = vUrl;
-            }
-          } catch (vidErr) {
-            console.error("Video Generation Error:", vidErr);
-          }
-        }
-
-        setProgress("Finalizing Gallery...");
-
-        // 4. Insert into Database
-        const insertData = {
-          user_id: user?.id,
-          frame_id: selectedFrameData?.id,
-          image_url: compositeUrl,
-          raw_photos: rawPhotoUrls,
-          session_id: sessionId,
-          device_id: user?.deviceId,
-          device_name: user?.deviceName,
-          event_id: user?.eventId
-        };
-        if (finalVideoUrl) insertData.video_url = finalVideoUrl;
-        const { error: insertError } = await supabase.from('captures').insert(insertData);
-        if (insertError) throw insertError;
-
         // Clean up local captures folder (DSLR hot-folder mode)
         if (window.electronAPI?.deleteCaptures) {
           window.electronAPI.deleteCaptures();
         }
 
-        setProgress("Done!");
-        
-        setTimeout(() => {
-            onFinish({
+        // ── OFFLINE-FIRST: cek jaringan sebelum upload ──
+        if (!navigator.onLine) {
+          setProgress("Jaringan tidak ada, menyimpan lokal...");
+          await queueAdd({
+            sessionId,
+            userId: user?.id,
+            frameId: selectedFrameData?.id,
+            deviceId: user?.deviceId,
+            deviceName: user?.deviceName,
+            eventId: user?.eventId,
+            compositeBlob,
+            rawPhotoDataUrls: rawPhotos.filter(Boolean),
+          });
+          setSavedOffline(true);
+          setProgress("Tersimpan! Akan dikirim otomatis saat online.");
+          setTimeout(() => onFinish({ sessionId, compositeUrl: null, offline: true }), 2000);
+          return;
+        }
+
+        // ── ONLINE: upload ke Supabase ──
+        try {
+          setProgress("Mengirim ke server...");
+
+          // 1. Upload Composite
+          const compositeFileName = `captures/${user?.id}/${Date.now()}_composite.png`;
+          const { error: compErr } = await supabase.storage.from('frames').upload(compositeFileName, compositeBlob);
+          if (compErr) throw compErr;
+          const { data: { publicUrl: compositeUrl } } = supabase.storage.from('frames').getPublicUrl(compositeFileName);
+
+          // 2. Upload Raw Photos
+          const rawPhotoUrls = [];
+          for (let i = 0; i < rawPhotos.length; i++) {
+            if (!rawPhotos[i]) continue;
+            setProgress(`Mengunggah foto ${i + 1}/${rawPhotos.length}...`);
+            const res = await fetch(rawPhotos[i]);
+            const blob = await res.blob();
+            const rawFileName = `captures/${user?.id}/${sessionId}_raw_${i}.jpg`;
+            const { error: rawErr } = await supabase.storage.from('frames').upload(rawFileName, blob);
+            if (!rawErr) {
+              const { data: { publicUrl: rawUrl } } = supabase.storage.from('frames').getPublicUrl(rawFileName);
+              rawPhotoUrls.push(rawUrl);
+            }
+          }
+
+          setProgress("Menyimpan ke galeri...");
+
+          // 3. Insert to Database
+          const { error: insertError } = await supabase.from('captures').insert({
+            user_id: user?.id,
+            frame_id: selectedFrameData?.id,
+            image_url: compositeUrl,
+            raw_photos: rawPhotoUrls,
+            session_id: sessionId,
+            device_id: user?.deviceId,
+            device_name: user?.deviceName,
+            event_id: user?.eventId,
+          });
+          if (insertError) throw insertError;
+
+          setProgress("Selesai!");
+          setTimeout(() => onFinish({ sessionId, compositeUrl, rawPhotos: rawPhotoUrls }), 500);
+
+        } catch (uploadErr) {
+          // Jaringan terputus di tengah jalan → simpan ke antrian lokal
+          if (isNetworkError(uploadErr)) {
+            console.warn('[Offline] Jaringan terputus saat upload, menyimpan ke antrian lokal...');
+            setProgress("Jaringan terputus, menyimpan lokal...");
+            await queueAdd({
               sessionId,
-              compositeUrl,
-              rawPhotos: rawPhotoUrls,
-              videoUrl: finalVideoUrl
+              userId: user?.id,
+              frameId: selectedFrameData?.id,
+              deviceId: user?.deviceId,
+              deviceName: user?.deviceName,
+              eventId: user?.eventId,
+              compositeBlob,
+              rawPhotoDataUrls: rawPhotos.filter(Boolean),
             });
-        }, 500);
+            setSavedOffline(true);
+            setProgress("Tersimpan! Akan dikirim otomatis saat online.");
+            setTimeout(() => onFinish({ sessionId, compositeUrl: null, offline: true }), 2000);
+          } else {
+            throw uploadErr;
+          }
+        }
 
       } catch (err) {
         console.error("Processing Error:", err);
@@ -555,11 +540,6 @@ const ProcessingScreen = ({
                 ctx.rect(slot.x, slot.y, slot.width, slot.height);
                 ctx.clip();
                 
-                // Apply horizontal flip to un-mirror the video (standard for photobooth results)
-                ctx.translate(slot.x + slot.width, 0);
-                ctx.scale(-1, 1);
-                ctx.translate(-slot.x, 0);
-
                 if (selectedFilter && canvasFilters[selectedFilter]) {
                   ctx.filter = canvasFilters[selectedFilter];
                 }
@@ -605,26 +585,43 @@ const ProcessingScreen = ({
     <div className="flex-1 flex flex-col items-center justify-center font-caveat relative overflow-hidden">
       <div className="z-10 text-center scale-90 md:scale-100">
         <div className="w-48 h-48 relative mb-12 mx-auto">
-          <div className="absolute inset-0 border-[12px] border-rose-50 rounded-full"></div>
-          <div className="absolute inset-0 border-[12px] border-rose-600 rounded-full border-t-transparent animate-spin"></div>
-          <div className="absolute inset-0 flex items-center justify-center text-gradient-red pb-2">
-            <RefreshCcw size={64} className="animate-pulse" />
-          </div>
+          {savedOffline ? (
+            <>
+              <div className="absolute inset-0 border-[12px] border-amber-100 rounded-full"></div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <WifiOff size={64} className="text-amber-500" />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="absolute inset-0 border-[12px] border-rose-50 rounded-full"></div>
+              <div className="absolute inset-0 border-[12px] border-rose-600 rounded-full border-t-transparent animate-spin"></div>
+              <div className="absolute inset-0 flex items-center justify-center text-gradient-red pb-2">
+                <RefreshCcw size={64} className="animate-pulse" />
+              </div>
+            </>
+          )}
         </div>
 
         <h2 className="text-7xl font-black text-slate-800 mb-6 animate-bounce tracking-tighter leading-none">
-          {isReprint ? "Reprinting..." : "Printing..."}
+          {savedOffline ? "Tersimpan!" : isReprint ? "Reprinting..." : "Printing..."}
         </h2>
 
+        {savedOffline && (
+          <p className="text-amber-500 text-base font-bold font-sans mb-4 flex items-center justify-center gap-2">
+            <WifiOff size={16} /> Foto disimpan lokal — akan otomatis terkirim saat online
+          </p>
+        )}
+
         <div className="flex items-center justify-center gap-3">
-          <div className="h-1 w-10 bg-rose-100 rounded-full overflow-hidden">
-            <div className="h-full bg-rose-600 w-full animate-[progress_1.5s_infinite_linear]"></div>
+          <div className={`h-1 w-10 rounded-full overflow-hidden ${savedOffline ? 'bg-amber-100' : 'bg-rose-100'}`}>
+            <div className={`h-full w-full animate-[progress_1.5s_infinite_linear] ${savedOffline ? 'bg-amber-400' : 'bg-rose-600'}`}></div>
           </div>
           <p className="text-slate-400 text-sm font-black uppercase tracking-[0.2em] font-sans">
              {progress}
           </p>
-          <div className="h-1 w-10 bg-rose-100 rounded-full overflow-hidden">
-            <div className="h-full bg-rose-600 w-full animate-[progress_1.5s_infinite_linear]"></div>
+          <div className={`h-1 w-10 rounded-full overflow-hidden ${savedOffline ? 'bg-amber-100' : 'bg-rose-100'}`}>
+            <div className={`h-full w-full animate-[progress_1.5s_infinite_linear] ${savedOffline ? 'bg-amber-400' : 'bg-rose-600'}`}></div>
           </div>
         </div>
       </div>

@@ -177,18 +177,20 @@ const SelfPhotoCaptureScreen = ({
         <div className={`absolute inset-0 bg-white z-30 pointer-events-none transition-opacity duration-150 ${isCapturing ? 'opacity-100' : 'opacity-0'}`} />
 
         {cameraStatus.source === 'dslr' ? (
-          <canvas 
+          <canvas
             ref={previewCanvasRef}
             className={`w-full h-full object-cover transition-opacity duration-700 ${!sessionStarted ? 'opacity-30 blur-sm' : 'opacity-100'}`}
             width={1280}
             height={720}
+            style={cameraStatus?.cameraZoom && cameraStatus.cameraZoom !== 1 ? { transform: `scale(${cameraStatus.cameraZoom})` } : undefined}
           />
         ) : (
-          <video 
-            ref={videoRef} 
-            autoPlay 
+          <video
+            ref={videoRef}
+            autoPlay
             playsInline
-            className={`w-full h-full object-cover scale-x-[-1] transition-opacity duration-700 ${!sessionStarted ? 'opacity-30 blur-sm' : 'opacity-100'}`}
+            className={`w-full h-full object-cover transition-opacity duration-700 ${!sessionStarted ? 'opacity-30 blur-sm' : 'opacity-100'}`}
+            style={cameraStatus?.cameraZoom && cameraStatus.cameraZoom !== 1 ? { transform: `scale(${cameraStatus.cameraZoom})` } : undefined}
           />
         )}
         

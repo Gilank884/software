@@ -148,17 +148,9 @@ export class WebcamDriver {
     }
 
     const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    
-    // Use video metadata or current video dimensions
     canvas.width = this.videoElement.videoWidth;
     canvas.height = this.videoElement.videoHeight;
-
-    // Standard mirror effect for photobooth
-    context.translate(canvas.width, 0);
-    context.scale(-1, 1);
-    context.drawImage(this.videoElement, 0, 0);
-
+    canvas.getContext('2d').drawImage(this.videoElement, 0, 0);
     return canvas.toDataURL('image/png');
   }
 

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Palette, Wand2, Sparkles, Loader2, Image as ImageIcon, ChevronLeft, ChevronRight, Layers, Heart, Star, ArrowLeft } from 'lucide-react'
 import { QRCode } from 'react-qr-code'
 import { supabase } from '../lib/supabaseClient'
+import { getFrameCache, setFrameCache } from '../lib/frameCache'
 
 const FILTER_OPTIONS = [
   { id: 'grayscale', name: 'NOIR', class: 'grayscale', icon: Palette, color: 'from-gray-400 to-slate-900' },
@@ -59,8 +60,30 @@ const CustomizeScreen = ({
       if (mode !== 'frame') return
       setLoadingFrames(true)
 
+      const applyFrames = (processedFrames) => {
+        setDbFrames(processedFrames)
+        if (processedFrames.length > 0 && !selectedFrameData) {
+          const firstFrame = processedFrames[0]
+          setSelectedFrame(firstFrame.id)
+          setSelectedFrameData(firstFrame)
+          const photoSlots = (firstFrame.slots || []).filter(s => s.number > 0 && s.type !== 'qr')
+          const uniqueSlots = [...new Set(photoSlots.map(s => s.number))]
+          const actualCount = uniqueSlots.length || firstFrame.photo_count || 3
+          if (setMaxCaptures) setMaxCaptures(actualCount)
+        }
+        setLoadingFrames(false)
+      }
+
+      // ── Cache-first: cek localStorage sebelum fetch ke Supabase ──
+      const cached = getFrameCache(user)
+      if (cached && cached.length > 0) {
+        console.log('[FrameCache] Menggunakan cache lokal:', cached.length, 'frame')
+        applyFrames(cached)
+        return
+      }
+
+      // ── Cache miss: fetch dari Supabase ──
       let query = supabase.from('frames').select('*')
-      
       if (user?.availableFrames && user.availableFrames.length > 0) {
         query = query.in('id', user.availableFrames)
       } else if (user?.id) {
@@ -71,30 +94,23 @@ const CustomizeScreen = ({
 
       if (error) {
         console.error('Failed to load frames:', error)
+        setLoadingFrames(false)
       } else {
         const processedFrames = (data || []).map(f => {
-          if (f.photo_count) return f;
+          if (f.photo_count) return f
           if (f.slots && Array.isArray(f.slots)) {
-            const unique = [...new Set(f.slots.map(s => s.number))];
-            return { ...f, photo_count: unique.length };
+            const unique = [...new Set(f.slots.map(s => s.number))]
+            return { ...f, photo_count: unique.length }
           }
-          return f;
-        }).filter(f => true); // Show all frames regardless of shot count
+          return f
+        })
 
-        setDbFrames(processedFrames)
-        if (processedFrames.length > 0 && !selectedFrameData) {
-          const firstFrame = processedFrames[0]
-          setSelectedFrame(firstFrame.id)
-          setSelectedFrameData(firstFrame)
-          
-          // Calculate actual photo count from unique slot numbers, ignoring QR (number 0)
-          const photoSlots = (firstFrame.slots || []).filter(s => s.number > 0 && s.type !== 'qr')
-          const uniqueSlots = [...new Set(photoSlots.map(s => s.number))]
-          const actualCount = uniqueSlots.length || firstFrame.photo_count || 3
-          if (setMaxCaptures) setMaxCaptures(actualCount)
-        }
+        // Simpan ke cache untuk sesi berikutnya
+        setFrameCache(user, processedFrames)
+        console.log('[FrameCache] Disimpan ke cache:', processedFrames.length, 'frame')
+
+        applyFrames(processedFrames)
       }
-      setLoadingFrames(false)
     }
     loadFrames()
   }, [mode, appMode, user?.id, user?.availableFrames])

@@ -8,6 +8,9 @@ import { exec } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import { promisify } from 'util';
+import { createServer as createHttpsServer } from 'https';
+import { WebSocketServer, WebSocket as WS } from 'ws';
+import selfsigned from 'selfsigned';
 
 const writeFileAsync = promisify(fs.writeFile);
 const unlinkAsync = promisify(fs.unlink);
@@ -188,11 +191,227 @@ const getWindowsPrinters = async () => {
   return allPrinters;
 };
 
+// ─── Phone Camera Server ─────────────────────────────────────────────────────
+
+const PHONE_CAM_PORT = 3456;
+let phoneCamServerUrl = null;
+
+function getLocalIP() {
+  const nets = os.networkInterfaces();
+  const candidates = [];
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      if (net.family === 'IPv4' && !net.internal) candidates.push(net.address);
+    }
+  }
+  return candidates.find(ip => ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.'))
+    || candidates[0]
+    || '127.0.0.1';
+}
+
+const MOBILE_PAGE_HTML = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Photobooth — Phone Camera</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none;}
+    body{background:#0a0a14;height:100dvh;display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#fff;overflow:hidden;}
+    .hdr{position:absolute;top:0;left:0;right:0;padding:16px 20px;background:linear-gradient(180deg,rgba(10,10,20,.9) 0%,transparent 100%);z-index:10;display:flex;align-items:center;justify-content:space-between;}
+    .brand{font-size:14px;font-weight:900;letter-spacing:.15em;text-transform:uppercase;color:#c4b5fd;}
+    #video{flex:1;width:100%;object-fit:cover;display:block;}
+    .ctrl{position:absolute;bottom:0;left:0;right:0;padding:20px;background:linear-gradient(0deg,rgba(0,0,0,.8) 0%,transparent 100%);display:flex;align-items:center;justify-content:space-between;z-index:10;}
+    .pill{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.12);backdrop-filter:blur(10px);padding:9px 16px;border-radius:50px;border:1px solid rgba(255,255,255,.15);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;}
+    .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+    .dot.live{background:#34d399;animation:p 1.5s infinite;}
+    .dot.wait{background:#fbbf24;animation:p .8s infinite;}
+    .dot.err{background:#f87171;}
+    @keyframes p{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.7);}}
+    .btn{background:rgba(255,255,255,.15);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.2);color:#fff;padding:10px 18px;border-radius:50px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+    .flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:100;transition:opacity .05s;}
+    .flash.on{opacity:1;}
+  </style>
+</head>
+<body>
+  <div class="hdr"><span class="brand">&#128247; Photobooth</span></div>
+  <video id="video" autoplay playsinline muted></video>
+  <div class="ctrl">
+    <div class="pill"><span id="dot" class="dot wait"></span><span id="stxt">Menghubungkan...</span></div>
+    <button class="btn" onclick="flipCam()">Balik Kamera</button>
+  </div>
+  <div id="flash" class="flash"></div>
+  <script>
+    let ws,stream,prev=document.createElement('canvas'),pctx=prev.getContext('2d'),
+        cap=document.createElement('canvas'),cctx=cap.getContext('2d'),
+        si=null,face='environment',capturing=false,retryT=null;
+    const vid=document.getElementById('video');
+    function st(type,txt){document.getElementById('dot').className='dot '+type;document.getElementById('stxt').textContent=txt;}
+    function flash(){const f=document.getElementById('flash');f.classList.add('on');setTimeout(()=>f.classList.remove('on'),150);}
+    function connect(){
+      if(retryT){clearTimeout(retryT);retryT=null;}
+      ws=new WebSocket('wss://'+location.host);
+      ws.onopen=()=>{ws.send(JSON.stringify({type:'role',role:'phone'}));st('live','Terhubung — Streaming aktif');startSend();};
+      ws.onmessage=(e)=>{try{const m=JSON.parse(e.data);if(m.type==='capture')doCapture();}catch(_){}};
+      ws.onclose=()=>{st('err','Terputus — Mencoba ulang...');stopSend();retryT=setTimeout(connect,3000);};
+      ws.onerror=()=>st('err','Koneksi gagal');
+    }
+    function startSend(){
+      if(si)return;
+      si=setInterval(()=>{
+        if(capturing||!stream||ws?.readyState!==1)return;
+        if(!vid.videoWidth)return;
+        prev.width=Math.min(vid.videoWidth,1280);prev.height=Math.min(vid.videoHeight,720);
+        pctx.drawImage(vid,0,0,prev.width,prev.height);
+        prev.toBlob(b=>{if(b&&ws?.readyState===1)ws.send(b);},'image/jpeg',.70);
+      },100);
+    }
+    function stopSend(){if(si){clearInterval(si);si=null;}}
+    function doCapture(){
+      if(!stream)return;
+      capturing=true;flash();
+      cap.width=vid.videoWidth;cap.height=vid.videoHeight;
+      cctx.drawImage(vid,0,0);
+      cap.toBlob(b=>{
+        if(!b){capturing=false;return;}
+        const r=new FileReader();
+        r.onload=()=>{if(ws?.readyState===1)ws.send(JSON.stringify({type:'capture_result',data:r.result}));capturing=false;};
+        r.readAsDataURL(b);
+      },'image/jpeg',.95);
+    }
+    async function startCam(){
+      if(stream)stream.getTracks().forEach(t=>t.stop());
+      try{
+        stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:face,width:{ideal:4096},height:{ideal:3072}},audio:false});
+        vid.srcObject=stream;st('wait','Kamera aktif — menunggu koneksi...');
+      }catch(e){st('err','Kamera error: '+e.message);}
+    }
+    function flipCam(){face=face==='environment'?'user':'environment';startCam();}
+    startCam().then(connect);
+  </script>
+</body>
+</html>`;
+
+async function setupPhoneCameraServer() {
+  const localIP = getLocalIP();
+
+  let pems;
+  try {
+    pems = await selfsigned.generate(
+      [{ name: 'commonName', value: localIP }],
+      {
+        keySize: 2048,
+        days: 365,
+        algorithm: 'sha256',
+        extensions: [{
+          name: 'subjectAltName',
+          altNames: [
+            { type: 7, ip: localIP },
+            { type: 7, ip: '127.0.0.1' },
+          ],
+        }],
+      }
+    );
+  } catch (err) {
+    console.error('[PhoneCam] Cert generation failed:', err.message);
+    return;
+  }
+
+  const httpsServer = createHttpsServer({ key: pems.private, cert: pems.cert }, (req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(MOBILE_PAGE_HTML);
+  });
+
+  const wss = new WebSocketServer({ server: httpsServer });
+  const phoneClients = new Set();
+  const desktopClients = new Set();
+
+  wss.on('connection', (client) => {
+    let role = null;
+
+    client.on('message', (data, isBinary) => {
+      if (isBinary) {
+        // JPEG preview frame: phone → desktop
+        for (const d of desktopClients) {
+          if (d.readyState === WS.OPEN) d.send(data, { binary: true });
+        }
+      } else {
+        try {
+          const msg = JSON.parse(data.toString());
+          if (msg.type === 'role') {
+            role = msg.role;
+            if (role === 'phone') {
+              phoneClients.add(client);
+              for (const d of desktopClients) {
+                if (d.readyState === WS.OPEN) d.send(JSON.stringify({ type: 'phone_connected' }));
+              }
+              console.log('[PhoneCam] Phone connected');
+            } else if (role === 'desktop') {
+              desktopClients.add(client);
+              if (phoneClients.size > 0) {
+                client.send(JSON.stringify({ type: 'phone_connected' }));
+              }
+            }
+          } else if (msg.type === 'capture') {
+            // Desktop requests capture → phone
+            for (const p of phoneClients) {
+              if (p.readyState === WS.OPEN) p.send(JSON.stringify({ type: 'capture' }));
+            }
+          } else if (msg.type === 'capture_result') {
+            // Full-res photo: phone → desktop
+            for (const d of desktopClients) {
+              if (d.readyState === WS.OPEN) d.send(JSON.stringify({ type: 'capture_result', data: msg.data }));
+            }
+          }
+        } catch (_) { /* ignore */ }
+      }
+    });
+
+    client.on('close', () => {
+      if (role === 'phone') {
+        phoneClients.delete(client);
+        if (phoneClients.size === 0) {
+          for (const d of desktopClients) {
+            if (d.readyState === WS.OPEN) d.send(JSON.stringify({ type: 'phone_disconnected' }));
+          }
+          console.log('[PhoneCam] Phone disconnected');
+        }
+      } else if (role === 'desktop') {
+        desktopClients.delete(client);
+      }
+    });
+
+    client.on('error', () => { /* ignore */ });
+  });
+
+  httpsServer.listen(PHONE_CAM_PORT, '0.0.0.0', () => {
+    phoneCamServerUrl = `https://${localIP}:${PHONE_CAM_PORT}`;
+    console.log(`[PhoneCam] Ready at ${phoneCamServerUrl}`);
+  });
+
+  httpsServer.on('error', (err) => {
+    console.error('[PhoneCam] Server error:', err.message);
+  });
+}
+
 app.whenReady().then(() => {
   createWindow();
 
   // Initialize Camera Backend
   new CameraManagerBackend(mainWindow);
+
+  // Initialize Phone Camera Server
+  setupPhoneCameraServer();
+
+  // Allow renderer to connect to wss://localhost:3456 (self-signed cert)
+  mainWindow.webContents.session.setCertificateVerifyProc((request, callback) => {
+    if (request.hostname === 'localhost' && request.port === PHONE_CAM_PORT) {
+      return callback(0); // trust
+    }
+    callback(-3); // default
+  });
+
+  ipcMain.handle('get-phone-camera-url', () => phoneCamServerUrl);
 
   // Initialize Automated Hot Folder Bridge
   // Use userData (writable) in packaged app; project root in dev

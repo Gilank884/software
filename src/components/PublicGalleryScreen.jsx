@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Download, AlertCircle, Loader2, Sparkles, Image as ImageIcon, Link as LinkIcon, DownloadCloud } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 
@@ -7,21 +7,23 @@ const PublicGalleryScreen = ({ galleryId }) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false) // foto masih di proses / belum upload
+  const [retryCount, setRetryCount] = useState(0)
+  const retryTimerRef = useRef(null)
+  const MAX_RETRIES = 24 // 24 × 5 detik = 2 menit
 
   useEffect(() => {
-    // Unlock body scroll for gallery view
     document.body.style.overflow = 'auto';
     document.body.style.height = 'auto';
-    
     return () => {
-      // Re-lock body scroll when leaving gallery
       document.body.style.overflow = 'hidden';
       document.body.style.height = '100vh';
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
     };
   }, []);
 
   useEffect(() => {
-    const fetchGallery = async () => {
+    const fetchGallery = async (attempt = 0) => {
       try {
         const { data: captureData, error: dbError } = await supabase
           .from('captures')
@@ -29,21 +31,35 @@ const PublicGalleryScreen = ({ galleryId }) => {
           .eq('session_id', galleryId)
           .single()
 
-        if (dbError) throw dbError
-        if (!captureData) throw new Error("Gallery not found")
+        // Data belum ada — mungkin masih di antrian offline
+        if (dbError?.code === 'PGRST116' || !captureData) {
+          if (attempt < MAX_RETRIES) {
+            setIsProcessing(true)
+            setLoading(false)
+            setRetryCount(attempt + 1)
+            retryTimerRef.current = setTimeout(() => fetchGallery(attempt + 1), 5000)
+          } else {
+            // Sudah terlalu lama, kemungkinan memang tidak ada
+            setIsProcessing(false)
+            setError("Foto tidak ditemukan. Coba lagi nanti.")
+            setLoading(false)
+          }
+          return
+        }
 
+        if (dbError) throw dbError
+
+        setIsProcessing(false)
         setData(captureData)
       } catch (err) {
         console.error("Gallery fetch error:", err)
-        setError("Gallery not found or has expired.")
+        setError("Galeri tidak ditemukan atau telah kedaluwarsa.")
       } finally {
         setLoading(false)
       }
     }
 
-    if (galleryId) {
-      fetchGallery()
-    }
+    if (galleryId) fetchGallery(0)
   }, [galleryId])
 
   const handleDownload = async (url, filename) => {
@@ -76,6 +92,53 @@ const PublicGalleryScreen = ({ galleryId }) => {
         <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900 opacity-50 blur-3xl"></div>
         <Loader2 size={64} className="text-blue-400 animate-spin relative z-10" />
         <p className="text-blue-200 font-bold tracking-[0.3em] uppercase text-sm relative z-10 animate-pulse">Loading Magic...</p>
+      </div>
+    )
+  }
+
+  // ── Foto masih diproses / belum terupload ──
+  if (isProcessing) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-6 font-sans">
+        <div className="max-w-md w-full text-center">
+          {/* Animated illustration */}
+          <div className="relative w-40 h-40 mx-auto mb-10">
+            <div className="absolute inset-0 rounded-full border-[10px] border-blue-100" />
+            <div className="absolute inset-0 rounded-full border-[10px] border-blue-500 border-t-transparent animate-spin" />
+            <div className="absolute inset-0 rounded-full border-[10px] border-transparent border-b-indigo-300 animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Sparkles size={40} className="text-blue-400 animate-pulse" />
+            </div>
+          </div>
+
+          <h1 className="text-4xl font-black text-slate-800 mb-3 font-caveat leading-tight">
+            Tunggu Dulu Yah! 🙏
+          </h1>
+          <p className="text-lg font-bold text-slate-600 mb-2">
+            Foto kamu masih kami proses
+          </p>
+          <p className="text-slate-400 text-sm mb-8 leading-relaxed">
+            Foto sedang dalam antrian upload. Halaman ini akan otomatis memperbarui setiap 5 detik. Tidak perlu refresh manual.
+          </p>
+
+          {/* Progress dots */}
+          <div className="flex items-center justify-center gap-2 mb-6">
+            {Array.from({ length: Math.min(retryCount, MAX_RETRIES) }).map((_, i) => (
+              <div
+                key={i}
+                className="w-2 h-2 rounded-full bg-blue-400"
+                style={{ opacity: i === retryCount - 1 ? 1 : 0.3 }}
+              />
+            ))}
+          </div>
+
+          <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-50 border border-blue-200 rounded-full text-blue-600 text-sm font-bold">
+            <Loader2 size={14} className="animate-spin" />
+            Memeriksa ulang dalam 5 detik...
+          </div>
+
+          <p className="text-slate-300 text-xs mt-8">Session: {galleryId}</p>
+        </div>
       </div>
     )
   }

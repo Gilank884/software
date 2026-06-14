@@ -6,23 +6,24 @@ const EraserGuideBox = ({ box, onUpdate, zoom = 1 }) => {
   const posRef = useRef({ x: box.x, y: box.y, width: box.width, height: box.height })
   const propsRef = useRef({ onUpdate, zoom })
 
-  // Always keep propsRef in sync
   useEffect(() => {
     propsRef.current = { onUpdate, zoom }
   })
 
-  // Keep posRef in sync with prop changes
   useEffect(() => {
     posRef.current = { x: box.x, y: box.y, width: box.width, height: box.height }
   }, [box.x, box.y, box.width, box.height])
 
   const dragRef = useRef(null)
+  const resizeRef = useRef(null)
 
+  // Drag to move
   useEffect(() => {
     const node = boxRef.current
     if (!node) return
 
     const onMouseDown = (e) => {
+      if (e.target.closest('[data-resize]')) return
       e.preventDefault()
       dragRef.current = { startX: e.clientX, startY: e.clientY, startPos: { ...posRef.current } }
     }
@@ -51,6 +52,47 @@ const EraserGuideBox = ({ box, onUpdate, zoom = 1 }) => {
     }
   }, [])
 
+  // Resize from bottom-right handle
+  useEffect(() => {
+    const handle = resizeRef.current
+    if (!handle) return
+
+    const onResizeDown = (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      resizeRef._dragging = { startX: e.clientX, startY: e.clientY, startPos: { ...posRef.current } }
+    }
+
+    const onResizeMove = (e) => {
+      if (!resizeRef._dragging) return
+      const z = propsRef.current.zoom
+      const newWidth = Math.max(20, resizeRef._dragging.startPos.width + (e.clientX - resizeRef._dragging.startX) / z)
+      const newHeight = Math.max(20, resizeRef._dragging.startPos.height + (e.clientY - resizeRef._dragging.startY) / z)
+      posRef.current.width = newWidth
+      posRef.current.height = newHeight
+      const node = boxRef.current
+      if (node) {
+        node.style.width = `${newWidth}px`
+        node.style.height = `${newHeight}px`
+      }
+    }
+
+    const onResizeUp = () => {
+      if (!resizeRef._dragging) return
+      resizeRef._dragging = null
+      propsRef.current.onUpdate({ ...posRef.current })
+    }
+
+    handle.addEventListener('mousedown', onResizeDown)
+    window.addEventListener('mousemove', onResizeMove)
+    window.addEventListener('mouseup', onResizeUp)
+    return () => {
+      handle.removeEventListener('mousedown', onResizeDown)
+      window.removeEventListener('mousemove', onResizeMove)
+      window.removeEventListener('mouseup', onResizeUp)
+    }
+  }, [])
+
   return (
     <div
       ref={boxRef}
@@ -69,14 +111,18 @@ const EraserGuideBox = ({ box, onUpdate, zoom = 1 }) => {
         </span>
       </div>
 
-      {/* Resize Indicator */}
-      <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-amber-500 text-white rounded-tl-xl flex items-center justify-center shadow-lg">
-        <Maximize2 size={12} className="rotate-90" />
+      {/* Resize Handle */}
+      <div
+        ref={resizeRef}
+        data-resize="true"
+        className="absolute -bottom-1 -right-1 w-8 h-8 bg-amber-500 text-white rounded-tl-xl flex items-center justify-center shadow-lg cursor-se-resize hover:bg-amber-600 active:bg-amber-700 transition-colors"
+      >
+        <Maximize2 size={14} className="rotate-90" />
       </div>
 
       {/* Help Bubble */}
       <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] font-black px-4 py-2 rounded-xl whitespace-nowrap shadow-2xl animate-bounce">
-        Atur Posisi & Lihat Palette di Samping 🎨
+        Drag untuk pindah · Pojok untuk resize
       </div>
     </div>
   )

@@ -1,6 +1,7 @@
 import { WebcamDriver } from './drivers/WebcamDriver';
 import { DSLRFolderDriver } from './drivers/DSLRFolderDriver';
 import { MockDriver } from './drivers/MockDriver';
+import { PhoneCameraDriver } from './drivers/PhoneCameraDriver';
 
 export class CameraManager {
   static INSTANCE = null;
@@ -9,17 +10,19 @@ export class CameraManager {
     this.drivers = {
       webcam: new WebcamDriver(),
       dslr: new DSLRFolderDriver(),
-      mock: new MockDriver()
+      mock: new MockDriver(),
+      phone: new PhoneCameraDriver(),
     };
     this.currentSource = 'webcam'; // Default source
     this.isAutoDetect = true;
     this.isInitialized = false;
     this.previewElement = null;
     this.lastCapturedImage = null;
-    
+    this.cameraZoom = parseFloat(localStorage.getItem('pb_camera_zoom') || '1.0');
+
     // Environment Detection
     this.isElectron = !!window.electronAPI;
-    
+
     // Subscriber for camera status changes
     this.subscribers = [];
   }
@@ -111,12 +114,33 @@ export class CameraManager {
   async capture() {
     try {
       const data = await this.drivers[this.currentSource].capture();
-      this.lastCapturedImage = data; // Store for preview/test
-      return data;
+      const zoomed = await this._applyZoom(data);
+      this.lastCapturedImage = zoomed;
+      return zoomed;
     } catch (err) {
       console.error("Capture Failed:", err);
       throw err;
     }
+  }
+
+  async _applyZoom(dataUrl) {
+    if (this.cameraZoom <= 1.0) return dataUrl;
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const drawW = canvas.width * this.cameraZoom;
+        const drawH = canvas.height * this.cameraZoom;
+        ctx.drawImage(img, (canvas.width - drawW) / 2, (canvas.height - drawH) / 2, drawW, drawH);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.src = dataUrl;
+    });
   }
 
   getStatus() {
@@ -133,6 +157,8 @@ export class CameraManager {
         statusName = "DSLR Folder Connected";
       } else if (this.currentSource === 'webcam') {
         statusName = "Webcam Ready";
+      } else if (this.currentSource === 'phone') {
+        statusName = driverStatus.isConnected ? "Phone Camera — Connected" : "Phone Camera — Menunggu HP";
       } else if (this.currentSource === 'mock') {
         statusName = "Mock Mode Active";
       }
@@ -146,6 +172,7 @@ export class CameraManager {
       ...driverStatus,
       webcamDevices: this.drivers.webcam.availableDevices,
       currentWebcamId: this.drivers.webcam.selectedDeviceId,
+      cameraZoom: this.cameraZoom,
       name: statusName // Override with requested names
     };
   }
@@ -184,6 +211,12 @@ export class CameraManager {
 
   async setWebcamDevice(deviceId) {
     await this.drivers.webcam.setDeviceId(deviceId);
+    this.notify();
+  }
+
+  setCameraZoom(value) {
+    this.cameraZoom = value;
+    localStorage.setItem('pb_camera_zoom', String(value));
     this.notify();
   }
 }

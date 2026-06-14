@@ -1,27 +1,15 @@
-import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
-import { 
-  Camera, 
-  RefreshCcw, 
-  Check, 
-  ChevronRight, 
-  ChevronLeft, 
-  Trash2, 
-  Settings2, 
-  Layout, 
-  Palette,
+import { useState, useEffect, useRef, useCallback } from 'react'
+import {
+  Camera,
+  RefreshCcw,
+  ChevronRight,
   AlertCircle,
-  Play,
   Sparkles,
   Zap,
   Activity,
-  Layers,
   Target,
-  QrCode
 } from 'lucide-react'
-import DecorativeBackground from './DecorativeBackground'
-import { motion, AnimatePresence } from 'framer-motion'
 import HandTrackerOverlay from './HandTrackerOverlay'
-import { QRCode } from 'react-qr-code'
 
 const TelemetryBox = ({ title, data, position = 'bottom-left' }) => (
   <div className={`absolute p-4 border border-pink-500/30 bg-black/40 backdrop-blur-md font-mono text-[10px] text-pink-500 min-w-[150px] transition-all z-50 ${
@@ -42,18 +30,18 @@ const TelemetryBox = ({ title, data, position = 'bottom-left' }) => (
   </div>
 );
 
-const CaptureScreen = ({ 
-  videoRef, 
+const CaptureScreen = ({
+  videoRef,
   previewCanvasRef,
   cameraStatus,
-  countdown, 
-  currentShotIndex, 
-  maxCaptures, 
-  photos, 
-  isReviewing, 
+  countdown,
+  currentShotIndex,
+  maxCaptures,
+  photos,
+  isReviewing,
   hasStartedSession,
   onStartSession,
-  onContinue, 
+  onContinue,
   onRetake,
   cameraError = null,
   selectedFrameData,
@@ -85,17 +73,15 @@ const CaptureScreen = ({
 
   const handleCapture = useCallback(() => {
     if (!trackerCanvasRef.current) return;
-    
-    // Create flash effect
+
     const flash = document.createElement('div');
     flash.className = 'fixed inset-0 bg-white z-[100] animate-pulse';
     document.body.appendChild(flash);
     setTimeout(() => flash.remove(), 200);
 
     const dataUrl = trackerCanvasRef.current.toDataURL('image/png');
-    
+
     if (!activePortal) {
-      // --- STAGE 1: LOCK PORTAL ---
       if (isHandLocked && lastResultsRef.current) {
         const hands = lastResultsRef.current.multiHandLandmarks;
         const pts = [
@@ -106,8 +92,7 @@ const CaptureScreen = ({
         ];
         setActivePortal(pts);
         setIsAwaitingLockConfirmation(true);
-        
-        // Save current frame as a "ghost" to freeze the background
+
         const img = new Image();
         img.src = dataUrl;
         img.onload = () => {
@@ -115,7 +100,6 @@ const CaptureScreen = ({
         };
       }
     } else {
-      // --- STAGE 2: FINAL SNAP ---
       setActivePortal(null);
       onSpecialCapture(dataUrl);
     }
@@ -125,7 +109,6 @@ const CaptureScreen = ({
     let timer;
     if (isSpecialMode && !isReviewing && hasStartedSession && !isAwaitingLockConfirmation) {
       if (!activePortal) {
-        // Stage 1: Waiting for hand lock
         if (isHandLocked) {
           if (specialCountdown === null) setSpecialCountdown(3);
           timer = setInterval(() => {
@@ -144,7 +127,6 @@ const CaptureScreen = ({
           if (timer) clearInterval(timer);
         }
       } else {
-        // Stage 2: Portal locked AND confirmed, countdown to final snap
         if (specialCountdown === null) setSpecialCountdown(5);
         timer = setInterval(() => {
           setSpecialCountdown(prev => {
@@ -184,7 +166,7 @@ const CaptureScreen = ({
   }, [isReviewing, isAwaitingLockConfirmation]);
 
   useEffect(() => {
-    if (gestureCooldown) return; // Ignore gestures during cooldown
+    if (gestureCooldown) return;
 
     if (isAwaitingLockConfirmation) {
       if (detectedGesture === 'THUMBS_UP') {
@@ -193,8 +175,7 @@ const CaptureScreen = ({
         handleRejectLock();
       }
     }
-    
-    // Handle gestures during Review phase (Always active if session started)
+
     if (isReviewing) {
       if (detectedGesture === 'THUMBS_UP') {
         onContinue();
@@ -204,19 +185,15 @@ const CaptureScreen = ({
     }
   }, [isAwaitingLockConfirmation, isReviewing, detectedGesture, gestureCooldown, onContinue, onRetake]);
 
-  // --- VIDEO RECORDING LOGIC ---
   useEffect(() => {
     // Video recording is temporarily disabled
     return;
-    
+
     const targetCountdown = isSpecialMode ? specialCountdown : countdown;
-    
-    // Start recording as soon as countdown starts (T-minus 5 or 3 seconds)
-    // We start earlier to ensure the recorder is "warmed up" and captures the final seconds perfectly
+
     if (targetCountdown !== null && targetCountdown > 0 && !isReviewing && !mediaRecorderRef.current) {
       let stream = null;
       if (cameraStatus.source === 'dslr') {
-        // For DSLR, we record from the preview canvas
         stream = previewCanvasRef.current?.captureStream(30);
       } else {
         stream = videoRef.current?.srcObject;
@@ -229,7 +206,7 @@ const CaptureScreen = ({
           if (!MediaRecorder.isTypeSupported(options.mimeType)) {
              options.mimeType = 'video/webm';
           }
-          
+
           const recorder = new MediaRecorder(stream, options);
           recorder.ondataavailable = (e) => {
             if (e.data.size > 0) chunksRef.current.push(e.data);
@@ -245,23 +222,19 @@ const CaptureScreen = ({
           };
           recorder.start();
           mediaRecorderRef.current = recorder;
-          console.log("Started recording clip for shot", currentShotIndex);
         } catch (err) {
           console.error("Failed to start MediaRecorder:", err);
         }
       }
     }
 
-    // Stop recording when photo is taken (countdown hits 0/null)
     if ((targetCountdown === 0 || targetCountdown === null) && mediaRecorderRef.current?.state === 'recording') {
       mediaRecorderRef.current.stop();
-      console.log("Stopped recording clip for shot", currentShotIndex);
     }
   }, [countdown, specialCountdown, isSpecialMode, isReviewing, cameraStatus.source, currentShotIndex, setVideoClips]);
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden font-sans bg-[#1a0f0f]">
-      {/* Dynamic Marquee CSS */}
       <style>{`
         @keyframes marquee-vertical {
           0% { transform: translateY(0); }
@@ -284,11 +257,11 @@ const CaptureScreen = ({
         }
       `}</style>
 
-      <div className={`z-10 w-full flex flex-col lg:flex-row h-screen transition-colors duration-700 ${isSpecialMode ? 'bg-black text-pink-500' : ''}`}>
-        {/* Main Viewport Area */}
+      <div className={`z-10 w-full flex h-screen transition-colors duration-700 ${isSpecialMode ? 'bg-black text-pink-500' : ''}`}>
+        {/* Main Viewport Area - full width, no sidebar */}
         <div className={`flex-1 relative flex flex-row overflow-hidden shadow-2xl ${isSpecialMode ? 'bg-slate-950' : 'bg-black'}`}>
-          
-          {/* Left Marquee Border - Scrolls UP */}
+
+          {/* Left Marquee Border */}
           <div className={`w-[50px] h-full relative overflow-hidden flex flex-col items-center flex-shrink-0 transition-colors duration-700 ${isSpecialMode ? 'bg-black border-r border-pink-500/20' : 'bg-white border-r border-slate-100'}`}>
             <div className="flex flex-col animate-marquee-vertical py-10">
               <div className="flex flex-col gap-32 mb-32">
@@ -308,7 +281,7 @@ const CaptureScreen = ({
             </div>
           </div>
 
-          {/* Camera Viewport */}
+          {/* Camera Viewport - full width */}
           <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden group">
             {cameraError ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/80 text-white p-8 text-center">
@@ -317,7 +290,7 @@ const CaptureScreen = ({
                 </div>
                 <h3 className="text-xl font-bold mb-2">Masalah Kamera</h3>
                 <p className="text-gray-300 max-w-md">{cameraError}</p>
-                <button 
+                <button
                   onClick={() => window.location.reload()}
                   className="mt-6 px-6 py-2 bg-white text-black rounded-full font-bold hover:bg-gray-200 transition-colors"
                 >
@@ -326,36 +299,37 @@ const CaptureScreen = ({
               </div>
             ) : (
               cameraStatus.source === 'dslr' ? (
-                <canvas 
+                <canvas
                   ref={previewCanvasRef}
                   className="w-full h-full object-cover z-10"
                   width={1280}
                   height={720}
+                  style={cameraStatus?.cameraZoom && cameraStatus.cameraZoom !== 1 ? { transform: `scale(${cameraStatus.cameraZoom})` } : undefined}
                 />
               ) : (
-                <video 
-                  ref={videoRef} 
-                  autoPlay 
-                  playsInline 
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
                   muted
-                  className={`w-full h-full object-cover scale-x-[-1] z-10 ${isSpecialMode ? 'opacity-0' : 'opacity-100'}`}
+                  className={`w-full h-full object-cover z-10 ${isSpecialMode ? 'opacity-0' : 'opacity-100'}`}
+                  style={cameraStatus?.cameraZoom && cameraStatus.cameraZoom !== 1 ? { transform: `scale(${cameraStatus.cameraZoom})` } : undefined}
                 />
               )
             )}
 
             {isSpecialMode && !cameraError && (
               <>
-                {/* Scanline & Grid Overlays */}
                 <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.1)_50%),linear-gradient(90deg,rgba(255,0,0,0.03),rgba(0,255,0,0.01),rgba(0,0,255,0.03))] bg-[length:100%_4px,3px_100%] pointer-events-none z-30 opacity-50" />
                 <div className="absolute inset-0 opacity-10 z-30 pointer-events-none" style={{ backgroundImage: 'linear-gradient(to right, #ec4899 1px, transparent 1px), linear-gradient(to bottom, #ec4899 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
 
-                <canvas 
+                <canvas
                   ref={trackerCanvasRef}
-                  className={`absolute inset-0 w-full h-full object-cover scale-x-[-1] z-20 ${isSpecialMode ? 'opacity-100' : 'opacity-0'}`}
+                  className={`absolute inset-0 w-full h-full object-cover z-20 ${isSpecialMode ? 'opacity-100' : 'opacity-0'}`}
                   width={1280}
                   height={720}
                 />
-                <HandTrackerOverlay 
+                <HandTrackerOverlay
                   videoRef={videoRef}
                   canvasRef={trackerCanvasRef}
                   isActive={isSpecialMode || isReviewing}
@@ -374,9 +348,9 @@ const CaptureScreen = ({
                       </div>
                     </div>
 
-                    <TelemetryBox 
-                      title="Tactical Data" 
-                      data={{ 
+                    <TelemetryBox
+                      title="Tactical Data"
+                      data={{
                         status: activePortal ? 'PORTAL_LOCKED' : 'SCANNING',
                         hands: isHandLocked ? 'LOCKED' : 'SEARCHING',
                         timer: specialCountdown !== null ? `${specialCountdown}s` : 'IDLE',
@@ -385,9 +359,9 @@ const CaptureScreen = ({
                       position="bottom-left"
                     />
 
-                    <TelemetryBox 
-                      title="Environment" 
-                      data={{ 
+                    <TelemetryBox
+                      title="Environment"
+                      data={{
                         signal: 'STABLE',
                         buffer: 'READY',
                         sync: 'ACTIVE',
@@ -406,25 +380,25 @@ const CaptureScreen = ({
                             </div>
                             <span className="text-[8px] text-yellow-400/50 font-bold uppercase">Ready for sequence</span>
                           </div>
-                          
+
                           <p className="text-white/70 text-[9px] text-center tracking-widest uppercase leading-relaxed">
                             Coordinates stable. Execute recursive snap?
                           </p>
-                          
+
                           <div className="flex gap-3 w-full relative">
                             {gestureCooldown && (
                               <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 backdrop-blur-sm">
                                 <span className="text-[8px] text-pink-500 font-bold uppercase tracking-widest animate-pulse">Menunggu...</span>
                               </div>
                             )}
-                            <button 
+                            <button
                               onClick={handleRejectLock}
                               className={`flex-1 py-2 border border-pink-500/30 text-pink-500 text-[9px] font-bold uppercase tracking-widest transition-all flex flex-col items-center gap-1 ${detectedGesture === 'PEACE' && !gestureCooldown ? 'bg-pink-500 text-white scale-105' : 'hover:bg-pink-500/10'}`}
                             >
                               <span>Reset</span>
                               <span className="text-[7px] opacity-60">(Peace Sign)</span>
                             </button>
-                            <button 
+                            <button
                               onClick={handleConfirmLock}
                               className={`flex-[2] py-2 text-[9px] font-bold uppercase tracking-widest transition-all flex flex-col items-center gap-1 ${detectedGesture === 'THUMBS_UP' && !gestureCooldown ? 'bg-yellow-400 text-black scale-105 shadow-[0_0_20px_rgba(250,204,21,0.5)]' : 'bg-yellow-400/20 text-yellow-400 border border-yellow-400/30 hover:bg-yellow-400/30'}`}
                             >
@@ -441,7 +415,7 @@ const CaptureScreen = ({
             )}
 
             {!hasStartedSession && (
-              <div 
+              <div
                 className="absolute inset-0 flex flex-col items-center justify-center bg-rose-950/60 backdrop-blur-3xl z-30 cursor-pointer"
                 onClick={onStartSession}
               >
@@ -455,12 +429,12 @@ const CaptureScreen = ({
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="space-y-6">
                     <h1 className="text-7xl font-black text-white tracking-tighter font-caveat drop-shadow-2xl leading-tight">
                        {user?.eventName || "Sudah Siap!!"}
                     </h1>
-                    
+
                     <div className="flex flex-col items-center gap-4 animate-pulse">
                       <span className="text-4xl font-black text-white tracking-widest font-caveat leading-none">
                         Ketuk Dimana Saja Untuk Memulai
@@ -471,7 +445,7 @@ const CaptureScreen = ({
                 </div>
               </div>
             )}
-            
+
             {hasStartedSession && !isReviewing && (
               <>
                 {countdown !== null && (
@@ -494,13 +468,46 @@ const CaptureScreen = ({
               </>
             )}
 
+            {/* Full-screen review: photo fills viewport, buttons overlaid at bottom */}
             {isReviewing && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black animate-in fade-in zoom-in duration-500 z-40">
-                 <img 
-                   src={photos[currentShotIndex]} 
-                   className="w-full h-full object-cover" 
-                   alt="Capture Preview" 
-                 />
+              <div className="absolute inset-0 z-40">
+                <img
+                  src={photos[currentShotIndex]}
+                  className="w-full h-full object-cover"
+                  alt="Capture Preview"
+                />
+                {/* Gradient + buttons overlaid at bottom of photo */}
+                <div className="absolute bottom-0 inset-x-0 pt-20 pb-6 px-6 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
+                  <div className="flex gap-3 relative">
+                    {gestureCooldown && (
+                      <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-2xl">
+                        <span className={`text-[11px] font-bold uppercase tracking-widest animate-pulse ${isSpecialMode ? 'text-pink-400' : 'text-white'}`}>Menunggu...</span>
+                      </div>
+                    )}
+                    <button
+                      onClick={onRetake}
+                      className={`flex-1 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
+                        isSpecialMode
+                          ? `border ${detectedGesture === 'PEACE' && !gestureCooldown ? 'bg-pink-500 border-pink-500 text-white scale-105' : 'border-pink-500/60 text-pink-400 bg-black/40 backdrop-blur-sm hover:bg-pink-500/20'}`
+                          : `border border-white/30 text-white bg-white/10 backdrop-blur-sm hover:bg-white/20 active:scale-95`
+                      }`}
+                    >
+                      <RefreshCcw size={15} /> Ambil Ulang
+                      {isSpecialMode && <span className="text-[8px] opacity-60">(Peace)</span>}
+                    </button>
+                    <button
+                      onClick={onContinue}
+                      className={`flex-[2.5] py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
+                        isSpecialMode
+                          ? `border ${detectedGesture === 'THUMBS_UP' && !gestureCooldown ? 'bg-yellow-400 border-yellow-400 text-black scale-105' : 'border-yellow-400/60 text-yellow-400 bg-black/40 backdrop-blur-sm hover:bg-yellow-400/20'}`
+                          : `bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-xl shadow-rose-500/40 hover:from-rose-700 hover:to-red-700 hover:scale-[1.02] active:scale-95`
+                      }`}
+                    >
+                      Lanjutkan <ChevronRight size={15} />
+                      {isSpecialMode && <span className="text-[8px] opacity-60">(Thumbs Up)</span>}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -508,13 +515,12 @@ const CaptureScreen = ({
               {currentShotIndex + 1}/{maxCaptures}
             </div>
 
-            {/* Special Feature Button */}
             {!isReviewing && hasStartedSession && (
               <button
                 onClick={() => setIsSpecialMode(!isSpecialMode)}
                 className={`absolute top-10 right-10 z-50 p-4 rounded-2xl border-2 transition-all duration-500 flex items-center gap-3 ${
-                  isSpecialMode 
-                    ? 'bg-pink-500 border-pink-400 text-white shadow-[0_0_30px_rgba(236,72,153,0.5)] scale-110' 
+                  isSpecialMode
+                    ? 'bg-pink-500 border-pink-400 text-white shadow-[0_0_30px_rgba(236,72,153,0.5)] scale-110'
                     : 'bg-black/20 backdrop-blur-md border-white/20 text-white/70 hover:bg-white/10'
                 }`}
               >
@@ -526,7 +532,7 @@ const CaptureScreen = ({
             )}
           </div>
 
-          {/* Right Marquee Border - Scrolls DOWN */}
+          {/* Right Marquee Border */}
           <div className={`w-[50px] h-full relative overflow-hidden flex flex-col items-center flex-shrink-0 transition-colors duration-700 ${isSpecialMode ? 'bg-black border-l border-pink-500/20' : 'bg-white border-l border-slate-100'}`}>
             <div className="flex flex-col animate-marquee-vertical-reverse py-10">
               <div className="flex flex-col gap-32 mb-32">
@@ -544,203 +550,6 @@ const CaptureScreen = ({
                 ))}
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Sidebar Frame Preview */}
-        <div className={`w-full lg:w-[480px] flex flex-col items-center justify-center p-8 lg:p-12 shadow-2xl relative overflow-hidden transition-all duration-700 ${isSpecialMode ? 'bg-slate-950 border-l border-pink-500/30' : 'bg-white border-l border-slate-200'}`}>
-          
-          {/* Decorative Background Elements */}
-          <div className={`absolute top-[-10%] right-[-10%] w-64 h-64 rounded-full blur-3xl animate-pulse ${isSpecialMode ? 'bg-pink-500/20' : 'bg-rose-400/10'}`} />
-          <div className={`absolute bottom-[-10%] left-[-10%] w-64 h-64 rounded-full blur-3xl animate-pulse delay-1000 ${isSpecialMode ? 'bg-yellow-500/20' : 'bg-red-400/10'}`} />
-          <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full opacity-30 ${isSpecialMode ? 'bg-[radial-gradient(#ec4899_1px,transparent_1px)] [background-size:30px_30px]' : 'bg-[radial-gradient(#ffe4e6_1px,transparent_1px)] [background-size:20px_20px]'}`} />
-
-          <div className="absolute top-8 lg:top-12 text-center mb-12 z-10 font-mono">
-            <h2 className={`text-4xl font-black mb-1 tracking-tight drop-shadow-sm uppercase ${isSpecialMode ? 'text-pink-500' : 'bg-gradient-to-r from-rose-600 via-red-600 to-orange-600 bg-clip-text text-transparent'}`}>
-              Photo Strip
-            </h2>
-            <div className="flex items-center justify-center gap-3">
-              <div className={`h-[2px] w-8 rounded-full ${isSpecialMode ? 'bg-pink-500/40' : 'bg-gradient-to-r from-transparent to-rose-500'}`} />
-              <p className={`text-[10px] font-black uppercase tracking-[0.4em] ${isSpecialMode ? 'text-pink-500/60' : 'text-slate-400'}`}>
-                {isSpecialMode ? 'Neural_Link' : 'Live Session'}
-              </p>
-              <div className={`h-[2px] w-8 rounded-full ${isSpecialMode ? 'bg-pink-500/40' : 'bg-gradient-to-l from-transparent to-red-500'}`} />
-            </div>
-          </div>
-
-          <div className="relative mt-24 lg:mt-16 group flex items-center justify-center w-full h-[60vh] z-10">
-            {/* Glow behind frame */}
-            <div className={`absolute inset-0 blur-2xl rounded-full scale-90 group-hover:scale-100 transition-transform duration-1000 ${isSpecialMode ? 'bg-pink-500/20' : 'bg-gradient-to-b from-rose-500/5 to-red-500/5'}`} />
-            
-            {selectedFrameData ? (() => {
-              // Standard resolution from database/config
-              const fWidth = selectedFrameData.frame_width || 600;
-              const fHeight = selectedFrameData.frame_height || 900;
-              
-              // Sidebar bounds
-              const targetSidebarWidth = 350;
-              const targetSidebarHeight = window.innerHeight * 0.6;
-              
-              // Calculate exact scale factor
-              const scale = Math.min(targetSidebarWidth / fWidth, targetSidebarHeight / fHeight);
-              
-              return (
-                <div 
-                  className={`relative overflow-hidden transition-all duration-700 bg-white ${isSpecialMode ? 'shadow-[0_0_50px_rgba(236,72,153,0.3)] ring-1 ring-pink-500/50' : 'shadow-[0_40px_100px_rgba(0,0,0,0.25)] ring-1 ring-black/5'}`}
-                  style={{
-                    width: `${fWidth * scale}px`,
-                    height: `${fHeight * scale}px`,
-                  }}
-                >
-                  {/* Internal coordinate system at 1:1 scale */}
-                  <div 
-                    style={{ 
-                      width: `${fWidth}px`, 
-                      height: `${fHeight}px`, 
-                      transform: `scale(${scale})`, 
-                      transformOrigin: 'top left',
-                      position: 'absolute',
-                      top: 0,
-                      left: 0
-                    }}
-                  >
-                    {/* Photo slots */}
-                    {selectedFrameData.slots?.map((slot, i) => {
-                      const photo = photos?.[slot.number - 1];
-                      
-                      return (
-                        <div
-                          key={i}
-                          className={`absolute overflow-hidden ${photo ? '' : 'bg-slate-50'} transition-all duration-700 flex items-center justify-center`}
-                          style={{
-                            left: `${slot.x}px`,
-                            top: `${slot.y}px`,
-                            width: `${slot.width}px`,
-                            height: `${slot.height}px`,
-                            zIndex: 10
-                          }}
-                        >
-                          {photo ? (
-                            <img src={photo} className="w-full h-full object-cover animate-in fade-in zoom-in duration-700" alt="" />
-                          ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center relative">
-                              <div className="absolute inset-0 bg-[radial-gradient(#d4a373_1px,transparent_1px)] [background-size:10px_10px] opacity-10" />
-                              {slot.type === 'qr' || slot.number === 0 ? (
-                                <div className="bg-white p-2 rounded-sm shadow-inner opacity-80 group-hover:opacity-100 transition-opacity">
-                                  <QRCode 
-                                    value="https://fotoku.latarcerita.com" 
-                                    size={Math.max(10, Math.min(slot.width, slot.height) - 40)}
-                                    level="L"
-                                  />
-                                </div>
-                              ) : (
-                                <span className="text-amber-900/20 font-black text-8xl font-caveat relative z-10">{slot.number}</span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {/* Frame overlay */}
-                    <img
-                      src={selectedFrameData.image_url}
-                      className="absolute pointer-events-none"
-                      alt={selectedFrameData.name}
-                      style={{
-                        left: `${(selectedFrameData.frame_x || 0)}px`,
-                        top: `${(selectedFrameData.frame_y || 0)}px`,
-                        width: `${(selectedFrameData.frame_width || 600)}px`,
-                        height: `${(selectedFrameData.frame_height || 900)}px`,
-                        zIndex: 20
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })() : (
-              <div className="w-full h-64 flex flex-col items-center justify-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
-                <Layout size={48} className="text-slate-200 mb-4" />
-                <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Pilih Frame Dahulu</span>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-8 lg:mt-16 w-full max-w-[340px] flex flex-col gap-6 z-10">
-             {isReviewing ? (
-               isSpecialMode ? (
-                 <div className="p-6 rounded-3xl border border-pink-500/30 bg-black/40 backdrop-blur-md font-mono flex flex-col gap-4 animate-in slide-in-from-bottom-4 duration-500">
-                    <div className="text-center mb-2">
-                      <h3 className="text-pink-500 text-[10px] font-bold tracking-[0.4em] uppercase mb-1">Neural Review</h3>
-                      <p className="text-white/40 text-[8px] tracking-widest uppercase">Select action via gesture</p>
-                    </div>
-                    <div className="flex gap-3 relative">
-                      {gestureCooldown && (
-                        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-2xl">
-                          <span className="text-[10px] text-pink-500 font-bold uppercase tracking-widest animate-pulse">Menunggu...</span>
-                        </div>
-                      )}
-                      <button 
-                        onClick={onRetake}
-                        className={`flex-1 py-4 border transition-all flex flex-col items-center gap-1 rounded-2xl ${detectedGesture === 'PEACE' && !gestureCooldown ? 'bg-pink-500 border-pink-500 text-white scale-105' : 'border-pink-500/30 text-pink-500 hover:bg-pink-500/10'}`}
-                      >
-                        <RefreshCcw size={16} />
-                        <span className="text-[9px] font-bold uppercase tracking-widest">Retake</span>
-                        <span className="text-[7px] opacity-60">(Peace)</span>
-                      </button>
-                      <button 
-                        onClick={onContinue}
-                        className={`flex-[1.5] py-4 border transition-all flex flex-col items-center gap-1 rounded-2xl ${detectedGesture === 'THUMBS_UP' && !gestureCooldown ? 'bg-yellow-400 border-yellow-400 text-black scale-105 shadow-[0_0_20px_rgba(250,204,21,0.3)]' : 'border-yellow-400/30 text-yellow-400 hover:bg-yellow-400/10'}`}
-                      >
-                        <Check size={16} />
-                        <span className="text-[9px] font-bold uppercase tracking-widest">Next</span>
-                        <span className="text-[7px] opacity-60">(Thumbs)</span>
-                      </button>
-                    </div>
-                 </div>
-               ) : (
-                 <div className="flex flex-row gap-3 animate-in slide-in-from-bottom-4 duration-500 relative">
-                    {gestureCooldown && (
-                      <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80 backdrop-blur-sm rounded-2xl">
-                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest animate-pulse">Menunggu...</span>
-                      </div>
-                    )}
-                    <button 
-                      onClick={onRetake}
-                      className={`flex-1 py-4 border rounded-2xl font-black text-[10px] uppercase tracking-widest flex flex-col items-center justify-center gap-1 transition-all shadow-sm ${detectedGesture === 'PEACE' && !gestureCooldown ? 'bg-slate-800 border-slate-800 text-white scale-105' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 active:scale-95'}`}
-                    >
-                      <div className="flex items-center gap-2"><RefreshCcw size={14} /> Retake</div>
-                      <span className="text-[7px] opacity-60">(Peace)</span>
-                    </button>
-                    <button 
-                      onClick={onContinue}
-                      className={`flex-[2.5] py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex flex-col items-center justify-center gap-1 transition-all shadow-xl shadow-rose-500/25 ${detectedGesture === 'THUMBS_UP' && !gestureCooldown ? 'bg-gradient-to-r from-rose-800 to-red-800 text-white scale-105' : 'bg-gradient-to-r from-rose-600 to-red-600 text-white hover:from-rose-700 hover:to-red-700 hover:scale-[1.02] active:scale-95'}`}
-                    >
-                      <div className="flex items-center gap-2">Lanjutkan <ChevronRight size={16} /></div>
-                      <span className="text-[7px] opacity-80">(Thumbs Up)</span>
-                    </button>
-                 </div>
-               )
-             ) : (
-                <div className={`p-6 rounded-3xl border transition-all duration-700 font-mono ${isSpecialMode ? 'bg-black/40 border-pink-500/30 shadow-[0_0_20px_rgba(236,72,153,0.1)]' : 'bg-slate-50/50 border-slate-100 shadow-sm'}`}>
-                  <div className={`flex items-center justify-between text-[11px] font-black uppercase tracking-[0.2em] mb-4 ${isSpecialMode ? 'text-pink-500' : 'text-slate-400'}`}>
-                    <span className="flex items-center gap-2">
-                       <div className={`w-1.5 h-1.5 rounded-full animate-ping ${isSpecialMode ? 'bg-yellow-400' : 'bg-rose-500'}`} />
-                       {isSpecialMode ? 'Buffer_Status' : 'Progres Sesi'}
-                    </span>
-                    <span className={`tabular-nums ${isSpecialMode ? 'text-yellow-400' : 'text-rose-600'}`}>{photos.filter(p => p).length} / {maxCaptures}</span>
-                  </div>
-                  <div className={`h-4 w-full rounded-full overflow-hidden p-1 shadow-inner ${isSpecialMode ? 'bg-slate-900 border border-pink-500/20' : 'bg-slate-200'}`}>
-                    <div 
-                      className={`h-full rounded-full transition-all duration-1000 ease-out shadow-lg ${isSpecialMode ? 'bg-gradient-to-r from-pink-600 via-purple-600 to-orange-500' : 'bg-gradient-to-r from-rose-400 via-red-500 to-orange-500'}`} 
-                      style={{ width: `${(photos.filter(p => p).length / maxCaptures) * 100}%` }}
-                    />
-                  </div>
-                  <p className={`mt-4 text-center text-[9px] font-bold uppercase tracking-widest opacity-60 ${isSpecialMode ? 'text-pink-500/60' : 'text-slate-400'}`}>
-                    {isSpecialMode ? 'Optimizing Neural Layers...' : `Ambil ${maxCaptures} pose terbaikmu!`}
-                  </p>
-                </div>
-             )}
           </div>
         </div>
       </div>

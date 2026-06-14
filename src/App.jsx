@@ -15,6 +15,7 @@ import SelfPhotoTimeSelectScreen from './components/SelfPhotoTimeSelectScreen'
 import SelfPhotoCaptureScreen from './components/SelfPhotoCaptureScreen'
 import SelfPhotoPhotoSelectScreen from './components/SelfPhotoPhotoSelectScreen'
 import PrintQuantityScreen from './components/PrintQuantityScreen'
+import PhotoAssignmentScreen from './components/PhotoAssignmentScreen'
 import SettingsPage from './components/SettingsPage'
 import FramesPage from './components/FramesPage'
 import GalleryPage from './components/GalleryPage'
@@ -24,8 +25,9 @@ import DeviceLogin from './components/DeviceLogin'
 import CreatorApp from './creator/App'
 import RemoteController from './components/RemoteController'
 import ProductSelectScreen from './components/ProductSelectScreen'
-import { LogOut, Monitor } from 'lucide-react'
+import { LogOut, Monitor, Maximize2, Minimize2, WifiOff, CheckCircle } from 'lucide-react'
 import { useCamera } from './hooks/useCamera'
+import { syncQueue, queueCount } from './lib/offlineQueue'
 
 // --- Constants ---
 const STEPS = {
@@ -40,6 +42,8 @@ const STEPS = {
   CUSTOMIZE_FILTER: 'CUSTOMIZE_FILTER',
   PROCESSING: 'PROCESSING',
   OUTPUT: 'OUTPUT',
+
+  PHOTO_ASSIGN: 'PHOTO_ASSIGN',
 
   // Self Photo Steps
   MODE_SELECT: 'MODE_SELECT',
@@ -105,6 +109,52 @@ function App() {
 
   // Remote Control Session Management
   const [activeRemoteSessionId, setActiveRemoteSessionId] = useState(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [syncStatus, setSyncStatus] = useState(null) // null | 'syncing' | 'done' | 'offline'
+  const [pendingCount, setPendingCount] = useState(0)
+
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  // Cek pending count saat app start
+  useEffect(() => {
+    queueCount().then(setPendingCount).catch(() => {})
+  }, [])
+
+  // Auto-sync saat jaringan kembali
+  useEffect(() => {
+    const handleOnline = async () => {
+      const count = await queueCount().catch(() => 0)
+      if (count === 0) return
+      setSyncStatus('syncing')
+      const { synced } = await syncQueue((msg) => console.log('[Sync]', msg))
+      setPendingCount(await queueCount().catch(() => 0))
+      if (synced > 0) {
+        setSyncStatus('done')
+        setTimeout(() => setSyncStatus(null), 4000)
+      } else {
+        setSyncStatus(null)
+      }
+    }
+    const handleOffline = () => setSyncStatus('offline')
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen()
+    } else {
+      document.exitFullscreen()
+    }
+  }
   
   useEffect(() => {
     if (step === STEPS.SP_CAPTURE && !activeRemoteSessionId) {
@@ -224,7 +274,7 @@ function App() {
 
   const handleContinue = () => {
     if (currentShotIndex + 1 >= maxCaptures) {
-      setStep(STEPS.CUSTOMIZE_FILTER)
+      setStep(STEPS.PHOTO_ASSIGN)
       setIsReviewing(false)
     } else {
       setCurrentShotIndex(prev => prev + 1)
@@ -358,7 +408,7 @@ function App() {
 
   return (
     <div className="h-screen relative overflow-hidden selection:bg-rose-100 selection:text-rose-900 bg-white transition-colors duration-1000">
-      <AppBackground mode={deviceMode} isHidden={step === STEPS.OUTPUT || step === STEPS.CUSTOMIZE_FRAME || step === STEPS.CUSTOMIZE_FILTER} />
+      <AppBackground mode={deviceMode} isHidden={step === STEPS.OUTPUT || step === STEPS.CUSTOMIZE_FRAME || step === STEPS.CUSTOMIZE_FILTER || step === STEPS.PHOTO_ASSIGN} />
 
       <div className="relative z-10 w-full min-h-screen flex flex-col">
         {step === STEPS.START && (
@@ -427,6 +477,17 @@ function App() {
             setActivePortal={setActivePortal}
             onSpecialCapture={capturePhoto}
             setVideoClips={setVideoClips}
+          />
+        )}
+
+        {step === STEPS.PHOTO_ASSIGN && (
+          <PhotoAssignmentScreen
+            photos={photos}
+            selectedFrameData={selectedFrameData}
+            onFinish={(reorderedPhotos) => {
+              setPhotos(reorderedPhotos)
+              setStep(STEPS.CUSTOMIZE_FILTER)
+            }}
           />
         )}
 
@@ -536,6 +597,29 @@ function App() {
       </div>
 
       <canvas ref={canvasRef} className="hidden" />
+
+      {/* Offline / Sync status indicator */}
+      {(syncStatus || pendingCount > 0) && (
+        <div className={`fixed bottom-4 right-4 z-[999] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold shadow-xl transition-all font-sans ${
+          syncStatus === 'done' ? 'bg-emerald-500 text-white' :
+          syncStatus === 'syncing' ? 'bg-blue-500 text-white' :
+          syncStatus === 'offline' ? 'bg-slate-700 text-white' :
+          pendingCount > 0 ? 'bg-amber-500 text-white' : ''
+        }`}>
+          {syncStatus === 'done' && <><CheckCircle size={14} /> {`Data terkirim ke server`}</>}
+          {syncStatus === 'syncing' && <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Menyinkronkan data...</>}
+          {syncStatus === 'offline' && <><WifiOff size={14} /> Tidak ada jaringan</>}
+          {!syncStatus && pendingCount > 0 && <><WifiOff size={14} /> {pendingCount} sesi menunggu jaringan</>}
+        </div>
+      )}
+
+      <button
+        onClick={toggleFullscreen}
+        className="fixed top-3 left-3 z-50 p-2 rounded-lg bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm transition-all duration-200"
+        title={isFullscreen ? 'Minimize' : 'Maximize'}
+      >
+        {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+      </button>
     </div>
   )
 }

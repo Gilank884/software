@@ -45,6 +45,10 @@ export function useCamera() {
     camera.notify();
   };
 
+  const setCameraZoom = (value) => {
+    camera.setCameraZoom(value);
+  };
+
   return {
     status,
     initCamera,
@@ -54,6 +58,7 @@ export function useCamera() {
     setCameraSource,
     setWebcamDevice,
     refreshWebcamDevices,
+    setCameraZoom,
     camera // exposing the manager for advanced use
   };
 }

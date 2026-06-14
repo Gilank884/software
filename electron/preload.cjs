@@ -13,4 +13,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPrinters: () => ipcRenderer.invoke('get-printers'),
   deleteCaptures: () => ipcRenderer.invoke('delete-captures'),
   minimizeWindow: () => ipcRenderer.send('minimize-window'),
+  getPhoneCameraUrl: () => ipcRenderer.invoke('get-phone-camera-url'),
 });

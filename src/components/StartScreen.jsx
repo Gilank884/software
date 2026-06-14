@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Camera, LogOut, Settings, Printer, X, Monitor, RefreshCw, Settings2, AlertCircle, CheckCircle2, Calendar, Minimize2 } from 'lucide-react'
+import { Sparkles, Camera, LogOut, Settings, Printer, X, Monitor, RefreshCw, Settings2, AlertCircle, CheckCircle2, Calendar, Minimize2, Smartphone, Wifi, ZoomIn } from 'lucide-react'
+import { QRCode } from 'react-qr-code'
 import { useCamera } from '../hooks/useCamera'
 import ScreenDefault from './ScreenDefault'
 import ScreenEvent from './ScreenEvent'
 
 const StartScreen = ({ onStart, user, onLogout }) => {
-  const { status, initCamera, startPreview, stopPreview, setCameraSource, setWebcamDevice, refreshWebcamDevices } = useCamera()
+  const { status, initCamera, startPreview, stopPreview, setCameraSource, setWebcamDevice, refreshWebcamDevices, setCameraZoom } = useCamera()
   const [showExit, setShowExit] = useState(false)
   const [showCameraModal, setShowCameraModal] = useState(false)
+  const [phoneCameraUrl, setPhoneCameraUrl] = useState(null)
   const [isPrinting, setIsPrinting] = useState(false)
   const [printers, setPrinters] = useState([])
   const [isCheckingPrinters, setIsCheckingPrinters] = useState(false)
@@ -18,6 +20,7 @@ const StartScreen = ({ onStart, user, onLogout }) => {
   const [deviceMode, setDeviceMode] = useState(localStorage.getItem('deviceMode') || 'default')
   const [showPrinterModal, setShowPrinterModal] = useState(false)
   const previewRef = useRef(null)
+  const phoneCanvasRef = useRef(null)
 
   const handlePrinterTest = (e) => {
     e.stopPropagation()
@@ -49,15 +52,26 @@ const StartScreen = ({ onStart, user, onLogout }) => {
     }
   }
 
+  // Load phone camera URL from Electron
+  useEffect(() => {
+    if (window.electronAPI?.getPhoneCameraUrl) {
+      window.electronAPI.getPhoneCameraUrl().then(url => setPhoneCameraUrl(url))
+    }
+  }, [])
+
   // Camera Management for Test Modal
   useEffect(() => {
-    if (showCameraModal && previewRef.current && status.source === 'webcam') {
+    if (!showCameraModal) return;
+    if (status.source === 'phone' && phoneCanvasRef.current) {
+      // Phone: pass the canvas element directly so driver draws frames without captureStream
+      startPreview(phoneCanvasRef.current)
+    } else if (status.source === 'webcam' && previewRef.current) {
       startPreview(previewRef.current)
     }
     return () => {
       if (showCameraModal) stopPreview()
     }
-  }, [showCameraModal, previewRef.current, status.source])
+  }, [showCameraModal, status.source])
 
   // Re-check printers whenever diagnostic menu is opened
   useEffect(() => {
@@ -263,19 +277,29 @@ const StartScreen = ({ onStart, user, onLogout }) => {
               </div>
 
               <div className="aspect-video bg-slate-900 mx-8 mb-8 rounded-[24px] overflow-hidden relative group">
-                {status.source === 'webcam' ? (
+                {status.source === 'phone' ? (
+                  <canvas
+                    ref={phoneCanvasRef}
+                    width={1280}
+                    height={720}
+                    className="w-full h-full object-cover"
+                    style={{ background: '#0f172a', ...(status.cameraZoom && status.cameraZoom > 1 ? { transform: `scale(${status.cameraZoom})` } : {}) }}
+                  />
+                ) : status.source === 'webcam' ? (
                   <video
                     ref={previewRef}
                     autoPlay
                     playsInline
                     muted
-                    className="w-full h-full object-cover -scale-x-100"
+                    className="w-full h-full object-cover"
+                    style={status.cameraZoom && status.cameraZoom > 1 ? { transform: `scale(${status.cameraZoom})` } : undefined}
                   />
                 ) : (status.lastCapturedImage || status.source === 'mock') ? (
                   <img
                     src={status.lastCapturedImage || 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=1000'}
                     alt="Camera Preview"
                     className="w-full h-full object-cover"
+                    style={status.cameraZoom && status.cameraZoom > 1 ? { transform: `scale(${status.cameraZoom})` } : undefined}
                   />
                 ) : (
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 gap-4">
@@ -284,32 +308,52 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                   </div>
                 )}
 
+                {/* Zoom-out overlay: shows padding area that will appear in captured photo */}
+                {status.cameraZoom && status.cameraZoom < 1 && (() => {
+                  const pad = `${((1 - status.cameraZoom) / 2 * 100).toFixed(1)}%`;
+                  return (
+                    <>
+                      <div className="absolute inset-x-0 top-0 bg-black/75 pointer-events-none" style={{ height: pad }} />
+                      <div className="absolute inset-x-0 bottom-0 bg-black/75 pointer-events-none" style={{ height: pad }} />
+                      <div className="absolute inset-y-0 left-0 bg-black/75 pointer-events-none" style={{ width: pad }} />
+                      <div className="absolute inset-y-0 right-0 bg-black/75 pointer-events-none" style={{ width: pad }} />
+                    </>
+                  );
+                })()}
+
                 <div className="absolute top-6 right-6 px-3 py-1 bg-green-500 text-white text-[10px] font-black uppercase tracking-widest rounded-full flex items-center gap-2 shadow-lg">
                   <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div> LIVE
                 </div>
               </div>
 
               {/* Source Selection Buttons */}
-              <div className="px-8 pb-4 grid grid-cols-4 gap-2">
+              <div className="px-8 pb-4 grid grid-cols-5 gap-2">
                 {[
                   { id: 'auto', label: 'Auto', icon: RefreshCw },
-                  { id: 'dslr', label: 'DSLR Folder', icon: Camera },
+                  { id: 'dslr', label: 'DSLR', icon: Camera },
                   { id: 'webcam', label: 'Webcam', icon: Monitor },
+                  { id: 'phone', label: 'Phone', icon: Smartphone, electronOnly: true },
                   { id: 'mock', label: 'Mock', icon: Settings2 }
                 ].map(mode => {
                   const isActive = (mode.id === 'auto' && status.isAutoDetect) || (mode.id !== 'auto' && !status.isAutoDetect && status.source === mode.id);
+                  const isDisabled = mode.electronOnly && !window.electronAPI;
                   return (
                     <button
                       key={mode.id}
-                      onClick={(e) => { e.stopPropagation(); setCameraSource(mode.id); }}
-                      className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border transition-all relative ${isActive
-                        ? 'bg-slate-900 border-slate-900 text-white shadow-lg'
-                        : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200 hover:bg-slate-50'
+                      onClick={(e) => { e.stopPropagation(); if (!isDisabled) setCameraSource(mode.id); }}
+                      disabled={isDisabled}
+                      title={isDisabled ? 'Hanya tersedia di aplikasi desktop' : undefined}
+                      className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border transition-all relative ${isDisabled
+                        ? 'bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed opacity-50'
+                        : isActive
+                          ? mode.id === 'phone' ? 'bg-violet-700 border-violet-700 text-white shadow-lg' : 'bg-slate-900 border-slate-900 text-white shadow-lg'
+                          : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200 hover:bg-slate-50'
                         }`}
                     >
                       <mode.icon size={14} />
                       <span className="text-[8px] font-black uppercase tracking-widest">{mode.label}</span>
-                      {isActive && (
+                      {isDisabled && <span className="text-[6px] font-black text-slate-300 uppercase tracking-wide">Electron</span>}
+                      {isActive && !isDisabled && (
                         <div className="absolute -top-1.5 -right-1.5 bg-emerald-500 text-white rounded-full p-0.5 shadow-sm border border-white">
                           <CheckCircle2 size={10} />
                         </div>
@@ -318,6 +362,56 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                   );
                 })}
               </div>
+
+              {/* Phone Camera QR Code Section */}
+              {status.source === 'phone' && !status.isAutoDetect && (
+                <div className="mx-8 mb-6 bg-violet-50 border-2 border-violet-100 rounded-3xl p-5">
+                  <div className="flex items-start gap-5">
+                    {/* QR Code */}
+                    <div className="flex-shrink-0 bg-white p-3 rounded-2xl border-2 border-violet-100 shadow-sm">
+                      {phoneCameraUrl ? (
+                        <QRCode value={phoneCameraUrl} size={96} bgColor="#ffffff" fgColor="#1e1b4b" />
+                      ) : (
+                        <div className="w-24 h-24 flex items-center justify-center bg-violet-50 rounded-xl">
+                          <div className="w-6 h-6 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Smartphone size={14} className="text-violet-600 flex-shrink-0" />
+                        <span className="text-[10px] font-black text-violet-600 uppercase tracking-widest">Phone Camera</span>
+                      </div>
+                      <p className="text-xs font-bold text-slate-700 leading-snug mb-3">
+                        Scan QR dengan browser HP, lalu izinkan akses kamera.
+                      </p>
+                      {phoneCameraUrl && (
+                        <div className="bg-white rounded-xl px-3 py-2 border border-violet-100 mb-3">
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">URL</p>
+                          <p className="text-[10px] font-bold text-violet-700 break-all">{phoneCameraUrl}</p>
+                        </div>
+                      )}
+                      {!phoneCameraUrl && (
+                        <p className="text-[9px] font-bold text-amber-600 uppercase tracking-widest">
+                          Hanya tersedia di aplikasi desktop Electron
+                        </p>
+                      )}
+                      {/* Connection status */}
+                      <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl w-fit ${status.isConnected ? 'bg-emerald-50 border border-emerald-100' : 'bg-amber-50 border border-amber-100'}`}>
+                        <div className={`w-2 h-2 rounded-full ${status.isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-400 animate-pulse'}`} />
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${status.isConnected ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          {status.isConnected ? 'HP Terhubung' : 'Menunggu HP...'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-[8px] font-bold text-slate-400 leading-tight">
+                    * Saat pertama buka URL di HP, Chrome/Safari akan memperingatkan sertifikat tidak valid — tap Advanced → Proceed. Ini normal karena koneksi lokal.
+                  </p>
+                </div>
+              )}
 
               {/* Webcam Device Selection */}
               {status.source === 'webcam' && (
@@ -357,6 +451,35 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                   </div>
                 </div>
               )}
+
+              {/* Zoom Control */}
+              <div className="px-8 mb-6">
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                  <ZoomIn size={10} />
+                  Zoom Kamera
+                </div>
+                <div className="grid grid-cols-5 gap-2">
+                  {[
+                    { label: '0.5x', value: 0.5 },
+                    { label: '0.75x', value: 0.75 },
+                    { label: '1x', value: 1.0 },
+                    { label: '1.5x', value: 1.5 },
+                    { label: '2x', value: 2.0 },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={(e) => { e.stopPropagation(); setCameraZoom(opt.value); }}
+                      className={`py-2 rounded-xl border text-[10px] font-bold transition-all text-center ${
+                        Math.abs((status.cameraZoom || 1) - opt.value) < 0.01
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                          : 'bg-white border-slate-100 text-slate-600 hover:border-slate-200'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div className="px-8 pb-8 flex items-center justify-between bg-slate-50/50 pt-8 mt-auto">
                 <div className="flex items-center gap-3">

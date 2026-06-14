@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Camera, Monitor, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Camera, Monitor, RefreshCw, AlertCircle, CheckCircle2, Settings2 } from 'lucide-react';
 import { useCamera } from '../hooks/useCamera';
 
 const TestCamera = () => {
@@ -57,13 +57,14 @@ const TestCamera = () => {
               autoPlay
               playsInline
               muted
-              className="w-full h-full object-cover scale-x-[-1]"
+              className="w-full h-full object-cover"
+              style={status.cameraZoom && status.cameraZoom !== 1 ? { transform: `scale(${status.cameraZoom})` } : undefined}
             />
           ) : (status.lastCapturedImage || status.source === 'mock') ? (
             <div className="w-full h-full relative">
-              <img 
-                src={status.lastCapturedImage || 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=1000'} 
-                alt="Camera Preview" 
+              <img
+                src={status.lastCapturedImage || 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=1000'}
+                alt="Camera Preview"
                 className="w-full h-full object-cover"
               />
               {status.source === 'mock' && !status.lastCapturedImage && (
@@ -80,7 +81,7 @@ const TestCamera = () => {
               <p className="text-[10px] font-black uppercase tracking-[0.2em]">Menunggu Pengambilan Gambar...</p>
             </div>
           )}
-          
+
           {/* Environment Badge */}
           <div className="absolute top-4 right-4 px-3 py-1 bg-black/50 backdrop-blur-md rounded-full border border-white/20">
             <span className="text-[8px] font-black text-white uppercase tracking-widest">
@@ -119,7 +120,7 @@ const TestCamera = () => {
                 <Monitor size={12} />
                 Pilih Input Kamera
               </div>
-              <button 
+              <button
                 onClick={() => refreshWebcamDevices()}
                 className="p-1 hover:bg-slate-100 rounded-md transition-all text-blue-500"
               >
