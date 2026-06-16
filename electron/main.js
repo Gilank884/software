@@ -107,88 +107,99 @@ const execWithTimeout = (cmd, timeoutMs = 8000) => {
   ]);
 };
 
-// ─── Windows Printer Discovery ────────────────────────────────────────────────
+// ─── macOS Printer Discovery (online only via system_profiler + lpstat) ──────
+const getMacPrinters = async () => {
+  const result = new Map();
+  try {
+    // Step 1: CUPS name → URI dari lpstat -v
+    const { stdout: lpOut } = await execAsync('lpstat -v 2>/dev/null || true');
+    const cupsUriMap = {}; // uri → [cupsName, ...]
+    lpOut.trim().split('\n').filter(Boolean).forEach(line => {
+      const m = line.match(/^device for ([^:]+):\s+(.+)$/);
+      if (!m) return;
+      const uri = m[2].trim();
+      if (!cupsUriMap[uri]) cupsUriMap[uri] = [];
+      cupsUriMap[uri].push(m[1].trim());
+    });
+
+    // Step 2: status fisik printer dari system_profiler JSON
+    const { stdout: spOut } = await execAsync('system_profiler SPPrintersDataType -json');
+    const spPrinters = JSON.parse(spOut).SPPrintersDataType || [];
+
+    // Step 3: hanya yang status='idle' (terhubung secara fisik)
+    spPrinters.forEach(p => {
+      if (p.status !== 'idle' || !p.uri) return;
+      const cupsNames = cupsUriMap[p.uri] || [];
+      cupsNames.forEach(cupsName => {
+        result.set(cupsName, { name: cupsName, displayName: p._name, isDefault: false, status: 0 });
+      });
+    });
+
+    // Step 4: tandai default printer jika ada di list
+    const { stdout: defOut } = await execAsync('lpstat -d 2>/dev/null || echo ""');
+    const defMatch = defOut.match(/system default destination:\s+(.+)/);
+    if (defMatch && result.has(defMatch[1].trim())) {
+      result.get(defMatch[1].trim()).isDefault = true;
+    }
+
+    console.log(`[Printer] macOS: ${result.size} online printer(s)`, [...result.keys()]);
+  } catch (e) {
+    console.warn('[Printer] macOS discovery failed:', e.message);
+  }
+  return result;
+};
+
+// ─── Windows Printer Discovery (online only) ─────────────────────────────────
+const runPS = (command) => {
+  const cmd = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ${command}`;
+  return execWithTimeout(`powershell -ExecutionPolicy Bypass -NoProfile -Command "${cmd}"`)
+    .catch(() => execWithTimeout(`"${POWERSHELL_PATH}" -ExecutionPolicy Bypass -NoProfile -Command "${cmd}"`));
+};
+
+const parsePSJson = (stdout) => {
+  const text = stdout?.trim();
+  if (!text || text === 'null') return [];
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [parsed];
+  } catch { return []; }
+};
+
 const getWindowsPrinters = async () => {
-  const allPrinters = new Map();
+  const result = new Map();
 
-  // Helper to run PS with UTF-8 encoding
-  const runPS = (command) => {
-    const utf8Command = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ${command}`;
-    // Try raw 'powershell' first, then absolute path
-    return execWithTimeout(`powershell -ExecutionPolicy Bypass -NoProfile -Command "${utf8Command}"`)
-      .catch(() => execWithTimeout(`"${POWERSHELL_PATH}" -ExecutionPolicy Bypass -NoProfile -Command "${utf8Command}"`));
-  };
+  // Method A: Get-Printer — hanya WorkOffline=$false
+  // PrinterStatus TIDAK dipakai karena WMI statusnya tidak reliable
+  try {
+    const { stdout } = await runPS(
+      "Get-Printer | Select-Object Name,IsDefault,WorkOffline | ConvertTo-Json -Compress"
+    );
+    const printers = parsePSJson(stdout);
+    printers.forEach(p => {
+      if (p?.Name && p.WorkOffline !== true) {
+        result.set(p.Name.trim(), { name: p.Name.trim(), displayName: p.Name.trim(), isDefault: !!p.IsDefault, status: 0 });
+      }
+    });
+    console.log(`[Printer] Get-Printer: ${printers.length} total, ${result.size} online`);
+    if (result.size > 0) return result; // sukses & ada printer → return
+  } catch (e) { console.warn('[Printer] Get-Printer failed:', e.message); }
 
-  const methods = [
-    // Method A: PowerShell Get-Printer (most reliable on modern Win)
-    runPS('Get-Printer | Select-Object Name,IsDefault | ConvertTo-Json -Compress')
-      .then(({ stdout }) => {
-        if (!stdout?.trim()) return;
-        try {
-          let parsed = JSON.parse(stdout.trim());
-          if (!Array.isArray(parsed)) parsed = [parsed];
-          parsed.forEach(p => {
-            if (p?.Name) {
-              allPrinters.set(p.Name, {
-                name: p.Name,
-                displayName: p.Name,
-                isDefault: !!p.IsDefault,
-                status: 0,
-                source: 'powershell-json',
-              });
-            }
-          });
-        } catch (e) { console.warn('[Printer] Method A Parse failed:', e.message); }
-      }).catch(e => console.warn('[Printer] Method A (PS JSON) failed:', e.message)),
+  // Method B: WMI fallback — HANYA filter WorkOffline, bukan PrinterStatus
+  // PrinterStatus WMI bisa salah (online printer bisa muncul status 7)
+  try {
+    const { stdout } = await runPS(
+      "Get-WmiObject Win32_Printer | Select-Object Name,Default,WorkOffline | ConvertTo-Json -Compress"
+    );
+    const printers = parsePSJson(stdout);
+    printers.forEach(p => {
+      if (p?.Name && p.WorkOffline !== true) {
+        result.set(p.Name.trim(), { name: p.Name.trim(), displayName: p.Name.trim(), isDefault: !!p.Default, status: 0 });
+      }
+    });
+    console.log(`[Printer] WMI: ${printers.length} total, ${result.size} online`);
+  } catch (e) { console.warn('[Printer] WMI fallback failed:', e.message); }
 
-    // Method B: WMI via PowerShell (fallback)
-    runPS('Get-WmiObject Win32_Printer | Select-Object Name,Default | ConvertTo-Json -Compress')
-      .then(({ stdout }) => {
-        if (!stdout?.trim()) return;
-        try {
-          let parsed = JSON.parse(stdout.trim());
-          if (!Array.isArray(parsed)) parsed = [parsed];
-          parsed.forEach(p => {
-            if (p?.Name && !allPrinters.has(p.Name)) {
-              allPrinters.set(p.Name, {
-                name: p.Name,
-                displayName: p.Name,
-                isDefault: !!p.Default,
-                status: 0,
-                source: 'wmi-json',
-              });
-            }
-          });
-        } catch (e) { console.warn('[Printer] Method B Parse failed:', e.message); }
-      }).catch(e => console.warn('[Printer] Method B (WMI JSON) failed:', e.message)),
-
-    // Method C: Legacy WMIC (fallback)
-    execWithTimeout('wmic printer get name,default /format:csv', 6000)
-      .catch(() => execWithTimeout(`"${WMIC_PATH}" printer get name,default /format:csv`, 6000))
-      .then(({ stdout }) => {
-        if (!stdout?.trim()) return;
-        const lines = stdout.split(/\r?\n/).filter(Boolean);
-        lines.slice(1).forEach(line => {
-          const parts = line.split(',');
-          if (parts.length >= 3) {
-            const name = parts[parts.length - 1]?.trim();
-            const isDefault = parts[parts.length - 2]?.trim().toUpperCase() === 'TRUE';
-            if (name && !allPrinters.has(name)) {
-              allPrinters.set(name, {
-                name,
-                displayName: name,
-                isDefault,
-                status: 0,
-                source: 'wmic-csv',
-              });
-            }
-          }
-        });
-      }).catch(e => console.warn('[Printer] Method C (WMIC CSV) failed:', e.message)),
-  ];
-
-  await Promise.allSettled(methods);
-  return allPrinters;
+  return result;
 };
 
 // ─── Phone Camera Server ─────────────────────────────────────────────────────
@@ -221,14 +232,20 @@ const MOBILE_PAGE_HTML = `<!DOCTYPE html>
     .hdr{position:absolute;top:0;left:0;right:0;padding:16px 20px;background:linear-gradient(180deg,rgba(10,10,20,.9) 0%,transparent 100%);z-index:10;display:flex;align-items:center;justify-content:space-between;}
     .brand{font-size:14px;font-weight:900;letter-spacing:.15em;text-transform:uppercase;color:#c4b5fd;}
     #video{flex:1;width:100%;object-fit:cover;display:block;}
-    .ctrl{position:absolute;bottom:0;left:0;right:0;padding:20px;background:linear-gradient(0deg,rgba(0,0,0,.8) 0%,transparent 100%);display:flex;align-items:center;justify-content:space-between;z-index:10;}
-    .pill{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.12);backdrop-filter:blur(10px);padding:9px 16px;border-radius:50px;border:1px solid rgba(255,255,255,.15);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;}
-    .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+    .ctrl{position:absolute;bottom:0;left:0;right:0;padding:28px 24px 36px;background:linear-gradient(0deg,rgba(0,0,0,.88) 0%,transparent 100%);display:flex;align-items:center;justify-content:space-between;z-index:10;gap:16px;}
+    .pill{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.1);backdrop-filter:blur(10px);padding:9px 14px;border-radius:50px;border:1px solid rgba(255,255,255,.15);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;flex-shrink:0;max-width:140px;}
+    .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
     .dot.live{background:#34d399;animation:p 1.5s infinite;}
     .dot.wait{background:#fbbf24;animation:p .8s infinite;}
     .dot.err{background:#f87171;}
     @keyframes p{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.7);}}
-    .btn{background:rgba(255,255,255,.15);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.2);color:#fff;padding:10px 18px;border-radius:50px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+    .shutter{width:80px;height:80px;border-radius:50%;border:4px solid rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .1s,opacity .2s;box-shadow:0 0 24px rgba(255,255,255,.15),0 4px 16px rgba(0,0,0,.4);flex-shrink:0;}
+    .shutter:active{transform:scale(.88);}
+    .shutter-inner{width:60px;height:60px;border-radius:50%;background:rgba(255,255,255,.92);transition:background .15s;}
+    .shutter.off{opacity:.3;pointer-events:none;}
+    .shutter.off .shutter-inner{background:rgba(255,255,255,.3);}
+    .flip-btn{background:rgba(255,255,255,.13);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.2);color:#fff;width:52px;height:52px;border-radius:50%;font-size:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;flex-shrink:0;transition:transform .1s;}
+    .flip-btn:active{transform:scale(.9);}
     .flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:100;transition:opacity .05s;}
     .flash.on{opacity:1;}
   </style>
@@ -238,7 +255,10 @@ const MOBILE_PAGE_HTML = `<!DOCTYPE html>
   <video id="video" autoplay playsinline muted></video>
   <div class="ctrl">
     <div class="pill"><span id="dot" class="dot wait"></span><span id="stxt">Menghubungkan...</span></div>
-    <button class="btn" onclick="flipCam()">Balik Kamera</button>
+    <div id="shutter" class="shutter off" onclick="pressShutter()">
+      <div class="shutter-inner"></div>
+    </div>
+    <button class="flip-btn" onclick="flipCam()">&#8645;</button>
   </div>
   <div id="flash" class="flash"></div>
   <script>
@@ -246,27 +266,39 @@ const MOBILE_PAGE_HTML = `<!DOCTYPE html>
         cap=document.createElement('canvas'),cctx=cap.getContext('2d'),
         si=null,face='environment',capturing=false,retryT=null;
     const vid=document.getElementById('video');
+    const shutterEl=document.getElementById('shutter');
     function st(type,txt){document.getElementById('dot').className='dot '+type;document.getElementById('stxt').textContent=txt;}
+    function setShutter(enabled){shutterEl.className='shutter'+(enabled?'':' off');}
     function flash(){const f=document.getElementById('flash');f.classList.add('on');setTimeout(()=>f.classList.remove('on'),150);}
+    function pressShutter(){
+      if(ws?.readyState!==1)return;
+      flash();
+      const inner=shutterEl.querySelector('.shutter-inner');
+      if(inner){inner.style.background='#a78bfa';setTimeout(()=>inner.style.background='',200);}
+      ws.send(JSON.stringify({type:'phone_shutter'}));
+    }
     function connect(){
       if(retryT){clearTimeout(retryT);retryT=null;}
       ws=new WebSocket('wss://'+location.host);
-      ws.onopen=()=>{ws.send(JSON.stringify({type:'role',role:'phone'}));st('live','Terhubung — Streaming aktif');startSend();};
+      ws.onopen=()=>{ws.send(JSON.stringify({type:'role',role:'phone'}));st('live','Terhubung');setShutter(true);startSend();};
       ws.onmessage=(e)=>{try{const m=JSON.parse(e.data);if(m.type==='capture')doCapture();}catch(_){}};
-      ws.onclose=()=>{st('err','Terputus — Mencoba ulang...');stopSend();retryT=setTimeout(connect,3000);};
-      ws.onerror=()=>st('err','Koneksi gagal');
+      ws.onclose=()=>{st('err','Terputus...');setShutter(false);stopSend();retryT=setTimeout(connect,3000);};
+      ws.onerror=()=>{st('err','Koneksi gagal');setShutter(false);};
     }
-    function startSend(){
-      if(si)return;
-      si=setInterval(()=>{
-        if(capturing||!stream||ws?.readyState!==1)return;
-        if(!vid.videoWidth)return;
-        prev.width=Math.min(vid.videoWidth,1280);prev.height=Math.min(vid.videoHeight,720);
-        pctx.drawImage(vid,0,0,prev.width,prev.height);
-        prev.toBlob(b=>{if(b&&ws?.readyState===1)ws.send(b);},'image/jpeg',.70);
-      },100);
+    function startSend(){if(si)return;si=true;scheduleFrame();}
+    function stopSend(){si=false;}
+    function scheduleFrame(){
+      if(!si)return;
+      if(capturing||!stream||ws?.readyState!==1||!vid.videoWidth){setTimeout(scheduleFrame,50);return;}
+      const vw=vid.videoWidth,vh=vid.videoHeight;
+      const scale=Math.min(1280/vw,720/vh,1);
+      prev.width=Math.round(vw*scale);prev.height=Math.round(vh*scale);
+      pctx.drawImage(vid,0,0,prev.width,prev.height);
+      prev.toBlob(b=>{
+        if(b&&ws?.readyState===1)ws.send(b);
+        setTimeout(scheduleFrame,0);
+      },'image/jpeg',.85);
     }
-    function stopSend(){if(si){clearInterval(si);si=null;}}
     function doCapture(){
       if(!stream)return;
       capturing=true;flash();
@@ -283,7 +315,7 @@ const MOBILE_PAGE_HTML = `<!DOCTYPE html>
       if(stream)stream.getTracks().forEach(t=>t.stop());
       try{
         stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:face,width:{ideal:4096},height:{ideal:3072}},audio:false});
-        vid.srcObject=stream;st('wait','Kamera aktif — menunggu koneksi...');
+        vid.srcObject=stream;st('wait','Kamera aktif...');
       }catch(e){st('err','Kamera error: '+e.message);}
     }
     function flipCam(){face=face==='environment'?'user':'environment';startCam();}
@@ -357,6 +389,11 @@ async function setupPhoneCameraServer() {
             for (const p of phoneClients) {
               if (p.readyState === WS.OPEN) p.send(JSON.stringify({ type: 'capture' }));
             }
+          } else if (msg.type === 'phone_shutter') {
+            // Phone shutter button pressed → notify desktop to trigger capture
+            for (const d of desktopClients) {
+              if (d.readyState === WS.OPEN) d.send(JSON.stringify({ type: 'phone_shutter' }));
+            }
           } else if (msg.type === 'capture_result') {
             // Full-res photo: phone → desktop
             for (const d of desktopClients) {
@@ -403,12 +440,13 @@ app.whenReady().then(() => {
   // Initialize Phone Camera Server
   setupPhoneCameraServer();
 
-  // Allow renderer to connect to wss://localhost:3456 (self-signed cert)
+  // Trust self-signed cert for local phone camera server (localhost + LAN IP)
   mainWindow.webContents.session.setCertificateVerifyProc((request, callback) => {
-    if (request.hostname === 'localhost' && request.port === PHONE_CAM_PORT) {
-      return callback(0); // trust
+    const h = request.hostname;
+    if (h === 'localhost' || h === '127.0.0.1' || h.startsWith('192.168.') || h.startsWith('10.') || h.startsWith('172.')) {
+      return callback(0); // trust all local network addresses
     }
-    callback(-3); // default
+    callback(-3); // default verification for everything else
   });
 
   ipcMain.handle('get-phone-camera-url', () => phoneCamServerUrl);
@@ -433,67 +471,52 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('get-printers', async (event) => {
-    console.log('[Printer] Starting discovery...');
+    console.log('[Printer] Starting discovery (online only)...');
     const allPrinters = new Map();
 
-    // Step 1: Electron built-in API (jalan di dev & production)
-    // Gunakan event.sender (window yang merequest) sebagai prioritas utama
-    try {
-      const printers = await event.sender.getPrintersAsync();
-      if (printers?.length > 0) {
-        printers.forEach(p => {
-          allPrinters.set(p.name, {
-            name: p.name,
-            isDefault: !!p.isDefault,
-            status: p.status || 0,
-            displayName: p.displayName || p.name,
-            source: 'electron-api',
-          });
-        });
-        console.log(`[Printer] Electron API found ${printers.length} printer(s)`);
-      }
-    } catch (e) {
-      console.warn('[Printer] Native API (event.sender) failed:', e.message);
-      
-      // Fallback: Coba semua window jika sender gagal
-      const windows = BrowserWindow.getAllWindows();
-      for (const win of windows) {
-        try {
-          const printers = await win.webContents.getPrintersAsync();
-          if (printers?.length > 0) {
-            printers.forEach(p => {
-              if (!allPrinters.has(p.name)) {
-                allPrinters.set(p.name, {
-                  name: p.name,
-                  isDefault: !!p.isDefault,
-                  status: p.status || 0,
-                  displayName: p.displayName || p.name,
-                  source: 'electron-api-fallback',
-                });
-              }
-            });
-          }
-        } catch (innerE) { /* ignore */ }
-      }
-    }
-
-    // Step 2: Windows OS-level fallback — SELALU dijalankan di Windows
     if (process.platform === 'win32') {
-      console.log('[Printer] Running Windows OS discovery (parallel)...');
+      // Windows: gunakan PowerShell dengan filter WorkOffline
+      // Electron API di Windows mengembalikan SEMUA printer termasuk offline — tidak dipakai
       const osPrinters = await getWindowsPrinters();
-      osPrinters.forEach((val, key) => {
-        const trimmedKey = key.trim();
-        if (!allPrinters.has(trimmedKey)) {
-          allPrinters.set(trimmedKey, val);
-        } else if (val.isDefault) {
-          // Prioritaskan info isDefault dari OS jika native tidak set
-          allPrinters.get(trimmedKey).isDefault = true;
-        }
-      });
+      osPrinters.forEach((val, key) => allPrinters.set(key.trim(), val));
+
+      // Jika PowerShell sama sekali gagal, fallback ke Electron API
+      if (allPrinters.size === 0) {
+        console.warn('[Printer] PowerShell failed, falling back to Electron API (may include offline)');
+        try {
+          const printers = await event.sender.getPrintersAsync();
+          printers?.forEach(p => {
+            if (p?.name) allPrinters.set(p.name, { name: p.name, displayName: p.displayName || p.name, isDefault: !!p.isDefault, status: p.status || 0 });
+          });
+        } catch (e) { console.warn('[Printer] Electron API fallback failed:', e.message); }
+      }
+    } else if (process.platform === 'darwin') {
+      // macOS: system_profiler + lpstat — satu-satunya cara akurat cek printer fisik online
+      const macPrinters = await getMacPrinters();
+      macPrinters.forEach((val, key) => allPrinters.set(key, val));
+
+      // Jika system_profiler gagal, fallback ke Electron API
+      if (allPrinters.size === 0) {
+        console.warn('[Printer] macOS discovery failed, using Electron API fallback');
+        try {
+          const printers = await event.sender.getPrintersAsync();
+          printers?.forEach(p => {
+            if (p?.name) allPrinters.set(p.name, { name: p.name, displayName: p.displayName || p.name, isDefault: !!p.isDefault, status: 0 });
+          });
+        } catch (e) { console.warn('[Printer] Electron API fallback failed:', e.message); }
+      }
+    } else {
+      // Linux: Electron API
+      try {
+        const printers = await event.sender.getPrintersAsync();
+        printers?.filter(p => p.status === 0).forEach(p => {
+          allPrinters.set(p.name, { name: p.name, displayName: p.displayName || p.name, isDefault: !!p.isDefault, status: 0 });
+        });
+      } catch (e) { console.warn('[Printer] Electron API failed:', e.message); }
     }
 
     const results = Array.from(allPrinters.values());
-    console.log(`[Printer] Discovery done. Total: ${results.length}`, results.map(p => p.name));
+    console.log(`[Printer] Online printers: ${results.length}`, results.map(p => p.name));
     return results;
   });
 
@@ -510,14 +533,14 @@ app.whenReady().then(() => {
 
         try {
           if (imageUrl.startsWith('http')) {
-             // Handle URL - Download image
-             const response = await fetch(imageUrl);
-             const buffer = Buffer.from(await response.arrayBuffer());
-             await writeFileAsync(filePath, buffer);
+            // Handle URL - Download image
+            const response = await fetch(imageUrl);
+            const buffer = Buffer.from(await response.arrayBuffer());
+            await writeFileAsync(filePath, buffer);
           } else {
-             // Handle Base64
-             const base64Data = imageUrl.replace(/^data:image\/png;base64,/, '');
-             await writeFileAsync(filePath, base64Data, 'base64');
+            // Handle Base64
+            const base64Data = imageUrl.replace(/^data:image\/png;base64,/, '');
+            await writeFileAsync(filePath, base64Data, 'base64');
           }
 
           const mediaOption = pageSize.toLowerCase() === 'a4' ? 'A4' : '4x6.FullBleed';
@@ -541,27 +564,85 @@ app.whenReady().then(() => {
     return false;
   };
 
-  ipcMain.on('print-test-page', async (event, { printerName, pageSize = '4r', autoEpsonMatte = false } = {}) => {
+  ipcMain.on('print-test-page', async (event, { printerName, autoEpsonMatte = false } = {}) => {
+    // Always A4 for test — offscreen:true removed (breaks print() in Electron 28)
     const printWindow = new BrowserWindow({
       show: false,
-      webPreferences: { offscreen: true },
+      webPreferences: { contextIsolation: true, sandbox: false },
     });
 
-    const testPattern = `
-      <html>
-        <body style="margin:0; padding:0; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; background: white; font-family:sans-serif; text-align:center;">
-          <style>
-            @page { size: ${pageSize.toLowerCase() === 'a4' ? '210mm 297mm' : '4in 6in'}; margin: 0; }
-            body { border: 1px solid #eee; box-sizing: border-box; }
-          </style>
-          <h1 style="font-size:60px; margin:0; font-weight: 900; color: #000;">Test Print</h1>
-          <div style="width:150px; height:6px; background:#000; margin: 20px 0;"></div>
-          <p style="font-size:18px; color: #000; font-weight: bold; text-transform: uppercase; letter-spacing: 0.2em;">Latarcerita Photobooth</p>
-          <p style="font-size:12px; color: #666; margin-top: 10px;">Format: ${pageSize.toUpperCase()}</p>
-          <p style="font-size:10px; color: #999; margin-top: 5px;">600 DPI Fine-Quality</p>
-        </body>
-      </html>
-    `;
+    const testPattern = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  @page{size:210mm 297mm;margin:0;}
+  html,body{width:210mm;height:297mm;background:#fff;overflow:hidden;font-family:Arial,sans-serif;}
+  .page{position:relative;width:210mm;height:297mm;}
+  /* 10mm grid */
+  .grid{
+    position:absolute;inset:0;
+    background-image:linear-gradient(rgba(0,0,0,.09) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,.09) 1px,transparent 1px);
+    background-size:10mm 10mm;
+  }
+  /* Thick 5mm grid every 5cm */
+  .grid2{
+    position:absolute;inset:0;
+    background-image:linear-gradient(rgba(0,0,0,.18) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,.18) 1px,transparent 1px);
+    background-size:50mm 50mm;
+    pointer-events:none;
+  }
+  /* Outer print boundary at 3mm */
+  .b-outer{position:absolute;top:3mm;left:3mm;right:3mm;bottom:3mm;border:1.5px solid #111;}
+  /* Safe zone at 10mm */
+  .b-safe{position:absolute;top:10mm;left:10mm;right:10mm;bottom:10mm;border:1px dashed #777;}
+  /* Corner L-marks */
+  .c{position:absolute;width:10mm;height:10mm;}
+  .c.tl{top:0;left:0;border-top:2px solid #000;border-left:2px solid #000;}
+  .c.tr{top:0;right:0;border-top:2px solid #000;border-right:2px solid #000;}
+  .c.bl{bottom:0;left:0;border-bottom:2px solid #000;border-left:2px solid #000;}
+  .c.br{bottom:0;right:0;border-bottom:2px solid #000;border-right:2px solid #000;}
+  /* Center info */
+  .info{
+    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    background:#fff;border:1px solid #ccc;padding:10mm 14mm;text-align:center;
+    min-width:90mm;box-shadow:0 0 0 1mm rgba(0,0,0,.04);
+  }
+  .info h1{font-size:22pt;font-weight:900;letter-spacing:.08em;color:#000;}
+  .info hr{border:none;border-top:1.5px solid #000;margin:4mm 0;}
+  .info p{font-size:8.5pt;color:#444;line-height:1.9;}
+  .info .leg{font-size:7.5pt;color:#888;margin-top:5mm;line-height:1.7;font-family:monospace;}
+  /* Dimension labels */
+  .dim-w{position:absolute;top:1mm;left:50%;transform:translateX(-50%);font-size:6pt;color:#666;letter-spacing:.05em;}
+  .dim-h{position:absolute;top:50%;left:1mm;transform:translateY(-50%) rotate(-90deg);font-size:6pt;color:#666;letter-spacing:.05em;white-space:nowrap;}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="grid"></div>
+  <div class="grid2"></div>
+  <div class="b-outer"></div>
+  <div class="b-safe"></div>
+  <div class="c tl"></div><div class="c tr"></div>
+  <div class="c bl"></div><div class="c br"></div>
+  <span class="dim-w">210 mm</span>
+  <span class="dim-h">297 mm</span>
+  <div class="info">
+    <h1>TEST PRINT</h1>
+    <hr>
+    <p>A4 &nbsp;·&nbsp; 210 × 297 mm<br>Grid: setiap 10 mm &nbsp;·&nbsp; Garis tebal: 50 mm</p>
+    <div class="leg">
+      ▬ Garis luar: batas cetak (3mm dari tepi)<br>
+      ╌ Garis putus: zona aman (10mm dari tepi)<br>
+      ⌐ Tanda sudut: pojok halaman fisik<br>
+      Printer: ${printerName || 'Default System Printer'}<br>
+      Latarcerita Photobooth
+    </div>
+  </div>
+</div>
+</body>
+</html>`;
 
     printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(testPattern)}`);
 
@@ -570,12 +651,12 @@ app.whenReady().then(() => {
         silent: true,
         printBackground: true,
         deviceName: printerName || '',
-        color: true,
+        color: false,
         margins: { marginType: 'none' },
-        dpi: { horizontal: 600, vertical: 600 },
-        pageSize: pageSize.toLowerCase() === 'a4' ? 'A4' : { width: 101600, height: 152400 },
+        dpi: { horizontal: 300, vertical: 300 },
+        pageSize: 'A4',
       }, (success, failureReason) => {
-        if (!success) console.error('Print Failed:', failureReason);
+        if (!success) console.error('[PrintTest] Failed:', failureReason);
         printWindow.close();
       });
     });
@@ -589,7 +670,7 @@ app.whenReady().then(() => {
 
     const printWindow = new BrowserWindow({
       show: false,
-      webPreferences: { 
+      webPreferences: {
         offscreen: true,
         contextIsolation: true,
         sandbox: false

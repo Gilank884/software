@@ -11,7 +11,7 @@ export class CameraManager {
       webcam: new WebcamDriver(),
       dslr: new DSLRFolderDriver(),
       mock: new MockDriver(),
-      phone: new PhoneCameraDriver(),
+      phone: new PhoneCameraDriver(() => this.notify()),
     };
     this.currentSource = 'webcam'; // Default source
     this.isAutoDetect = true;
@@ -212,6 +212,10 @@ export class CameraManager {
   async setWebcamDevice(deviceId) {
     await this.drivers.webcam.setDeviceId(deviceId);
     this.notify();
+  }
+
+  subscribePhoneShutter(cb) {
+    return this.drivers.phone.subscribeShutter(cb);
   }
 
   setCameraZoom(value) {

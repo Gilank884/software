@@ -8,6 +8,9 @@ import {
   Zap,
   Activity,
   Target,
+  Smartphone,
+  Wifi,
+  WifiOff,
 } from 'lucide-react'
 import HandTrackerOverlay from './HandTrackerOverlay'
 
@@ -298,7 +301,7 @@ const CaptureScreen = ({
                 </button>
               </div>
             ) : (
-              cameraStatus.source === 'dslr' ? (
+              (cameraStatus.source === 'dslr' || cameraStatus.source === 'phone') ? (
                 <canvas
                   ref={previewCanvasRef}
                   className="w-full h-full object-cover z-10"
@@ -316,6 +319,28 @@ const CaptureScreen = ({
                   style={cameraStatus?.cameraZoom && cameraStatus.cameraZoom !== 1 ? { transform: `scale(${cameraStatus.cameraZoom})` } : undefined}
                 />
               )
+            )}
+
+            {/* Phone camera connection indicator */}
+            {cameraStatus.source === 'phone' && !cameraError && (
+              <div className={`absolute top-6 left-6 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-2xl border backdrop-blur-md transition-all duration-500 ${
+                cameraStatus.isConnected
+                  ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                  : 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+              }`}>
+                <Smartphone size={14} className="flex-shrink-0" />
+                {cameraStatus.isConnected ? (
+                  <>
+                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0" />
+                    <span className="text-[11px] font-black uppercase tracking-widest">HP Tersambung</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                    <span className="text-[11px] font-black uppercase tracking-widest">Menunggu HP...</span>
+                  </>
+                )}
+              </div>
             )}
 
             {isSpecialMode && !cameraError && (

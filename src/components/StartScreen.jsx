@@ -36,7 +36,8 @@ const StartScreen = ({ onStart, user, onLogout }) => {
     e.stopPropagation()
     setIsPrinting(true)
     if (window.electronAPI?.printTestPage) {
-      window.electronAPI.printTestPage(selectedPrinter, selectedPaperSize, autoEpsonMatte)
+      // Always A4 for test — paper size setting only applies to actual photo prints
+      window.electronAPI.printTestPage(selectedPrinter, 'a4', autoEpsonMatte)
     }
     setTimeout(() => setIsPrinting(false), 5000)
   }
@@ -189,24 +190,6 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                 <div className="flex flex-col items-start px-1">
                   <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Diagnostic</span>
                   <span className="text-[11px] font-black text-slate-700">Camera Test</span>
-                </div>
-              </button>
-
-              <button
-                onClick={handlePrinterTest}
-                className="flex items-center gap-3 hover:bg-slate-50 p-1.5 pr-4 rounded-xl transition-all duration-300 group/btn relative overflow-hidden"
-              >
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${printers.length > 0 ? 'bg-indigo-100 text-indigo-600 group-hover/btn:bg-indigo-600 group-hover/btn:text-white' : 'bg-slate-100 text-slate-400'}`}>
-                  <Printer size={18} />
-                </div>
-                <div className="flex flex-col items-start px-1">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[8px] font-black uppercase tracking-widest ${printers.length > 0 ? 'text-indigo-400' : 'text-slate-400'}`}>Diagnostic</span>
-                    {!isCheckingPrinters && (
-                      <span className={`w-1 h-1 rounded-full ${printers.length > 0 ? 'bg-green-500' : 'bg-rose-500'}`}></span>
-                    )}
-                  </div>
-                  <span className="text-[11px] font-black text-slate-700">Printer 4R Test</span>
                 </div>
               </button>
 
@@ -658,24 +641,34 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                 </div>
               </div>
 
-              <div className="px-8 pb-8 flex items-center justify-between bg-slate-50/50 pt-8">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 font-black">
+              <div className="px-6 pb-6 flex items-center justify-between bg-slate-50/50 pt-6 gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 font-black flex-shrink-0 text-[10px]">
                     {selectedPaperSize.toUpperCase()}
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <span className="text-[9px] font-black text-indigo-400 uppercase tracking-widest block leading-none mb-1">Active Profile</span>
-                    <span className="text-xs font-black text-slate-600 leading-none truncate max-w-[150px]">
+                    <span className="text-xs font-black text-slate-600 leading-none truncate block max-w-[110px]">
                       {selectedPrinter || 'Default System'}
                     </span>
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowPrinterModal(false)}
-                  className="px-10 py-4 bg-slate-900 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all"
-                >
-                  Simpan Konfigurasi
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={handlePrinterTest}
+                    disabled={isPrinting}
+                    className="flex items-center gap-2 px-4 py-3.5 border-2 border-slate-200 text-slate-600 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Printer size={13} />
+                    {isPrinting ? 'Mencetak...' : 'Test Print'}
+                  </button>
+                  <button
+                    onClick={() => setShowPrinterModal(false)}
+                    className="px-6 py-3.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl hover:scale-105 active:scale-95 transition-all"
+                  >
+                    Simpan
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>

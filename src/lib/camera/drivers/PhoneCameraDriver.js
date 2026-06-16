@@ -1,7 +1,10 @@
 const PHONE_CAM_WS = 'wss://localhost:3456';
 
 export class PhoneCameraDriver {
-  constructor() {
+  constructor(onStatusChange = () => {}) {
+    this.onStatusChange = onStatusChange;
+    this._shutterCbs = [];
+    this._frameProcessing = false;
     this.ws = null;
     this.internalCanvas = null;   // offscreen canvas for capture()
     this.internalCtx = null;
@@ -21,6 +24,11 @@ export class PhoneCameraDriver {
     this.isAvailable = !!window.electronAPI;
     this.error = null;
     return Promise.resolve();
+  }
+
+  subscribeShutter(cb) {
+    this._shutterCbs.push(cb);
+    return () => { this._shutterCbs = this._shutterCbs.filter(c => c !== cb); };
   }
 
   _ensureInternalCanvas() {
@@ -102,10 +110,16 @@ export class PhoneCameraDriver {
         } else {
           try {
             const msg = JSON.parse(event.data);
-            if (msg.type === 'phone_connected') {
+            if (msg.type === 'phone_shutter') {
+              this._shutterCbs.forEach(cb => cb());
+            } else if (msg.type === 'phone_connected') {
               this.isConnected = true;
+              this.onStatusChange();
+              // Re-trigger play in case the video element stalled while waiting
+              if (this.videoElement) this.videoElement.play().catch(() => {});
             } else if (msg.type === 'phone_disconnected') {
               this.isConnected = false;
+              this.onStatusChange();
               // Redraw waiting state on both surfaces
               if (this.internalCtx) this._drawWaitingOn(this.internalCtx, this.internalCanvas.width, this.internalCanvas.height);
               if (this.previewCanvas) this._drawWaitingOn(this.previewCanvas.getContext('2d'), this.previewCanvas.width, this.previewCanvas.height);
@@ -133,32 +147,37 @@ export class PhoneCameraDriver {
     }
   }
 
-  _drawFrame(blob) {
-    const url = URL.createObjectURL(blob);
-    const img = new Image();
-    img.onload = () => {
-      const w = img.naturalWidth || 1280;
-      const h = img.naturalHeight || 720;
+  _drawBitmapFit(ctx, bitmap, canvasW, canvasH) {
+    // object-cover: scale up to fill, crop the overflow from center
+    const scale = Math.max(canvasW / bitmap.width, canvasH / bitmap.height);
+    const dw = bitmap.width * scale;
+    const dh = bitmap.height * scale;
+    const dx = (canvasW - dw) / 2;
+    const dy = (canvasH - dh) / 2;
+    ctx.drawImage(bitmap, dx, dy, dw, dh);
+  }
 
-      // Draw to internal canvas (for captureStream → video in CaptureScreen)
+  _drawFrame(blob) {
+    // Drop frame if still decoding the previous one — prevents backlog
+    if (this._frameProcessing) return;
+    this._frameProcessing = true;
+
+    createImageBitmap(blob).then(bitmap => {
+      this._frameProcessing = false;
+
       if (this.internalCtx && this.internalCanvas) {
-        if (this.internalCanvas.width !== w) this.internalCanvas.width = w;
-        if (this.internalCanvas.height !== h) this.internalCanvas.height = h;
-        this.internalCtx.drawImage(img, 0, 0);
+        this._drawBitmapFit(this.internalCtx, bitmap, this.internalCanvas.width, this.internalCanvas.height);
       }
 
-      // Draw directly to preview canvas (no captureStream needed)
       if (this.previewCanvas) {
         const ctx = this.previewCanvas.getContext('2d');
-        if (this.previewCanvas.width !== w) this.previewCanvas.width = w;
-        if (this.previewCanvas.height !== h) this.previewCanvas.height = h;
-        ctx.drawImage(img, 0, 0);
+        if (this.previewCanvas.width !== 1280) this.previewCanvas.width = 1280;
+        if (this.previewCanvas.height !== 720) this.previewCanvas.height = 720;
+        this._drawBitmapFit(ctx, bitmap, 1280, 720);
       }
 
-      URL.revokeObjectURL(url);
-    };
-    img.onerror = () => URL.revokeObjectURL(url);
-    img.src = url;
+      bitmap.close();
+    }).catch(() => { this._frameProcessing = false; });
   }
 
   stopPreview() {

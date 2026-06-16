@@ -50,7 +50,7 @@ function App() {
     }
   }, [isSpecialMode])
 
-  const { status, startPreview, stopPreview, capturePhoto: captureCamPhoto, initCamera } = useCamera()
+  const { status, startPreview, stopPreview, capturePhoto: captureCamPhoto, initCamera, camera } = useCamera()
 
   const [loading, setLoading] = useState(() => {
     const params = new URLSearchParams(window.location.search)
@@ -152,7 +152,10 @@ function App() {
 
   useEffect(() => {
     if (step === STEPS.CAPTURE) {
-      const element = status.source === 'dslr' ? previewCanvasRef.current : videoRef.current
+      // Phone & DSLR both use canvas directly (no captureStream latency)
+      const element = (status.source === 'dslr' || status.source === 'phone')
+        ? previewCanvasRef.current
+        : videoRef.current
       if (element) startPreview(element)
     } else {
       stopPreview()
@@ -192,6 +195,21 @@ function App() {
       console.error('Capture Failed:', err)
     }
   }
+
+  // Always-fresh ref so the phone shutter callback gets the latest capturePhoto
+  const capturePhotoRef = useRef(capturePhoto)
+  capturePhotoRef.current = capturePhoto
+
+  // Phone shutter button → skip countdown, capture immediately
+  useEffect(() => {
+    if (status.source !== 'phone' || !camera) return
+    return camera.subscribePhoneShutter(() => {
+      if (hasStartedSession && !isReviewing) {
+        setCountdown(null)
+        capturePhotoRef.current()
+      }
+    })
+  }, [status.source, camera, hasStartedSession, isReviewing])
 
   const handleContinue = () => {
     if (currentShotIndex + 1 >= maxCaptures) {
