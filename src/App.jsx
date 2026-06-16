@@ -1,57 +1,29 @@
 import { useState, useRef, useEffect } from 'react'
 import { supabase } from './lib/supabaseClient'
-import AuthScreen from './components/AuthScreen'
 import StartScreen from './components/StartScreen'
-import InstructionsScreen from './components/InstructionsScreen'
-import PaymentScreen from './components/PaymentScreen'
-import SessionSelectScreen from './components/SessionSelectScreen'
 import CaptureScreen from './components/CaptureScreen'
 import CustomizeScreen from './components/CustomizeScreen'
 import ProcessingScreen from './components/ProcessingScreen'
 import OutputScreen from './components/OutputScreen'
-import ModeSelectScreen from './components/ModeSelectScreen'
-import SelfPhotoInstructionsScreen from './components/SelfPhotoInstructionsScreen'
-import SelfPhotoTimeSelectScreen from './components/SelfPhotoTimeSelectScreen'
-import SelfPhotoCaptureScreen from './components/SelfPhotoCaptureScreen'
-import SelfPhotoPhotoSelectScreen from './components/SelfPhotoPhotoSelectScreen'
-import PrintQuantityScreen from './components/PrintQuantityScreen'
 import PhotoAssignmentScreen from './components/PhotoAssignmentScreen'
-import SettingsPage from './components/SettingsPage'
-import FramesPage from './components/FramesPage'
-import GalleryPage from './components/GalleryPage'
 import PublicGalleryScreen from './components/PublicGalleryScreen'
 import AppBackground from './components/AppBackground'
 import DeviceLogin from './components/DeviceLogin'
 import CreatorApp from './creator/App'
 import RemoteController from './components/RemoteController'
-import ProductSelectScreen from './components/ProductSelectScreen'
-import { LogOut, Monitor, Maximize2, Minimize2, WifiOff, CheckCircle } from 'lucide-react'
+import { Maximize2, Minimize2, WifiOff, CheckCircle } from 'lucide-react'
+import SettingsPage from './components/SettingsPage'
 import { useCamera } from './hooks/useCamera'
 import { syncQueue, queueCount } from './lib/offlineQueue'
 
-// --- Constants ---
 const STEPS = {
-  // Photobooth Flow
   START: 'START',
-  PRODUCT_SELECT: 'PRODUCT_SELECT',
-  PAYMENT: 'PAYMENT',
-  INSTRUCTIONS: 'INSTRUCTIONS',
-  SESSION_SELECT: 'SESSION_SELECT',
-  CAPTURE: 'CAPTURE',
   CUSTOMIZE_FRAME: 'CUSTOMIZE_FRAME',
+  CAPTURE: 'CAPTURE',
+  PHOTO_ASSIGN: 'PHOTO_ASSIGN',
   CUSTOMIZE_FILTER: 'CUSTOMIZE_FILTER',
   PROCESSING: 'PROCESSING',
   OUTPUT: 'OUTPUT',
-
-  PHOTO_ASSIGN: 'PHOTO_ASSIGN',
-
-  // Self Photo Steps
-  MODE_SELECT: 'MODE_SELECT',
-  SP_INSTRUCTIONS: 'SP_INSTRUCTIONS',
-  SP_TIME_SELECT: 'SP_TIME_SELECT',
-  SP_CAPTURE: 'SP_CAPTURE',
-  SP_PHOTO_SELECT: 'SP_PHOTO_SELECT',
-  SP_PRINT_QUANTITY: 'SP_PRINT_QUANTITY'
 }
 
 function App() {
@@ -64,54 +36,40 @@ function App() {
   const [selectedFrame, setSelectedFrame] = useState('classic')
   const [selectedFrameData, setSelectedFrameData] = useState(null)
   const [selectedFilter, setSelectedFilter] = useState('none')
-  const [cameraError, setCameraError] = useState(null)
   const [isSpecialMode, setIsSpecialMode] = useState(false)
   const [ghosts, setGhosts] = useState([])
   const [activePortal, setActivePortal] = useState(null)
   const [videoClips, setVideoClips] = useState([])
+  const [galleryData, setGalleryData] = useState(null)
+  const [isReprint, setIsReprint] = useState(false)
 
   useEffect(() => {
     if (!isSpecialMode) {
-      setGhosts([]);
-      setActivePortal(null);
+      setGhosts([])
+      setActivePortal(null)
     }
-  }, [isSpecialMode]);
+  }, [isSpecialMode])
 
-  // Self Photo Specific State
-  const [selfPhotoDuration, setSelfPhotoDuration] = useState(5) // minutes
-  const [printQuantity, setPrintQuantity] = useState(1)
-  const [selectedSelfPhotos, setSelectedSelfPhotos] = useState([]) // indices of selected photos
-  
-  // Use professional camera system
   const { status, startPreview, stopPreview, capturePhoto: captureCamPhoto, initCamera } = useCamera()
 
-  const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(() => {
-    // Skip loading state entirely if we're rendering a public gallery via QR
     const params = new URLSearchParams(window.location.search)
     return !params.get('gallery')
   })
   const [isCreatorMode, setIsCreatorMode] = useState(false)
   const [deviceSession, setDeviceSession] = useState(null)
   const [step, setStep] = useState(STEPS.START)
-  const [selectedMode, setSelectedMode] = useState(null) // 'photobooth' | 'self_photo'
-  const [galleryData, setGalleryData] = useState(null)
-  const [selectedProduct, setSelectedProduct] = useState(null)
-  const [isReprint, setIsReprint] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [syncStatus, setSyncStatus] = useState(null)
+  const [pendingCount, setPendingCount] = useState(0)
 
   const videoRef = useRef(null)
-  const previewCanvasRef = useRef(null) 
+  const previewCanvasRef = useRef(null)
   const canvasRef = useRef(null)
-  const [galleryId, setGalleryId] = useState(() => {
+  const [galleryId] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     return params.get('gallery') || null
   })
-
-  // Remote Control Session Management
-  const [activeRemoteSessionId, setActiveRemoteSessionId] = useState(null)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const [syncStatus, setSyncStatus] = useState(null) // null | 'syncing' | 'done' | 'offline'
-  const [pendingCount, setPendingCount] = useState(0)
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement)
@@ -119,12 +77,10 @@ function App() {
     return () => document.removeEventListener('fullscreenchange', onChange)
   }, [])
 
-  // Cek pending count saat app start
   useEffect(() => {
     queueCount().then(setPendingCount).catch(() => {})
   }, [])
 
-  // Auto-sync saat jaringan kembali
   useEffect(() => {
     const handleOnline = async () => {
       const count = await queueCount().catch(() => 0)
@@ -148,27 +104,8 @@ function App() {
     }
   }, [])
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen()
-    } else {
-      document.exitFullscreen()
-    }
-  }
-  
   useEffect(() => {
-    if (step === STEPS.SP_CAPTURE && !activeRemoteSessionId) {
-       setActiveRemoteSessionId(`studio-${Math.random().toString(36).substring(2, 9)}`)
-    } else if (step !== STEPS.SP_CAPTURE && activeRemoteSessionId) {
-       setActiveRemoteSessionId(null)
-    }
-  }, [step])
-
-  useEffect(() => {
-    if (galleryId) {
-      setLoading(false)
-      return
-    }
+    if (galleryId) { setLoading(false); return }
 
     const host = window.location.hostname
     const path = window.location.pathname
@@ -183,7 +120,7 @@ function App() {
 
       supabase
         .from('devices')
-        .select('id, creator_id, name, payment_enabled, available_frames, enable_photobooth, enable_self_photo, self_photo_durations, event_id, events(name, logo_url)')
+        .select('id, creator_id, name, available_frames, event_id, events(name, logo_url)')
         .eq('id', parsed.device_id)
         .single()
         .then(({ data }) => {
@@ -193,13 +130,9 @@ function App() {
               device_id: data.id,
               creator_id: data.creator_id,
               name: data.name,
-              payment_enabled: data.payment_enabled,
-              enable_photobooth: data.enable_photobooth ?? true,
-              enable_self_photo: data.enable_self_photo ?? false,
               available_frames: data.available_frames || [],
-              self_photo_durations: data.self_photo_durations || [5, 10, 15],
               event_id: data.event_id,
-              events: data.events
+              events: data.events,
             }
             localStorage.setItem('pb_device_session', JSON.stringify(updated))
             setDeviceSession(updated)
@@ -208,23 +141,17 @@ function App() {
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
       setLoading(false)
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
-
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {})
     return () => subscription.unsubscribe()
   }, [])
 
-  useEffect(() => {
-    initCamera()
-  }, [])
+  useEffect(() => { initCamera() }, [])
 
   useEffect(() => {
-    if (step === STEPS.CAPTURE || step === STEPS.SP_CAPTURE) {
+    if (step === STEPS.CAPTURE) {
       const element = status.source === 'dslr' ? previewCanvasRef.current : videoRef.current
       if (element) startPreview(element)
     } else {
@@ -233,30 +160,26 @@ function App() {
   }, [step, status.source])
 
   useEffect(() => {
-    let timer;
+    let timer
     if (step === STEPS.CAPTURE && hasStartedSession && !isReviewing && !isSpecialMode && countdown !== null) {
       timer = setInterval(() => {
         setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            capturePhoto();
-            return null;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+          if (prev <= 1) { clearInterval(timer); capturePhoto(); return null }
+          return prev - 1
+        })
+      }, 1000)
     } else if (isSpecialMode || isReviewing || step !== STEPS.CAPTURE) {
-      setCountdown(null);
+      setCountdown(null)
     }
-    return () => { if (timer) clearInterval(timer); };
-  }, [step, hasStartedSession, isReviewing, isSpecialMode, countdown === null]);
+    return () => { if (timer) clearInterval(timer) }
+  }, [step, hasStartedSession, isReviewing, isSpecialMode, countdown === null])
 
   useEffect(() => {
     if (step === STEPS.CAPTURE && hasStartedSession && !isReviewing && !isSpecialMode && countdown === null) {
-      const timeout = setTimeout(() => setCountdown(5), 1000);
-      return () => clearTimeout(timeout);
+      const timeout = setTimeout(() => setCountdown(5), 1000)
+      return () => clearTimeout(timeout)
     }
-  }, [step, hasStartedSession, isReviewing, isSpecialMode, currentShotIndex, countdown === null]);
+  }, [step, hasStartedSession, isReviewing, isSpecialMode, currentShotIndex, countdown === null])
 
   const capturePhoto = async (manualDataUrl = null) => {
     try {
@@ -265,10 +188,8 @@ function App() {
       newPhotos[currentShotIndex] = dataUrl
       setPhotos(newPhotos)
       setIsReviewing(true)
-      
-      // Removed cumulative ghosting - each shot starts fresh
     } catch (err) {
-      console.error("Capture Failed:", err)
+      console.error('Capture Failed:', err)
     }
   }
 
@@ -280,7 +201,6 @@ function App() {
       setCurrentShotIndex(prev => prev + 1)
       setIsReviewing(false)
     }
-    // Reset special mode state for next shot
     setGhosts([])
     setActivePortal(null)
   }
@@ -290,19 +210,13 @@ function App() {
     newPhotos[currentShotIndex] = null
     setPhotos(newPhotos)
     setIsReviewing(false)
-    // Reset special mode state for retake
     setGhosts([])
     setActivePortal(null)
   }
 
-  const handleCetak = () => {
-    setStep(STEPS.PROCESSING)
-  }
+  const handleCetak = () => setStep(STEPS.PROCESSING)
 
-  const handleAddPrint = () => {
-    setIsReprint(true)
-    handleCetak()
-  }
+  const handleAddPrint = () => { setIsReprint(true); handleCetak() }
 
   const resetSession = () => {
     setStep(STEPS.START)
@@ -312,11 +226,6 @@ function App() {
     setHasStartedSession(false)
     setSelectedFrame('classic')
     setSelectedFilter('none')
-    setSelectedMode(null)
-    setSelfPhotoDuration(5)
-    setPrintQuantity(1)
-    setSelectedSelfPhotos([])
-    setSelectedProduct(null)
     setIsReprint(false)
     setIsSpecialMode(false)
     setGhosts([])
@@ -324,40 +233,34 @@ function App() {
     setVideoClips([])
   }
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    setStep(STEPS.START)
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen()
+    } else {
+      document.exitFullscreen()
+    }
   }
 
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <AppBackground />
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-rose-600 z-10"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-rose-600 z-10" />
       </div>
     )
   }
 
-  if (galleryId) {
-    return <PublicGalleryScreen galleryId={galleryId} />
-  }
+  if (galleryId) return <PublicGalleryScreen galleryId={galleryId} />
 
-  const urlParams = new URLSearchParams(window.location.search);
-  const remoteSessionFromUrl = urlParams.get('remoteSession');
+  const urlParams = new URLSearchParams(window.location.search)
+  const remoteSessionFromUrl = urlParams.get('remoteSession')
   if (remoteSessionFromUrl && !deviceSession) {
     return <RemoteController sessionId={remoteSessionFromUrl} />
   }
 
-  if (isCreatorMode) {
-    return <CreatorApp />
-  }
+  if (isCreatorMode) return <CreatorApp />
 
-  if (!deviceSession) {
-    return <DeviceLogin onLogin={setDeviceSession} />
-  }
-
-  const deviceMode = localStorage.getItem('deviceMode') || 'default'
-  const isEventMode = deviceMode === 'event'
+  if (!deviceSession) return <DeviceLogin onLogin={setDeviceSession} />
 
   const currentUser = {
     id: deviceSession.creator_id,
@@ -365,41 +268,9 @@ function App() {
     deviceName: deviceSession.name,
     deviceId: deviceSession.device_id,
     availableFrames: deviceSession.available_frames || [],
-    paymentEnabled: isEventMode ? false : deviceSession.payment_enabled,
-    enablePhotobooth: deviceSession.enable_photobooth ?? true,
-    enableSelfPhoto: deviceSession.enable_self_photo ?? false,
-    selfPhotoDurations: deviceSession.self_photo_durations || [5, 10, 15],
-    deviceMode,
     eventId: deviceSession.event_id,
     eventName: deviceSession.events?.name,
-    eventLogo: deviceSession.events?.logo_url
-  }
-
-  const handleStart = () => {
-    if (isEventMode) {
-      setSelectedMode('photobooth')
-      setStep(STEPS.CUSTOMIZE_FRAME)
-      return
-    }
-
-    if (currentUser.enablePhotobooth && currentUser.enableSelfPhoto) {
-      setStep(STEPS.MODE_SELECT)
-    } else if (currentUser.enableSelfPhoto && !currentUser.enablePhotobooth) {
-      setSelectedMode('self_photo')
-      setStep(STEPS.SP_INSTRUCTIONS)
-    } else {
-      setSelectedMode('photobooth')
-      setStep(STEPS.PRODUCT_SELECT)
-    }
-  }
-
-  const handleModeSelection = (mode) => {
-    setSelectedMode(mode);
-    if (mode === 'self_photo') {
-      setStep(STEPS.SP_INSTRUCTIONS);
-    } else {
-      setStep(STEPS.PRODUCT_SELECT);
-    }
+    eventLogo: deviceSession.events?.logo_url,
   }
 
   if (window.location.pathname === '/settings') {
@@ -408,50 +279,37 @@ function App() {
 
   return (
     <div className="h-screen relative overflow-hidden selection:bg-rose-100 selection:text-rose-900 bg-white transition-colors duration-1000">
-      <AppBackground mode={deviceMode} isHidden={step === STEPS.OUTPUT || step === STEPS.CUSTOMIZE_FRAME || step === STEPS.CUSTOMIZE_FILTER || step === STEPS.PHOTO_ASSIGN} />
+      <AppBackground isHidden={step === STEPS.OUTPUT || step === STEPS.CUSTOMIZE_FRAME || step === STEPS.CUSTOMIZE_FILTER || step === STEPS.PHOTO_ASSIGN} />
 
       <div className="relative z-10 w-full min-h-screen flex flex-col">
+
         {step === STEPS.START && (
           <StartScreen
-            onStart={handleStart}
+            onStart={() => setStep(STEPS.CUSTOMIZE_FRAME)}
             user={currentUser}
-            onLogout={() => { localStorage.removeItem('pb_device_session'); setDeviceSession(null); }}
+            onLogout={() => { localStorage.removeItem('pb_device_session'); setDeviceSession(null) }}
           />
         )}
 
-        {step === STEPS.MODE_SELECT && (
-          <ModeSelectScreen
-            onSelect={handleModeSelection}
-          />
-        )}
-
-        {step === STEPS.PRODUCT_SELECT && (
-          <ProductSelectScreen
-            onSelect={(product) => {
-              setSelectedProduct(product);
-              setStep(currentUser.paymentEnabled ? STEPS.PAYMENT : STEPS.INSTRUCTIONS);
+        {step === STEPS.CUSTOMIZE_FRAME && (
+          <CustomizeScreen
+            mode="frame"
+            photos={photos}
+            selectedFrame={selectedFrame}
+            setSelectedFrame={setSelectedFrame}
+            setSelectedFrameData={setSelectedFrameData}
+            selectedFilter={selectedFilter}
+            onNext={() => {
+              setHasStartedSession(false)
+              setStep(STEPS.CAPTURE)
             }}
-          />
-        )}
-        {step === STEPS.INSTRUCTIONS && (
-          <InstructionsScreen
-            onNext={() => setStep(STEPS.SESSION_SELECT)}
-          />
-        )}
-        {step === STEPS.PAYMENT && <PaymentScreen onPaymentSuccess={() => {
-          if (selectedMode === 'self_photo') {
-            setStep(STEPS.PROCESSING)
-            setTimeout(() => setStep(STEPS.OUTPUT), 3000)
-          } else {
-            setStep(STEPS.INSTRUCTIONS)
-          }
-        }} mode={selectedMode} selfPhotoDuration={selfPhotoDuration} printQuantity={printQuantity} selectedProduct={selectedProduct} />}
-        {step === STEPS.SESSION_SELECT && (
-          <SessionSelectScreen
-            onSelectSession={(shots) => { setMaxCaptures(shots); setStep(STEPS.CUSTOMIZE_FRAME); }}
+            onBack={resetSession}
+            maxCaptures={maxCaptures}
+            setMaxCaptures={setMaxCaptures}
             user={currentUser}
           />
         )}
+
         {step === STEPS.CAPTURE && (
           <CaptureScreen
             videoRef={videoRef}
@@ -491,102 +349,39 @@ function App() {
           />
         )}
 
-        {step === STEPS.SP_INSTRUCTIONS && (
-          <SelfPhotoInstructionsScreen
-            onNext={() => setStep(STEPS.SP_TIME_SELECT)}
-          />
-        )}
-        {step === STEPS.SP_TIME_SELECT && (
-          <SelfPhotoTimeSelectScreen
-            durations={currentUser.selfPhotoDurations}
-            onSelectDuration={(duration) => { setSelfPhotoDuration(duration); setStep(STEPS.SP_CAPTURE); }}
-          />
-        )}
-        {step === STEPS.SP_CAPTURE && (
-          <SelfPhotoCaptureScreen
-            videoRef={videoRef}
-            previewCanvasRef={previewCanvasRef}
-            cameraStatus={status}
-            durationMinutes={selfPhotoDuration}
-            photos={photos}
-            setPhotos={setPhotos}
-            onFinish={() => setStep(STEPS.SP_PHOTO_SELECT)}
-            cameraError={status.error}
-            remoteSessionId={activeRemoteSessionId}
-            captureCamPhoto={captureCamPhoto}
-          />
-        )}
-        {step === STEPS.SP_PHOTO_SELECT && (
-          <SelfPhotoPhotoSelectScreen
-            photos={photos}
-            selectedFrameData={selectedFrameData}
-            selectedPhotos={selectedSelfPhotos}
-            setSelectedPhotos={setSelectedSelfPhotos}
-            onNext={() => setStep(STEPS.CUSTOMIZE_FILTER)}
-          />
-        )}
-        {step === STEPS.SP_PRINT_QUANTITY && (
-          <PrintQuantityScreen
-            quantity={printQuantity}
-            setQuantity={setPrintQuantity}
-            onNext={() => setStep(currentUser.paymentEnabled ? STEPS.PAYMENT : STEPS.PROCESSING)}
-          />
-        )}
-        {step === STEPS.CUSTOMIZE_FRAME && (
-          <CustomizeScreen
-            mode="frame"
-            appMode={selectedMode}
-            photos={photos}
-            selectedFrame={selectedFrame}
-            setSelectedFrame={setSelectedFrame}
-            setSelectedFrameData={setSelectedFrameData}
-            selectedFilter={selectedFilter}
-            onNext={() => {
-              if (photos.length === 0) {
-                setHasStartedSession(false)
-                setStep(STEPS.CAPTURE)
-              } else if (selectedMode === 'self_photo') {
-                setStep(STEPS.SP_PHOTO_SELECT)
-              } else {
-                setStep(STEPS.CUSTOMIZE_FILTER)
-              }
-            }}
-            onBack={resetSession}
-            maxCaptures={maxCaptures}
-            setMaxCaptures={setMaxCaptures}
-            user={currentUser}
-          />
-        )}
         {step === STEPS.CUSTOMIZE_FILTER && (
           <CustomizeScreen
             mode="filter"
-            appMode={selectedMode}
-            photos={selectedMode === 'self_photo' ? selectedSelfPhotos.map(i => photos[i]) : photos}
+            photos={photos}
             selectedFrame={selectedFrame}
             selectedFrameData={selectedFrameData}
             selectedFilter={selectedFilter}
             setSelectedFilter={setSelectedFilter}
-            onCetak={selectedMode === 'self_photo' ? () => setStep(STEPS.SP_PRINT_QUANTITY) : handleCetak}
+            onCetak={handleCetak}
             maxCaptures={maxCaptures}
             user={currentUser}
           />
         )}
-        {step === STEPS.PROCESSING && <ProcessingScreen
-          rawPhotos={photos}
-          compositePhotos={selectedMode === 'self_photo' ? selectedSelfPhotos.map(i => photos[i]) : photos}
-          selectedFrameData={selectedFrameData}
-          selectedFilter={selectedFilter}
-          user={currentUser}
-          printQuantity={printQuantity}
-          selectedMode={selectedMode}
-          isReprint={isReprint}
-          videoClips={videoClips}
-          onFinish={(data) => {
-            if (data) setGalleryData(data)
-            setStep(STEPS.OUTPUT)
-            setIsReprint(false) // Reset after finish
-          }}
-        />}
+
+        {step === STEPS.PROCESSING && (
+          <ProcessingScreen
+            rawPhotos={photos}
+            compositePhotos={photos}
+            selectedFrameData={selectedFrameData}
+            selectedFilter={selectedFilter}
+            user={currentUser}
+            printQuantity={1}
+            selectedMode="photobooth"
+            isReprint={isReprint}
+            videoClips={videoClips}
+            onFinish={(data) => {
+              if (data) setGalleryData(data)
+              setStep(STEPS.OUTPUT)
+              setIsReprint(false)
+            }}
+          />
+        )}
+
         {step === STEPS.OUTPUT && (
           <OutputScreen
             galleryData={galleryData}
@@ -598,7 +393,6 @@ function App() {
 
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Offline / Sync status indicator */}
       {(syncStatus || pendingCount > 0) && (
         <div className={`fixed bottom-4 right-4 z-[999] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold shadow-xl transition-all font-sans ${
           syncStatus === 'done' ? 'bg-emerald-500 text-white' :
@@ -606,7 +400,7 @@ function App() {
           syncStatus === 'offline' ? 'bg-slate-700 text-white' :
           pendingCount > 0 ? 'bg-amber-500 text-white' : ''
         }`}>
-          {syncStatus === 'done' && <><CheckCircle size={14} /> {`Data terkirim ke server`}</>}
+          {syncStatus === 'done' && <><CheckCircle size={14} /> Data terkirim ke server</>}
           {syncStatus === 'syncing' && <><div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Menyinkronkan data...</>}
           {syncStatus === 'offline' && <><WifiOff size={14} /> Tidak ada jaringan</>}
           {!syncStatus && pendingCount > 0 && <><WifiOff size={14} /> {pendingCount} sesi menunggu jaringan</>}

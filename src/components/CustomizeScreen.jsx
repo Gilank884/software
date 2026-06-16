@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Palette, Wand2, Sparkles, Loader2, Image as ImageIcon, ChevronLeft, ChevronRight, Layers, Heart, Star, ArrowLeft } from 'lucide-react'
 import { QRCode } from 'react-qr-code'
 import { supabase } from '../lib/supabaseClient'
-import { getFrameCache, setFrameCache } from '../lib/frameCache'
+import { getFrameCache, setFrameCache, isCacheStale } from '../lib/frameCache'
 
 const FILTER_OPTIONS = [
   { id: 'grayscale', name: 'NOIR', class: 'grayscale', icon: Palette, color: 'from-gray-400 to-slate-900' },
@@ -55,6 +55,30 @@ const CustomizeScreen = ({
     vibrant: "saturate-200 contrast-125"
   };
 
+  const fetchFromSupabase = async (user) => {
+    try {
+      let query = supabase.from('frames').select('*')
+      if (user?.availableFrames && user.availableFrames.length > 0) {
+        query = query.in('id', user.availableFrames)
+      } else if (user?.id) {
+        query = query.eq('user_id', user.id)
+      }
+      const { data, error } = await query
+      if (error) throw error
+      return (data || []).map(f => {
+        if (f.photo_count) return f
+        if (f.slots && Array.isArray(f.slots)) {
+          const unique = [...new Set(f.slots.map(s => s.number))]
+          return { ...f, photo_count: unique.length }
+        }
+        return f
+      })
+    } catch (err) {
+      console.error('[FrameCache] Gagal fetch dari Supabase:', err)
+      return null
+    }
+  }
+
   useEffect(() => {
     const loadFrames = async () => {
       if (mode !== 'frame') return
@@ -74,42 +98,39 @@ const CustomizeScreen = ({
         setLoadingFrames(false)
       }
 
-      // ── Cache-first: cek localStorage sebelum fetch ke Supabase ──
+      // ── Cache-first: tampilkan dari cache dulu (offline-capable) ──
       const cached = getFrameCache(user)
-      if (cached && cached.length > 0) {
-        console.log('[FrameCache] Menggunakan cache lokal:', cached.length, 'frame')
-        applyFrames(cached)
+      if (cached?.frames?.length > 0) {
+        console.log('[FrameCache] Menggunakan cache lokal:', cached.frames.length, 'frame')
+        applyFrames(cached.frames)
+
+        // ── Background refresh: jika online & cache sudah stale, perbarui diam-diam ──
+        if (navigator.onLine && isCacheStale(user)) {
+          console.log('[FrameCache] Cache stale, refresh di background...')
+          fetchFromSupabase(user).then(fresh => {
+            if (fresh) {
+              setFrameCache(user, fresh)
+              console.log('[FrameCache] Cache diperbarui di background:', fresh.length, 'frame')
+            }
+          })
+        }
         return
       }
 
-      // ── Cache miss: fetch dari Supabase ──
-      let query = supabase.from('frames').select('*')
-      if (user?.availableFrames && user.availableFrames.length > 0) {
-        query = query.in('id', user.availableFrames)
-      } else if (user?.id) {
-        query = query.eq('user_id', user.id)
+      // ── Cache miss: fetch dari Supabase (pertama kali / cache kosong) ──
+      if (!navigator.onLine) {
+        console.warn('[FrameCache] Offline & tidak ada cache — tidak bisa load frame')
+        setLoadingFrames(false)
+        return
       }
 
-      const { data, error } = await query
-
-      if (error) {
-        console.error('Failed to load frames:', error)
-        setLoadingFrames(false)
+      const fresh = await fetchFromSupabase(user)
+      if (fresh) {
+        setFrameCache(user, fresh)
+        console.log('[FrameCache] Disimpan ke cache:', fresh.length, 'frame')
+        applyFrames(fresh)
       } else {
-        const processedFrames = (data || []).map(f => {
-          if (f.photo_count) return f
-          if (f.slots && Array.isArray(f.slots)) {
-            const unique = [...new Set(f.slots.map(s => s.number))]
-            return { ...f, photo_count: unique.length }
-          }
-          return f
-        })
-
-        // Simpan ke cache untuk sesi berikutnya
-        setFrameCache(user, processedFrames)
-        console.log('[FrameCache] Disimpan ke cache:', processedFrames.length, 'frame')
-
-        applyFrames(processedFrames)
+        setLoadingFrames(false)
       }
     }
     loadFrames()

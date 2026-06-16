@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Camera, LogOut, Settings, Printer, X, Monitor, RefreshCw, Settings2, AlertCircle, CheckCircle2, Calendar, Minimize2, Smartphone, Wifi, ZoomIn } from 'lucide-react'
+import { Sparkles, Camera, LogOut, Settings, Printer, X, Monitor, RefreshCw, Settings2, AlertCircle, CheckCircle2, Minimize2, Smartphone, ZoomIn, Calendar, Wifi, WifiOff } from 'lucide-react'
 import { QRCode } from 'react-qr-code'
 import { useCamera } from '../hooks/useCamera'
 import ScreenDefault from './ScreenDefault'
-import ScreenEvent from './ScreenEvent'
 
 const StartScreen = ({ onStart, user, onLogout }) => {
   const { status, initCamera, startPreview, stopPreview, setCameraSource, setWebcamDevice, refreshWebcamDevices, setCameraZoom } = useCamera()
@@ -17,10 +16,21 @@ const StartScreen = ({ onStart, user, onLogout }) => {
   const [selectedPrinter, setSelectedPrinter] = useState(localStorage.getItem('selectedPrinter') || '')
   const [selectedPaperSize, setSelectedPaperSize] = useState(localStorage.getItem('selectedPaperSize') || '4r')
   const [autoEpsonMatte, setAutoEpsonMatte] = useState(localStorage.getItem('autoEpsonMatte') === 'true')
-  const [deviceMode, setDeviceMode] = useState(localStorage.getItem('deviceMode') || 'default')
   const [showPrinterModal, setShowPrinterModal] = useState(false)
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
   const previewRef = useRef(null)
   const phoneCanvasRef = useRef(null)
+
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true)
+    const onOffline = () => setIsOnline(false)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }, [])
 
   const handlePrinterTest = (e) => {
     e.stopPropagation()
@@ -94,6 +104,14 @@ const StartScreen = ({ onStart, user, onLogout }) => {
       className="flex-1 flex flex-col items-center justify-center cursor-pointer group px-4 relative overflow-hidden select-none touch-none"
       onClick={handleStart}
     >
+      {/* Network Status Indicator — pojok kiri bawah */}
+      <div className="absolute bottom-6 left-6 z-[150] pointer-events-none">
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all duration-500 ${isOnline ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+          <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
+          {isOnline ? 'Online' : 'Offline'}
+        </div>
+      </div>
+
       {/* Minimize Button in Top Left */}
       <div className="absolute top-10 left-10 z-[150]">
         <button
@@ -109,17 +127,13 @@ const StartScreen = ({ onStart, user, onLogout }) => {
       <div className="absolute top-10 right-10 z-[150]">
         <button
           onClick={(e) => { e.stopPropagation(); setShowExit(!showExit); }}
-          className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg border border-white/20 active:scale-90 ${showExit ? (deviceMode === 'event' ? 'bg-rose-600 text-white' : 'bg-blue-600 text-white') : 'bg-white/10 backdrop-blur-md text-white/40 hover:text-white/80 hover:bg-white/20'}`}
+          className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg border border-white/20 active:scale-90 ${showExit ? 'bg-blue-600 text-white' : 'bg-white/10 backdrop-blur-md text-white/40 hover:text-white/80 hover:bg-white/20'}`}
         >
           {showExit ? <X size={28} /> : <Settings size={28} />}
         </button>
       </div>
 
-      {deviceMode === 'event' ? (
-        <ScreenEvent onStart={handleStart} user={user} />
-      ) : (
-        <ScreenDefault onStart={handleStart} />
-      )}
+      <ScreenDefault onStart={handleStart} />
 
       {/* Control Card (Long Press Triggered) */}
       <AnimatePresence>
@@ -149,6 +163,16 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                 <div>
                   <p className="text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em] leading-none mb-1">Event</p>
                   <p className="text-sm font-black tracking-tight">{user?.eventName || 'Global'}</p>
+                </div>
+              </div>
+              <div className="h-px bg-white/5 mx-1"></div>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-lg transition-all duration-500 ${isOnline ? 'bg-emerald-500 shadow-emerald-500/30' : 'bg-rose-500 shadow-rose-500/30'}`}>
+                  {isOnline ? <Wifi size={20} /> : <WifiOff size={20} />}
+                </div>
+                <div>
+                  <p className={`text-[8px] font-black uppercase tracking-[0.2em] leading-none mb-1 ${isOnline ? 'text-emerald-400' : 'text-rose-400'}`}>Network</p>
+                  <p className="text-sm font-black tracking-tight">{isOnline ? 'Terhubung' : 'Tidak Ada Jaringan'}</p>
                 </div>
               </div>
             </div>
@@ -198,30 +222,6 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                   <span className="text-[11px] font-black text-slate-700">Printer Settings</span>
                 </div>
               </button>
-
-              <div className="h-px bg-slate-100 my-1 mx-2"></div>
-
-              {/* Mode Selection */}
-              <div className="px-2 py-1">
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 block">Application Mode</span>
-                <div className="flex gap-2 p-1 bg-slate-50 rounded-2xl border border-slate-100">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setDeviceMode('default'); localStorage.setItem('deviceMode', 'default'); }}
-                    className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${deviceMode === 'default' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-400'}`}
-                  >
-                    DEFAULT
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setDeviceMode('event'); localStorage.setItem('deviceMode', 'event'); }}
-                    className={`flex-1 py-2 rounded-xl text-[10px] font-black transition-all ${deviceMode === 'event' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400'}`}
-                  >
-                    EVENT
-                  </button>
-                </div>
-                <p className="text-[7px] font-bold text-slate-400 mt-2 px-1 leading-tight">
-                  {deviceMode === 'event' ? '* Mode Event: Gratis/Tanpa Pembayaran' : '* Mode Default: Mengikuti konfigurasi server'}
-                </p>
-              </div>
 
               <div className="h-px bg-slate-100 my-1 mx-2"></div>
 

@@ -1,19 +1,5 @@
 const PREFIX = 'pb_frames_'
-
-// Otomatis clear cache jika halaman di-reload (Ctrl+R / Cmd+Shift+R)
-// Ini berjalan sekali saat modul pertama kali di-import
-;(function clearOnReload() {
-  try {
-    const nav = performance.getEntriesByType('navigation')[0]
-    if (nav?.type === 'reload') {
-      const keys = Object.keys(localStorage).filter(k => k.startsWith(PREFIX))
-      keys.forEach(k => localStorage.removeItem(k))
-      if (keys.length > 0) {
-        console.log(`[FrameCache] Cache dihapus karena reload (${keys.length} key)`)
-      }
-    }
-  } catch (_) {}
-})()
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 jam
 
 function buildKey(user) {
   if (user?.availableFrames?.length > 0) {
@@ -27,18 +13,33 @@ export function getFrameCache(user) {
   try {
     const raw = localStorage.getItem(buildKey(user))
     if (!raw) return null
-    return JSON.parse(raw)
+    const parsed = JSON.parse(raw)
+    // Support format lama (array langsung) maupun format baru {frames, cachedAt}
+    if (Array.isArray(parsed)) return { frames: parsed, cachedAt: 0 }
+    return parsed
   } catch {
     return null
   }
 }
 
-export function setFrameCache(user, data) {
+export function setFrameCache(user, frames) {
   try {
-    localStorage.setItem(buildKey(user), JSON.stringify(data))
+    localStorage.setItem(buildKey(user), JSON.stringify({
+      frames,
+      cachedAt: Date.now()
+    }))
   } catch (e) {
-    // localStorage penuh atau tidak tersedia — tidak fatal
     console.warn('[FrameCache] Tidak bisa simpan ke localStorage:', e)
+  }
+}
+
+export function isCacheStale(user) {
+  try {
+    const cached = getFrameCache(user)
+    if (!cached) return true
+    return (Date.now() - (cached.cachedAt || 0)) > CACHE_TTL_MS
+  } catch {
+    return true
   }
 }
 

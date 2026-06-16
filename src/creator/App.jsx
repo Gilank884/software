@@ -51,27 +51,16 @@ export default function CreatorApp() {
 }
 
 function CreatorDashboard({ user, onSignOut }) {
-  const getBasePath = () => {
-    const path = window.location.pathname
-    return path.startsWith('/creator') ? '/creator' : ''
-  }
-
   const [devices, setDevices] = useState([])
   const [frames, setFrames] = useState([])
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
-  // Initial tab from URL or default to 'devices'
   const getInitialTab = () => {
-    const path = window.location.pathname
-    if (path.includes('/analytics')) return 'analytics'
-    if (path.includes('/events')) return 'events'
-    if (path.includes('/devices')) return 'devices'
-    if (path.includes('/frames')) return 'frames'
-    if (path.includes('/canvas')) return 'canvas'
-    if (path.includes('/settings')) return 'settings'
-    return 'analytics'
+    const hash = window.location.hash.replace('#', '')
+    const valid = ['analytics', 'events', 'devices', 'frames', 'canvas', 'settings']
+    return valid.includes(hash) ? hash : 'analytics'
   }
 
   const [activeTab, setActiveTab] = useState(getInitialTab())
@@ -82,20 +71,16 @@ function CreatorDashboard({ user, onSignOut }) {
     setRefreshing(false)
   }
 
-  const handleTabChange = (tabId, path) => {
-    const basePath = getBasePath()
-    const fullPath = path.startsWith(basePath) ? path : `${basePath}${path}`
+  const handleTabChange = (tabId) => {
     setActiveTab(tabId)
-    window.history.pushState({}, '', fullPath)
+    window.location.hash = tabId
   }
 
   // Handle browser back/forward
   useEffect(() => {
-    const handlePopState = () => {
-      setActiveTab(getInitialTab())
-    }
-    window.addEventListener('popstate', handlePopState)
-    return () => window.removeEventListener('popstate', handlePopState)
+    const handleHashChange = () => setActiveTab(getInitialTab())
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
   }, [])
 
   useEffect(() => {
@@ -141,12 +126,12 @@ function CreatorDashboard({ user, onSignOut }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col relative overflow-y-auto font-sans">
+    <div className="h-screen bg-[#f8fafc] flex flex-col relative overflow-hidden font-sans">
       <CreatorBackground />
 
       {/* Top Navbar */}
       <nav className="relative z-50 bg-white/30 backdrop-blur-xl border-b border-white/40 px-8 py-4 flex items-center justify-between transition-all duration-500">
-        <div className="flex items-center gap-5 cursor-pointer group" onClick={() => handleTabChange('analytics', '/analytics')}>
+        <div className="flex items-center gap-5 cursor-pointer group" onClick={() => handleTabChange('analytics')}>
           <div className="w-11 h-11 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-all duration-500 border border-blue-100/50 shadow-sm shadow-blue-500/10">
             <Monitor size={22} />
           </div>
@@ -181,7 +166,7 @@ function CreatorDashboard({ user, onSignOut }) {
         </div>
       </nav>
 
-      <div className="flex-1 flex max-w-[1700px] w-full mx-auto relative z-10 px-10 py-12 gap-10 overflow-y-auto">
+      <div className="flex-1 flex max-w-[1700px] w-full mx-auto relative z-10 px-10 py-12 gap-10 min-h-0 overflow-hidden">
         <Sidebar
           activeTab={activeTab}
           onTabChange={handleTabChange}
@@ -204,7 +189,6 @@ function CreatorDashboard({ user, onSignOut }) {
             <DevicesView
               user={user}
               devices={devices}
-              frames={frames}
               events={events}
               onRefresh={fetchDevices}
             />

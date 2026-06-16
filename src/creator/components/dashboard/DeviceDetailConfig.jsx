@@ -1,58 +1,34 @@
 import { useState, useEffect } from 'react'
-import { Monitor, ShieldCheck, Palette, Smartphone, Check, Layout, Trash2, Copy, Loader2, Save, Calendar, ChevronLeft } from 'lucide-react'
+import { Smartphone, Check, Layout, Loader2, Save, ChevronLeft } from 'lucide-react'
 import PageHeader from './PageHeader'
 
-export default function DeviceDetailConfig({ device, availableFrames, events, onUpdate, onBack }) {
-  const [localPayment, setLocalPayment] = useState(device.payment_enabled)
-  const [localPhotobooth, setLocalPhotobooth] = useState(device.enable_photobooth ?? true)
-  const [localSelfPhoto, setLocalSelfPhoto] = useState(device.enable_self_photo ?? false)
+export default function DeviceDetailConfig({ device, availableFrames, onUpdate, onBack }) {
   const [localFrames, setLocalFrames] = useState(device.available_frames || [])
-  const [localDurations, setLocalDurations] = useState(device.self_photo_durations || [5, 10, 15])
-  const [localEventId, setLocalEventId] = useState(device.event_id || '')
-  const [newDuration, setNewDuration] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
-  // Sync with device prop if it changes externally
   useEffect(() => {
-    setLocalPayment(device.payment_enabled)
-    setLocalPhotobooth(device.enable_photobooth ?? true)
-    setLocalSelfPhoto(device.enable_self_photo ?? false)
     setLocalFrames(device.available_frames || [])
-    setLocalDurations(device.self_photo_durations || [5, 10, 15])
-    setLocalEventId(device.event_id || '')
   }, [device])
 
-  const hasChanges = localPayment !== device.payment_enabled || 
-                     localPhotobooth !== (device.enable_photobooth ?? true) ||
-                     localSelfPhoto !== (device.enable_self_photo ?? false) ||
-                     localEventId !== (device.event_id || '') ||
-                     JSON.stringify(localDurations) !== JSON.stringify(device.self_photo_durations || [5, 10, 15]) ||
-                     JSON.stringify([...localFrames].sort()) !== JSON.stringify([...(device.available_frames || [])].sort())
+  const hasChanges = JSON.stringify([...localFrames].sort()) !== JSON.stringify([...(device.available_frames || [])].sort())
 
   const handleSave = async () => {
     setIsSaving(true)
-    await onUpdate(device.id, { 
-      payment_enabled: localPayment,
-      enable_photobooth: localPhotobooth,
-      enable_self_photo: localSelfPhoto,
-      self_photo_durations: localDurations,
-      available_frames: localFrames,
-      event_id: localEventId || null
-    })
+    await onUpdate(device.id, { available_frames: localFrames })
     setIsSaving(false)
   }
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-right-4 duration-500 pb-20 custom-scrollbar overflow-y-auto pr-6">
       <PageHeader
-        badge="UNIT CONFIGURATION • OPERATIONAL PARAMETERS"
+        badge="UNIT CONFIGURATION • FRAME ASSIGNMENT"
         titleMain={device.name}
         titleHighlight="Settings"
-        description="Configure hardware identity, payment gateways, and operational modes for this specific deployment."
+        description="Pilih frame yang tersedia untuk perangkat ini dan hubungkan ke event."
         icon={Smartphone}
       >
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-          <button 
+          <button
             onClick={onBack}
             className="w-14 h-14 bg-white/60 backdrop-blur-xl border border-white/40 rounded-2xl flex items-center justify-center text-slate-400 hover:text-blue-600 transition-all shadow-sm active:scale-95 group"
           >
@@ -60,7 +36,7 @@ export default function DeviceDetailConfig({ device, availableFrames, events, on
           </button>
 
           {hasChanges ? (
-            <button 
+            <button
               onClick={handleSave}
               disabled={isSaving}
               className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-[1.25rem] font-black text-xs uppercase tracking-[0.2em] border-b-4 border-blue-800 active:scale-95 transition-all flex items-center gap-3 shadow-xl shadow-blue-500/20 animate-in zoom-in duration-300"
@@ -77,151 +53,8 @@ export default function DeviceDetailConfig({ device, availableFrames, events, on
         </div>
       </PageHeader>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-        <div className="space-y-10">
-          <div className="bg-white/60 backdrop-blur-xl border border-white/40 rounded-[2.5rem] p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative group overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity">
-              <Calendar size={120} />
-            </div>
-            
-            <div className="flex items-center gap-5 mb-10">
-              <div className="w-14 h-14 bg-blue-500 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-                <Calendar size={28} />
-              </div>
-              <div>
-                <h4 className="text-lg font-black text-slate-800 tracking-tight">Event Association</h4>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mt-1">Logical Grouping</p>
-              </div>
-            </div>
-            
-            <div className="space-y-4">
-              <p className="text-sm text-slate-500 leading-relaxed font-medium">
-                Hubungkan perangkat ini ke event tertentu untuk mempermudah manajemen dan pelaporan.
-              </p>
-              
-              <div className="relative">
-                <Calendar size={18} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" />
-                <select 
-                  value={localEventId}
-                  onChange={e => setLocalEventId(e.target.value)}
-                  className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-16 pr-8 py-5 font-black text-slate-800 placeholder:text-slate-300 focus:outline-none focus:border-blue-500 focus:bg-white transition-all shadow-sm appearance-none cursor-pointer"
-                >
-                  <option value="">No Special Event</option>
-                  {events.map(ev => (
-                    <option key={ev.id} value={ev.id}>{ev.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white/60 backdrop-blur-xl border border-white/40 rounded-[2.5rem] p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative group overflow-hidden">
-            <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity">
-              <ShieldCheck size={120} />
-            </div>
-            
-            <div className="flex items-center gap-5 mb-10">
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-500 ${localPayment ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-slate-100 text-slate-400'}`}>
-                <ShieldCheck size={28} />
-              </div>
-              <div>
-                <h4 className="text-lg font-black text-slate-800 tracking-tight">Payment Gateway</h4>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mt-1">Managed via QRIS System</p>
-              </div>
-            </div>
-            
-            <div className="space-y-6">
-              <p className="text-sm text-slate-500 leading-relaxed font-medium">
-                Aktifkan pembayaran otomatis untuk setiap sesi foto. Pengguna wajib melakukan pembayaran via QRIS sebelum sistem kamera aktif.
-              </p>
-              
-              <button 
-                onClick={() => setLocalPayment(!localPayment)}
-                className={`w-full py-5 rounded-2xl font-bold flex items-center justify-center gap-4 transition-all duration-500 border-2 ${localPayment ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-slate-50 text-slate-400 border-slate-100 hover:border-slate-200'}`}
-              >
-                <div className={`w-3 h-3 rounded-full ${localPayment ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
-                {localPayment ? 'Payment Active' : 'Payment Disabled'}
-              </button>
-            </div>
-            
-            {/* Mode Configuration */}
-            <div className="mt-10 border-t border-slate-100/50 pt-8">
-              <h5 className="text-sm font-black text-slate-800 tracking-tight mb-4">Device Application Modes</h5>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-white/50">
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">Photobooth / Photobox</p>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Standard 3-shot layout mode</p>
-                  </div>
-                  <button 
-                    onClick={() => setLocalPhotobooth(!localPhotobooth)}
-                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ${localPhotobooth ? 'bg-blue-500' : 'bg-slate-200'}`}
-                  >
-                    <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all duration-300 shadow-sm ${localPhotobooth ? 'left-7' : 'left-1'}`} />
-                  </button>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-white/50">
-                  <div>
-                    <p className="text-sm font-bold text-slate-800">Self Photo</p>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1">Free-roaming timer mode</p>
-                  </div>
-                  <button 
-                    onClick={() => setLocalSelfPhoto(!localSelfPhoto)}
-                    className={`relative w-14 h-8 rounded-full transition-all duration-300 ${localSelfPhoto ? 'bg-emerald-500' : 'bg-slate-200'}`}
-                  >
-                    <div className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all duration-300 shadow-sm ${localSelfPhoto ? 'left-7' : 'left-1'}`} />
-                  </button>
-                </div>
-
-                {localSelfPhoto && (
-                  <div className="mt-4 p-4 rounded-xl border border-emerald-100 bg-emerald-50/30 animate-in slide-in-from-top-2 duration-300">
-                    <p className="text-[10px] text-emerald-600 font-black uppercase tracking-widest mb-3">Self Photo Durations (Minutes)</p>
-                    
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {localDurations.map((dur, i) => (
-                        <div key={i} className="bg-white border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-2 group shadow-sm">
-                          <span className="text-sm font-black text-slate-700">{dur < 1 ? `${dur * 60}s` : `${dur}m`}</span>
-                          <button 
-                            onClick={() => setLocalDurations(localDurations.filter((_, idx) => idx !== i))}
-                            className="text-slate-300 hover:text-rose-500 transition-colors"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex gap-2">
-                      <input 
-                        type="number" 
-                        step="0.1"
-                        placeholder="Min..."
-                        className="flex-1 px-3 py-2 rounded-lg border border-emerald-200 outline-none focus:ring-2 focus:ring-emerald-500/20 text-sm font-bold"
-                        value={newDuration}
-                        onChange={(e) => setNewDuration(e.target.value)}
-                      />
-                      <button 
-                        onClick={() => {
-                          if (newDuration && !isNaN(newDuration)) {
-                            setLocalDurations([...localDurations, parseFloat(newDuration)].sort((a,b) => a-b))
-                            setNewDuration('')
-                          }
-                        }}
-                        className="bg-emerald-500 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-emerald-600 transition-colors"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <p className="text-[9px] text-slate-400 mt-2 italic font-medium">Use 0.5 for 30 seconds</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Frames Authorization */}
+      <div>
+        {/* Frames */}
         <div className="bg-white/60 backdrop-blur-xl border border-white/40 rounded-[2.5rem] p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative group overflow-hidden flex flex-col">
           <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity">
             <Layout size={120} />
@@ -233,33 +66,58 @@ export default function DeviceDetailConfig({ device, availableFrames, events, on
             </div>
             <div>
               <h4 className="text-lg font-black text-slate-800 tracking-tight">Authorized Frames</h4>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mt-1">Device Access Control</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.15em] mt-1">
+                {localFrames.length} Frame dipilih
+              </p>
             </div>
           </div>
 
-          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-3 custom-scrollbar flex-1">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5 max-h-[560px] overflow-y-auto pr-2 custom-scrollbar">
+            {availableFrames.length === 0 && (
+              <p className="col-span-full text-slate-400 text-sm font-medium text-center py-10 italic">
+                Belum ada frame tersedia. Buat frame dulu di menu Frames.
+              </p>
+            )}
             {availableFrames.map(frame => {
               const isSelected = localFrames.includes(frame.id)
+              const photoCount = Array.isArray(frame.slots) ? frame.slots.length : 0
               return (
-                <div 
+                <div
                   key={frame.id}
                   onClick={() => {
-                    const next = isSelected 
+                    const next = isSelected
                       ? localFrames.filter(id => id !== frame.id)
                       : [...localFrames, frame.id]
                     setLocalFrames(next)
                   }}
-                  className={`p-4 rounded-[1.25rem] border-2 transition-all duration-300 cursor-pointer flex items-center gap-4 ${isSelected ? 'border-blue-500/20 bg-blue-500/5 shadow-sm' : 'border-slate-100 bg-white/40 hover:border-slate-200 hover:bg-white'}`}
+                  className={`relative rounded-2xl border-2 overflow-hidden cursor-pointer transition-all duration-300 group ${isSelected ? 'border-blue-500 shadow-lg shadow-blue-500/20 scale-[1.02]' : 'border-slate-200 hover:border-slate-300 hover:shadow-md'}`}
                 >
-                  <div className="w-14 h-14 bg-slate-100 rounded-xl overflow-hidden border border-slate-200 flex-shrink-0 relative group">
-                    <img src={frame.image_url} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt={frame.name} />
+                  {/* Frame preview — proporsional */}
+                  <div className="bg-slate-100 w-full">
+                    <img
+                      src={frame.image_url}
+                      alt={frame.name}
+                      loading="lazy"
+                      className="w-full h-auto object-contain"
+                    />
                   </div>
-                  <div className="flex-1 overflow-hidden">
-                    <p className="text-sm font-black text-slate-800 truncate">{frame.name}</p>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Template ID: {frame.id.slice(0,8)}</p>
+
+                  {/* Badge jumlah foto */}
+                  {photoCount > 0 && (
+                    <div className="absolute top-2 left-2 bg-slate-900/70 backdrop-blur-sm text-white text-[10px] font-black px-2.5 py-1 rounded-lg flex items-center gap-1.5">
+                      <span className="text-blue-300">▣</span>
+                      {photoCount} Foto
+                    </div>
+                  )}
+
+                  {/* Centang jika dipilih */}
+                  <div className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 ${isSelected ? 'bg-blue-500 text-white scale-110 shadow-lg' : 'bg-white/80 text-transparent border border-slate-200'}`}>
+                    <Check size={13} strokeWidth={4} />
                   </div>
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${isSelected ? 'bg-blue-500 text-white scale-110' : 'bg-slate-100 text-transparent'}`}>
-                    <Check size={14} strokeWidth={4} />
+
+                  {/* Nama frame */}
+                  <div className={`px-3 py-2.5 border-t transition-colors ${isSelected ? 'bg-blue-50 border-blue-100' : 'bg-white border-slate-100'}`}>
+                    <p className={`text-[11px] font-black truncate ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>{frame.name}</p>
                   </div>
                 </div>
               )

@@ -1,10 +1,10 @@
-import { useState } from 'react'
-import { Plus, Monitor, Check, Copy, Trash2, Loader2, Smartphone, ShieldCheck, Layout, Calendar } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, Monitor, Check, Copy, Trash2, Loader2, Smartphone, Calendar } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 import DeviceDetailConfig from './DeviceDetailConfig'
 import PageHeader from './PageHeader'
 
-export default function DevicesView({ user, devices, frames, events, onRefresh }) {
+export default function DevicesView({ user, devices, events, onRefresh }) {
   const [selectedDevice, setSelectedDevice] = useState(null)
   const [isAdding, setIsAdding] = useState(false)
   const [newDeviceName, setNewDeviceName] = useState('')
@@ -12,6 +12,19 @@ export default function DevicesView({ user, devices, frames, events, onRefresh }
   const [copying, setCopying] = useState(null)
   const [filterEventId, setFilterEventId] = useState('all')
   const [newEventEventId, setNewEventEventId] = useState('')
+  const [localFrames, setLocalFrames] = useState([])
+
+  useEffect(() => {
+    const fetchFrames = async () => {
+      let query = supabase.from('frames').select('id, name, image_url, slots')
+      if (!user?.isAdmin) {
+        query = query.eq('user_id', user.id)
+      }
+      const { data } = await query.order('created_at', { ascending: false })
+      setLocalFrames(data || [])
+    }
+    if (user?.id) fetchFrames()
+  }, [user?.id])
 
   const handleCopy = (code) => {
     navigator.clipboard.writeText(code)
@@ -91,10 +104,9 @@ export default function DevicesView({ user, devices, frames, events, onRefresh }
 
   if (selectedDevice) {
     return (
-      <DeviceDetailConfig 
-        device={selectedDevice} 
-        availableFrames={frames}
-        events={events}
+      <DeviceDetailConfig
+        device={selectedDevice}
+        availableFrames={localFrames}
         onUpdate={updateDeviceConfig}
         onBack={() => setSelectedDevice(null)}
       />

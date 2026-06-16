@@ -1,18 +1,31 @@
-import { useState } from 'react'
-import { CheckCircle2, RefreshCcw, ScanLine, Printer, Sparkles, Heart, Star, PartyPopper, X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { CheckCircle2, RefreshCcw, ScanLine, Printer, Sparkles, Heart, Star, PartyPopper, X, WifiOff } from 'lucide-react'
 import { QRCode } from 'react-qr-code'
 import { AnimatePresence, motion } from 'framer-motion'
 import StepWrapper from './StepWrapper'
 
 const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
   const [activeMedia, setActiveMedia] = useState(null)
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
 
-  // In production/release, we use the main domain for the gallery link
   const galleryBase = import.meta.env.VITE_GALLERY_URL || (import.meta.env.DEV ? window.location.origin : "https://fotoku.latarcerita.com");
-  
-  const galleryUrl = galleryData?.sessionId 
-    ? `${galleryBase}/?gallery=${galleryData.sessionId}` 
+
+  const galleryUrl = galleryData?.sessionId
+    ? `${galleryBase}/?gallery=${galleryData.sessionId}`
     : galleryBase;
+
+  const isOfflinePending = galleryData?.offline === true
+
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true)
+    const onOffline = () => setIsOnline(false)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+    }
+  }, [])
 
   return (
     <StepWrapper title="" subtitle="">
@@ -45,35 +58,48 @@ const OutputScreen = ({ galleryData, onReset, onAddPrint }) => {
 
       <div className="w-full flex flex-col md:flex-row items-center gap-2 py-2 h-full relative z-10">
         
-        {/* Leftmost: QR Code Panel (No Card) */}
+        {/* Leftmost: QR Code Panel — selalu tampil */}
         <div className="flex flex-col items-center justify-center transition-all duration-1000 pl-12 shrink-0 z-10">
           <div className="flex flex-col items-center animate-in zoom-in-95 duration-700">
+
             <div className="w-14 h-14 bg-gradient-to-br from-rose-500 to-red-600 text-white rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-rose-200">
-               <ScanLine size={28} />
+              <ScanLine size={28} />
             </div>
-            
-            <div className="bg-white p-3 rounded-2xl border-4 border-slate-50 shadow-sm mb-4">
-              <QRCode 
-                value={galleryUrl} 
+
+            {/* QR selalu tampil — gallery page yang handle state pending */}
+            <div className="bg-white p-3 rounded-2xl border-4 border-slate-50 shadow-sm mb-4 relative">
+              <QRCode
+                value={galleryUrl}
                 size={200}
                 bgColor="#ffffff"
                 fgColor="#0f172a"
                 level="H"
               />
+              {/* Badge pending tipis di atas QR saat offline */}
+              {isOfflinePending && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-amber-400 text-white text-[9px] font-black px-3 py-1 rounded-full shadow-md whitespace-nowrap">
+                  <WifiOff size={10} /> Akan tersedia saat online
+                </div>
+              )}
             </div>
-            
+
             <h3 className="text-5xl font-black text-fun-gradient tracking-tight text-center mb-1 font-caveat drop-shadow-sm px-4">Scan Here!</h3>
-            <p className="text-slate-500 text-sm font-medium text-center animate-pulse mb-6">Get all your photos!</p>
+
+            {isOfflinePending ? (
+              <p className="text-amber-500 text-sm font-bold text-center font-sans mb-6 animate-pulse">
+                {isOnline ? 'Sedang mengirim foto...' : 'Foto akan muncul saat jaringan tersedia'}
+              </p>
+            ) : (
+              <p className="text-slate-500 text-sm font-medium text-center animate-pulse mb-6">Get all your photos!</p>
+            )}
 
             <div className="flex flex-col items-center gap-3 w-full">
-              {/* Finish Button */}
               <button
                 onClick={onReset}
                 className="w-full px-10 py-4 bg-slate-900 text-white rounded-[20px] font-black font-sans uppercase text-sm tracking-[0.2em] shadow-xl hover:bg-rose-600 transition-all flex items-center justify-center gap-4 group"
               >
                 Finish <RefreshCcw size={18} className="group-hover:rotate-180 transition-transform duration-1000" />
               </button>
-              
               <p className="text-center mt-2 text-slate-400 font-sans font-bold text-[8px] uppercase tracking-[0.3em] animate-pulse">
                 Thank you for using Latarcerita
               </p>

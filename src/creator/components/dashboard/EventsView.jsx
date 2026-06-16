@@ -20,6 +20,9 @@ export default function EventsView({ user, events, devices, onRefresh }) {
   const [eventCaptures, setEventCaptures] = useState([])
   const [loadingCaptures, setLoadingCaptures] = useState(false)
   const [selectedCapture, setSelectedCapture] = useState(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalCaptures, setTotalCaptures] = useState(0)
+  const PHOTOS_PER_PAGE = 4
 
   // Printer Settings State
   const [printers, setPrinters] = useState([])
@@ -66,17 +69,18 @@ export default function EventsView({ user, events, devices, onRefresh }) {
     setAllCaptures(data || [])
   }
 
-  const fetchEventCaptures = async (eventId) => {
+  const fetchEventCaptures = async (eventId, page = 1) => {
     setLoadingCaptures(true)
+    const from = (page - 1) * PHOTOS_PER_PAGE
+    const to = from + PHOTOS_PER_PAGE - 1
+
     const { data, error } = await supabase
       .from('captures')
-      .select(`
-        *,
-        frames (name)
-      `)
+      .select('id, image_url, session_id, created_at')
       .eq('event_id', eventId)
       .order('created_at', { ascending: false })
-    
+      .range(from, to)
+
     if (error) {
       console.error('Error fetching event captures:', error)
       setEventCaptures([])
@@ -87,6 +91,14 @@ export default function EventsView({ user, events, devices, onRefresh }) {
       setEventCaptures(data || [])
     }
     setLoadingCaptures(false)
+  }
+
+  const getThumbUrl = (url, width = 600) => {
+    if (!url) return url
+    if (url.includes('/storage/v1/object/public/')) {
+      return url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + `?width=${width}&quality=75&resize=cover`
+    }
+    return url
   }
 
   const handlePrint = async (imageUrl) => {
@@ -183,7 +195,15 @@ export default function EventsView({ user, events, devices, onRefresh }) {
 
   const handleEventClick = (event) => {
     setSelectedEvent(event)
-    fetchEventCaptures(event.id)
+    setCurrentPage(1)
+    setTotalCaptures(allCaptures.filter(c => c.event_id === event.id).length)
+    fetchEventCaptures(event.id, 1)
+  }
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page)
+    fetchEventCaptures(selectedEvent.id, page)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
   const handleSave = async (e) => {
     e.preventDefault()
@@ -391,7 +411,9 @@ export default function EventsView({ user, events, devices, onRefresh }) {
             <div className="w-full md:w-96 bg-white flex flex-col p-10 border-l border-slate-200">
                <div className="mb-10">
                   <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-3 py-1 rounded-full">Photo Identity</span>
-                  <h3 className="text-3xl font-black text-slate-900 mt-4 tracking-tight">#{selectedCapture.id.slice(0, 8).toUpperCase()}</h3>
+                  <h3 className="text-3xl font-black text-slate-900 mt-4 tracking-tight">
+                    Sesi #{selectedCapture.sessionNumber ?? '—'}
+                  </h3>
                   <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2">
                     Captured at {new Date(selectedCapture.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </p>
@@ -557,30 +579,95 @@ export default function EventsView({ user, events, devices, onRefresh }) {
               <p className="text-slate-300 text-[10px] mt-2 italic font-medium">Session results will appear here once guests start posing.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-              {eventCaptures.map((capture) => (
-                <div 
-                  key={capture.id}
-                  onClick={() => setSelectedCapture(capture)}
-                  className="group bg-white/60 backdrop-blur-xl border border-white/40 rounded-none p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.08)] transition-all duration-700 cursor-pointer"
-                >
-                  <div className="relative aspect-[2/3] rounded-none overflow-hidden bg-slate-100 mb-6">
-                    <img src={capture.image_url} alt="Capture" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                    <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col items-center justify-center gap-4">
-                      <div className="bg-white/20 backdrop-blur-md border border-white/20 p-4 rounded-full text-white">
-                         <Eye size={32} />
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                {eventCaptures.map((capture, index) => {
+                  const sessionNumber = totalCaptures - ((currentPage - 1) * PHOTOS_PER_PAGE + index)
+                  return (
+                    <div
+                      key={capture.id}
+                      onClick={() => setSelectedCapture({ ...capture, sessionNumber })}
+                      className="group bg-white/60 backdrop-blur-xl border border-white/40 rounded-none p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.08)] transition-all duration-700 cursor-pointer"
+                    >
+                      <div className="relative aspect-[2/3] rounded-none overflow-hidden bg-slate-100 mb-4">
+                        <img
+                          src={getThumbUrl(capture.image_url, 600)}
+                          onError={(e) => { e.target.onerror = null; e.target.src = capture.image_url }}
+                          alt="Capture"
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        />
+                        {/* Nomor sesi — badge di atas foto */}
+                        <div className="absolute top-2 left-2 bg-slate-900/70 backdrop-blur-sm text-white px-2.5 py-1 rounded-lg">
+                          <span className="text-[10px] font-black tracking-widest">Sesi #{sessionNumber}</span>
+                        </div>
+                        <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col items-center justify-center gap-4">
+                          <div className="bg-white/20 backdrop-blur-md border border-white/20 p-4 rounded-full text-white">
+                             <Eye size={32} />
+                          </div>
+                          <p className="text-white font-black text-[10px] uppercase tracking-[0.2em] animate-pulse">View & Print</p>
+                        </div>
                       </div>
-                      <p className="text-white font-black text-[10px] uppercase tracking-[0.2em] animate-pulse">View & Print</p>
+                      <div className="px-2 pb-2 text-center">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-none">
+                          {new Date(capture.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="px-2 pb-2 text-center">
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] leading-none">
-                       {new Date(capture.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                     </p>
+                  )
+                })}
+              </div>
+
+              {/* Pagination */}
+              {totalCaptures > PHOTOS_PER_PAGE && (
+                <div className="flex items-center justify-between pt-8 border-t border-slate-100 mt-4">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Halaman {currentPage} dari {Math.ceil(totalCaptures / PHOTOS_PER_PAGE)} &nbsp;·&nbsp; {totalCaptures} Foto
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1 || loadingCaptures}
+                      className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    >
+                      ← Prev
+                    </button>
+
+                    {Array.from({ length: Math.ceil(totalCaptures / PHOTOS_PER_PAGE) }, (_, i) => i + 1)
+                      .filter(p => p === 1 || p === Math.ceil(totalCaptures / PHOTOS_PER_PAGE) || Math.abs(p - currentPage) <= 1)
+                      .reduce((acc, p, idx, arr) => {
+                        if (idx > 0 && arr[idx - 1] !== p - 1) acc.push('...')
+                        acc.push(p)
+                        return acc
+                      }, [])
+                      .map((p, idx) =>
+                        p === '...' ? (
+                          <span key={`ellipsis-${idx}`} className="px-2 text-slate-300 font-black text-[10px]">···</span>
+                        ) : (
+                          <button
+                            key={p}
+                            onClick={() => handlePageChange(p)}
+                            disabled={loadingCaptures}
+                            className={`w-10 h-10 rounded-xl font-black text-[10px] border transition-all ${currentPage === p ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/30' : 'bg-white text-slate-600 border-slate-200 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-600'}`}
+                          >
+                            {p}
+                          </button>
+                        )
+                      )
+                    }
+
+                    <button
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === Math.ceil(totalCaptures / PHOTOS_PER_PAGE) || loadingCaptures}
+                      className="px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    >
+                      Next →
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       ) : (

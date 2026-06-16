@@ -6,12 +6,12 @@ export default function Sidebar({ activeTab, onTabChange, onSignOut, user }) {
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   const tabs = [
-    { id: 'analytics', label: 'Analytics', icon: BarChart3, path: '/analytics' },
-    { id: 'events', label: 'Events', icon: Calendar, path: '/events' },
-    { id: 'devices', label: 'Devices', icon: Smartphone, path: '/devices' },
-    { id: 'frames', label: 'Frames', icon: LayoutGrid, path: '/frames' },
-    { id: 'canvas', label: 'Canvas Editor', icon: Palette, path: '/canvas' },
-    { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'events', label: 'Events', icon: Calendar },
+    { id: 'devices', label: 'Devices', icon: Smartphone },
+    { id: 'frames', label: 'Frames', icon: LayoutGrid },
+    { id: 'canvas', label: 'Canvas Editor', icon: Palette },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ]
 
   return (
@@ -19,7 +19,7 @@ export default function Sidebar({ activeTab, onTabChange, onSignOut, user }) {
       initial={false}
       animate={{ width: isCollapsed ? 84 : 280 }}
       transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      className="bg-white/30 backdrop-blur-xl border border-white/40 rounded-[2.5rem] flex flex-col items-center py-8 shadow-[0_8px_40px_rgba(0,0,0,0.03)] h-fit relative z-40 transition-colors duration-500"
+      className="bg-white/30 backdrop-blur-xl border border-white/40 rounded-[2.5rem] flex flex-col items-center py-8 shadow-[0_8px_40px_rgba(0,0,0,0.03)] self-start sticky top-0 relative z-40 transition-colors duration-500"
     >
       <div className="w-full px-4 space-y-2.5">
         {tabs.map((tab) => {
@@ -29,7 +29,7 @@ export default function Sidebar({ activeTab, onTabChange, onSignOut, user }) {
           return (
             <button 
               key={tab.id}
-              onClick={() => onTabChange(tab.id, tab.path)}
+              onClick={() => onTabChange(tab.id)}
               className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'px-5'} py-4 rounded-3xl font-bold transition-all group relative ${
                 isActive 
                   ? 'bg-blue-600 text-white shadow-xl shadow-blue-600/20' 
