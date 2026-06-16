@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity, ChevronRight, ArrowLeft, Download, Eye, Smartphone, ImageIcon, RefreshCcw, Printer, AlertCircle } from 'lucide-react'
+import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity, ChevronRight, ArrowLeft, Download, Eye, Smartphone, ImageIcon, RefreshCcw, Printer, AlertCircle, HardDrive } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 import PageHeader from './PageHeader'
 
@@ -23,6 +23,10 @@ export default function EventsView({ user, events, devices, onRefresh }) {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalCaptures, setTotalCaptures] = useState(0)
   const PHOTOS_PER_PAGE = 4
+
+  // Storage usage state untuk event yang sedang dibuka
+  const [eventStorageBytes, setEventStorageBytes] = useState(null) // null=belum dihitung, number=bytes
+  const [loadingStorage, setLoadingStorage] = useState(false)
 
   // Printer Settings State
   const [printers, setPrinters] = useState([])
@@ -91,6 +95,46 @@ export default function EventsView({ user, events, devices, onRefresh }) {
       setEventCaptures(data || [])
     }
     setLoadingCaptures(false)
+  }
+
+  const formatBytes = (bytes) => {
+    if (bytes === 0) return '0 B'
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+  }
+
+  const calculateEventStorage = async (eventId) => {
+    setLoadingStorage(true)
+    setEventStorageBytes(null)
+    try {
+      const { data: caps } = await supabase
+        .from('captures')
+        .select('image_url, raw_photos')
+        .eq('event_id', eventId)
+
+      const urls = []
+      for (const cap of (caps || [])) {
+        if (cap.image_url) urls.push(cap.image_url)
+        if (Array.isArray(cap.raw_photos)) urls.push(...cap.raw_photos)
+      }
+
+      if (urls.length === 0) { setEventStorageBytes(0); return }
+
+      const results = await Promise.allSettled(
+        urls.map(url =>
+          fetch(url, { method: 'HEAD' })
+            .then(r => parseInt(r.headers.get('content-length') || '0', 10))
+            .catch(() => 0)
+        )
+      )
+      const total = results.reduce((sum, r) => sum + (r.status === 'fulfilled' ? r.value : 0), 0)
+      setEventStorageBytes(total)
+    } catch {
+      setEventStorageBytes(0)
+    } finally {
+      setLoadingStorage(false)
+    }
   }
 
   const getThumbUrl = (url, width = 600) => {
@@ -198,6 +242,7 @@ export default function EventsView({ user, events, devices, onRefresh }) {
     setCurrentPage(1)
     setTotalCaptures(allCaptures.filter(c => c.event_id === event.id).length)
     fetchEventCaptures(event.id, 1)
+    calculateEventStorage(event.id)
   }
 
   const handlePageChange = (page) => {
@@ -285,21 +330,64 @@ export default function EventsView({ user, events, devices, onRefresh }) {
     setIsSaving(false)
   }
 
+  // Ekstrak storage path dari public URL, misal:
+  // "https://xxx.supabase.co/storage/v1/object/public/frames/captures/uid/file.png"
+  // → "captures/uid/file.png"
+  const extractStoragePath = (url, bucket) => {
+    try {
+      const marker = `/storage/v1/object/public/${bucket}/`
+      const idx = url.indexOf(marker)
+      if (idx === -1) return null
+      return decodeURIComponent(url.slice(idx + marker.length).split('?')[0])
+    } catch {
+      return null
+    }
+  }
+
+  // Hapus file-file foto dari Supabase Storage berdasarkan daftar captures
+  const deleteCapureFilesFromStorage = async (captures) => {
+    const paths = []
+    for (const cap of captures) {
+      if (cap.image_url) {
+        const p = extractStoragePath(cap.image_url, 'frames')
+        if (p) paths.push(p)
+      }
+      if (Array.isArray(cap.raw_photos)) {
+        for (const rawUrl of cap.raw_photos) {
+          const p = extractStoragePath(rawUrl, 'frames')
+          if (p) paths.push(p)
+        }
+      }
+    }
+    // Hapus per batch 100 (batas Supabase)
+    for (let i = 0; i < paths.length; i += 100) {
+      await supabase.storage.from('frames').remove(paths.slice(i, i + 100))
+    }
+  }
+
   const deleteEvent = async (e, event) => {
     e.stopPropagation()
     const id = event.id
-    if (!confirm(`Hapus event "${event.name}"? \n\nPERHATIAN: Semua foto (captures) dan data terkait dalam event ini akan dihapus secara permanen!`)) return
-    
+    if (!confirm(`Hapus event "${event.name}"? \n\nPERHATIAN: Semua foto (captures) dan data terkait dalam event ini akan dihapus secara permanen dari database dan storage!`)) return
+
     try {
-      // 1. Delete all captures associated with this event
+      // 1. Ambil semua captures untuk hapus filenya dari storage
+      const { data: captures } = await supabase
+        .from('captures')
+        .select('id, image_url, raw_photos')
+        .eq('event_id', id)
+
+      if (captures?.length) await deleteCapureFilesFromStorage(captures)
+
+      // 2. Hapus record captures dari database
       const { error: capturesError } = await supabase
         .from('captures')
         .delete()
         .eq('event_id', id)
-      
+
       if (capturesError) console.error('Error deleting event captures:', capturesError)
 
-      // 2. Delete event logo from storage if it exists
+      // 3. Hapus logo event dari storage
       if (event.logo_url) {
         try {
           const urlParts = event.logo_url.split('/')
@@ -310,12 +398,12 @@ export default function EventsView({ user, events, devices, onRefresh }) {
         }
       }
 
-      // 3. Delete the event itself
+      // 4. Hapus event itu sendiri
       const { error: eventError } = await supabase
         .from('events')
         .delete()
         .eq('id', id)
-      
+
       if (!eventError) {
         onRefresh()
       } else {
@@ -328,17 +416,28 @@ export default function EventsView({ user, events, devices, onRefresh }) {
   }
 
   const clearEvent = async (event) => {
-    if (!confirm(`Bersihkan semua foto di event "${event.name}"? \n\nSemua foto akan dihapus permanen, tapi event tetap ada.`)) return
-    
+    if (!confirm(`Bersihkan semua foto di event "${event.name}"? \n\nSemua foto akan dihapus permanen dari database dan storage, tapi event tetap ada.`)) return
+
     try {
+      // 1. Ambil semua captures untuk hapus filenya dari storage
+      const { data: captures, error: fetchError } = await supabase
+        .from('captures')
+        .select('id, image_url, raw_photos')
+        .eq('event_id', event.id)
+
+      if (fetchError) throw fetchError
+      if (captures?.length) await deleteCapureFilesFromStorage(captures)
+
+      // 2. Hapus record dari database
       const { error } = await supabase
         .from('captures')
         .delete()
         .eq('event_id', event.id)
-      
+
       if (!error) {
         fetchEventCaptures(event.id)
         fetchAllCaptures()
+        setEventStorageBytes(0) // storage jadi 0 setelah semua file dihapus
       } else {
         alert('Gagal membersihkan event: ' + error.message)
       }
@@ -546,14 +645,14 @@ export default function EventsView({ user, events, devices, onRefresh }) {
           </div>
 
           <div className="flex items-center gap-4 border-b border-slate-100 pb-8">
-             <button 
+             <button
                onClick={() => clearEvent(selectedEvent)}
                className="px-6 py-3 bg-white border border-slate-200 text-slate-500 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all shadow-sm"
              >
                <RefreshCcw size={14} />
                Clear Photos
              </button>
-             <button 
+             <button
                onClick={(e) => {
                  deleteEvent(e, selectedEvent);
                  setSelectedEvent(null);
@@ -563,6 +662,28 @@ export default function EventsView({ user, events, devices, onRefresh }) {
                <Trash2 size={14} />
                Delete Event
              </button>
+
+             {/* Storage badge */}
+             <div className={`ml-auto flex items-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
+               eventStorageBytes !== null && eventStorageBytes > 50 * 1024 * 1024
+                 ? 'bg-rose-50 border-rose-200 text-rose-600'
+                 : 'bg-slate-50 border-slate-200 text-slate-500'
+             }`}>
+               {loadingStorage ? (
+                 <>
+                   <Loader2 size={13} className="animate-spin text-slate-400" />
+                   <span className="text-slate-400">Menghitung...</span>
+                 </>
+               ) : (
+                 <>
+                   <HardDrive size={13} />
+                   <span>
+                     {eventStorageBytes === null ? '—' : formatBytes(eventStorageBytes)}
+                   </span>
+                   <span className="text-slate-300 font-medium normal-case tracking-normal">storage</span>
+                 </>
+               )}
+             </div>
           </div>
 
           {loadingCaptures ? (

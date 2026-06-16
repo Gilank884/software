@@ -476,38 +476,63 @@ const CaptureScreen = ({
                   className="w-full h-full object-cover"
                   alt="Capture Preview"
                 />
-                {/* Gradient + buttons overlaid at bottom of photo */}
-                <div className="absolute bottom-0 inset-x-0 pt-20 pb-6 px-6 bg-gradient-to-t from-black/80 via-black/40 to-transparent">
-                  <div className="flex gap-3 relative">
-                    {gestureCooldown && (
-                      <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 backdrop-blur-sm rounded-2xl">
-                        <span className={`text-[11px] font-bold uppercase tracking-widest animate-pulse ${isSpecialMode ? 'text-pink-400' : 'text-white'}`}>Menunggu...</span>
-                      </div>
-                    )}
-                    <button
-                      onClick={onRetake}
-                      className={`flex-1 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
-                        isSpecialMode
-                          ? `border ${detectedGesture === 'PEACE' && !gestureCooldown ? 'bg-pink-500 border-pink-500 text-white scale-105' : 'border-pink-500/60 text-pink-400 bg-black/40 backdrop-blur-sm hover:bg-pink-500/20'}`
-                          : `border border-white/30 text-white bg-white/10 backdrop-blur-sm hover:bg-white/20 active:scale-95`
-                      }`}
-                    >
-                      <RefreshCcw size={15} /> Ambil Ulang
-                      {isSpecialMode && <span className="text-[8px] opacity-60">(Peace)</span>}
-                    </button>
-                    <button
-                      onClick={onContinue}
-                      className={`flex-[2.5] py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest flex items-center justify-center gap-2 transition-all ${
-                        isSpecialMode
-                          ? `border ${detectedGesture === 'THUMBS_UP' && !gestureCooldown ? 'bg-yellow-400 border-yellow-400 text-black scale-105' : 'border-yellow-400/60 text-yellow-400 bg-black/40 backdrop-blur-sm hover:bg-yellow-400/20'}`
-                          : `bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-xl shadow-rose-500/40 hover:from-rose-700 hover:to-red-700 hover:scale-[1.02] active:scale-95`
-                      }`}
-                    >
-                      Lanjutkan <ChevronRight size={15} />
-                      {isSpecialMode && <span className="text-[8px] opacity-60">(Thumbs Up)</span>}
-                    </button>
+                {/* Gradient overlay — visual only */}
+                <div className="absolute bottom-0 inset-x-0 h-52 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
+
+                {/* Cooldown overlay */}
+                {gestureCooldown && (
+                  <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+                    <span className={`text-[11px] font-bold uppercase tracking-widest animate-pulse ${isSpecialMode ? 'text-pink-400' : 'text-white'}`}>Menunggu...</span>
                   </div>
-                </div>
+                )}
+
+                {/* ── RETAKE — pojok kiri bawah ── */}
+                <button
+                  onClick={onRetake}
+                  className={`absolute bottom-10 left-6 z-40 w-44 flex items-center justify-center py-4 px-4 overflow-hidden font-black text-[11px] uppercase tracking-widest transition-all rounded-2xl group ${
+                    isSpecialMode
+                      ? detectedGesture === 'PEACE' && !gestureCooldown
+                        ? 'bg-pink-500 border border-pink-500 scale-105 shadow-lg shadow-pink-500/40'
+                        : 'bg-black/40 backdrop-blur-sm border border-pink-500/60'
+                      : 'bg-white/10 backdrop-blur-sm border border-white/30'
+                  }`}
+                >
+                  <span className={`absolute top-0 right-0 inline-block w-4 h-4 transition-all duration-500 ease-in-out rounded group-hover:-mr-4 group-hover:-mt-4 ${isSpecialMode ? (detectedGesture === 'PEACE' && !gestureCooldown ? 'bg-pink-800' : 'bg-pink-700/50') : 'bg-white/30'}`}>
+                    <span className="absolute top-0 right-0 w-5 h-5 rotate-45 translate-x-1/2 -translate-y-1/2 bg-white/20"></span>
+                  </span>
+                  <span className={`absolute bottom-0 rotate-180 left-0 inline-block w-4 h-4 transition-all duration-500 ease-in-out rounded group-hover:-ml-4 group-hover:-mb-4 ${isSpecialMode ? (detectedGesture === 'PEACE' && !gestureCooldown ? 'bg-pink-800' : 'bg-pink-700/50') : 'bg-white/30'}`}>
+                    <span className="absolute top-0 right-0 w-5 h-5 rotate-45 translate-x-1/2 -translate-y-1/2 bg-white/20"></span>
+                  </span>
+                  <span className={`absolute bottom-0 left-0 w-full h-full transition-all duration-500 ease-in-out delay-200 -translate-x-full rounded-2xl group-hover:translate-x-0 ${isSpecialMode ? (detectedGesture === 'PEACE' && !gestureCooldown ? 'bg-pink-600' : 'bg-pink-500/20') : 'bg-white/20'}`}></span>
+                  <span className={`relative flex items-center gap-2 transition-colors duration-200 ${isSpecialMode ? (detectedGesture === 'PEACE' && !gestureCooldown ? 'text-white' : 'text-pink-400') : 'text-white'}`}>
+                    <RefreshCcw size={15} /> Ambil Ulang
+                    {isSpecialMode && <span className="text-[8px] opacity-60">(Peace)</span>}
+                  </span>
+                </button>
+
+                {/* ── CONTINUE — pojok kanan bawah ── */}
+                <button
+                  onClick={onContinue}
+                  className={`absolute bottom-10 right-6 z-40 w-44 flex items-center justify-center py-4 px-4 overflow-hidden font-black text-[11px] uppercase tracking-widest transition-all rounded-2xl group ${
+                    isSpecialMode
+                      ? detectedGesture === 'THUMBS_UP' && !gestureCooldown
+                        ? 'bg-yellow-400 border border-yellow-400 scale-105 shadow-lg shadow-yellow-400/40'
+                        : 'bg-black/40 backdrop-blur-sm border border-yellow-400/60'
+                      : 'bg-rose-600 shadow-xl shadow-rose-500/40'
+                  }`}
+                >
+                  <span className={`absolute top-0 right-0 inline-block w-4 h-4 transition-all duration-500 ease-in-out rounded group-hover:-mr-4 group-hover:-mt-4 ${isSpecialMode ? (detectedGesture === 'THUMBS_UP' && !gestureCooldown ? 'bg-yellow-600' : 'bg-yellow-600/50') : 'bg-rose-800'}`}>
+                    <span className={`absolute top-0 right-0 w-5 h-5 rotate-45 translate-x-1/2 -translate-y-1/2 ${isSpecialMode && !(detectedGesture === 'THUMBS_UP' && !gestureCooldown) ? 'bg-white/20' : 'bg-white'}`}></span>
+                  </span>
+                  <span className={`absolute bottom-0 rotate-180 left-0 inline-block w-4 h-4 transition-all duration-500 ease-in-out rounded group-hover:-ml-4 group-hover:-mb-4 ${isSpecialMode ? (detectedGesture === 'THUMBS_UP' && !gestureCooldown ? 'bg-yellow-600' : 'bg-yellow-600/50') : 'bg-rose-800'}`}>
+                    <span className={`absolute top-0 right-0 w-5 h-5 rotate-45 translate-x-1/2 -translate-y-1/2 ${isSpecialMode && !(detectedGesture === 'THUMBS_UP' && !gestureCooldown) ? 'bg-white/20' : 'bg-white'}`}></span>
+                  </span>
+                  <span className={`absolute bottom-0 left-0 w-full h-full transition-all duration-500 ease-in-out delay-200 -translate-x-full rounded-2xl group-hover:translate-x-0 ${isSpecialMode ? (detectedGesture === 'THUMBS_UP' && !gestureCooldown ? 'bg-yellow-500' : 'bg-yellow-400/20') : 'bg-red-700'}`}></span>
+                  <span className={`relative flex items-center gap-2 transition-colors duration-200 ${isSpecialMode ? (detectedGesture === 'THUMBS_UP' && !gestureCooldown ? 'text-black' : 'text-yellow-400') : 'text-white'}`}>
+                    Lanjutkan <ChevronRight size={15} />
+                    {isSpecialMode && <span className="text-[8px] opacity-60">(Thumbs Up)</span>}
+                  </span>
+                </button>
               </div>
             )}
 

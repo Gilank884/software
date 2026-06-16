@@ -44,8 +44,15 @@ const PhotoAssignmentScreen = ({ photos, selectedFrameData, onFinish }) => {
 
   const floatDelays = ['0s', '0.7s', '1.4s', '2.1s']
   const validPhotos = photos.filter(Boolean)
-  // Triplicate so marquee never runs out regardless of photo count
-  const marqueePhotos = [...validPhotos, ...validPhotos, ...validPhotos]
+
+  // Pastikan satu "copy" lebih tinggi dari viewport agar tidak ada ruang kosong.
+  // Setiap item tingginya ≈ 90px (gambar) + 12px (padding) + 2px (border) = 104px.
+  const ITEM_H = 104
+  const vh = window.innerHeight
+  const fillCount = Math.max(1, Math.ceil(vh / Math.max(validPhotos.length * ITEM_H, 1)) + 1)
+  const singleSet = Array.from({ length: fillCount }, () => validPhotos).flat()
+  // Dua copy identik → animasi -50% persis sama dengan 0% secara visual = seamless tanpa jeda
+  const marqueePhotos = [...singleSet, ...singleSet]
 
   return (
     <div className="h-screen bg-gradient-to-br from-blue-50 via-white to-sky-50 flex flex-row overflow-hidden font-sans">
@@ -58,12 +65,12 @@ const PhotoAssignmentScreen = ({ photos, selectedFrameData, onFinish }) => {
         .photo-float { animation: float-up-down 3.5s ease-in-out infinite; }
 
         @keyframes marquee-down {
-          0%   { transform: translateY(-33.33%); }
+          0%   { transform: translateY(-50%); }
           100% { transform: translateY(0%); }
         }
         @keyframes marquee-up {
           0%   { transform: translateY(0%); }
-          100% { transform: translateY(-33.33%); }
+          100% { transform: translateY(-50%); }
         }
         .marquee-down { animation: marquee-down 14s linear infinite; }
         .marquee-up   { animation: marquee-up   14s linear infinite; }
