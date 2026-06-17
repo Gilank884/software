@@ -26,6 +26,25 @@ const __dirname = path.dirname(__filename);
 app.commandLine.appendSwitch('unsafely-treat-insecure-origin-as-secure', 'http://localhost:3000');
 app.commandLine.appendSwitch('use-fake-ui-for-media-stream'); // Auto-accept media stream permissions UI
 
+// Disable unused Chromium features to reduce RAM usage
+app.commandLine.appendSwitch('disable-spell-checking');
+app.commandLine.appendSwitch('disable-extensions');
+app.commandLine.appendSwitch('disable-component-extensions-with-background-pages');
+app.commandLine.appendSwitch('disable-default-apps');
+app.commandLine.appendSwitch('no-first-run');
+app.commandLine.appendSwitch('no-default-browser-check');
+app.commandLine.appendSwitch('disable-translate');
+app.commandLine.appendSwitch('disable-sync');
+app.commandLine.appendSwitch('disable-background-networking');
+app.commandLine.appendSwitch('disable-client-side-phishing-detection');
+app.commandLine.appendSwitch('disable-domain-reliability');
+app.commandLine.appendSwitch('disable-hang-monitor');
+app.commandLine.appendSwitch('disable-speech-api');
+app.commandLine.appendSwitch('disable-web-bluetooth');
+app.commandLine.appendSwitch('disable-webgl');
+app.commandLine.appendSwitch('disable-webgl2');
+app.commandLine.appendSwitch('disable-features', 'TranslateUI,AutofillServerCommunication,MediaRouter,PasswordGeneration');
+
 let mainWindow;
 
 const doMinimize = () => {
