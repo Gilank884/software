@@ -13,19 +13,31 @@ export class DSLRFolderDriver {
   }
 
   async init() {
-    // Check if the server is reachable
     try {
-      const response = await fetch(`${this.apiUrl}/status`, { signal: AbortSignal.timeout(1000) });
-      const data = await response.json();
-      if (data.status === 'ok') {
-        this.isInitialized = true;
-        console.log("DSLR Folder Driver connected to localhost:3001");
-        return { success: true };
+      const statusRes = await fetch(`${this.apiUrl}/status`, { signal: AbortSignal.timeout(1000) });
+      const statusData = await statusRes.json();
+      if (statusData.status !== 'ok') {
+        return { success: false, error: 'Server not OK' };
       }
+
+      // FolderBridge always runs in Electron — only switch to DSLR mode
+      // if there are actual photos in the captures folder (evidence of a real camera).
+      const latestRes = await fetch(`${this.apiUrl}/latest`, { signal: AbortSignal.timeout(1000) });
+      const latestData = await latestRes.json();
+      if (!latestData.url) {
+        console.log("DSLR Folder Bridge running but captures folder is empty — staying on webcam.");
+        this.isInitialized = false;
+        return { success: false, error: 'No camera output detected' };
+      }
+
+      this.isInitialized = true;
+      this.latestImageUrl = latestData.url;
+      console.log("DSLR Folder Driver connected to localhost:3001 with active output.");
+      return { success: true };
     } catch (err) {
       console.warn("DSLR Folder Server not reachable at localhost:3001");
       this.isInitialized = false;
-      return { success: false, error: "Server Not Reachable" };
+      return { success: false, error: 'Server Not Reachable' };
     }
   }
 

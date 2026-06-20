@@ -156,7 +156,9 @@ function App() {
       const element = (status.source === 'dslr' || status.source === 'phone')
         ? previewCanvasRef.current
         : videoRef.current
-      if (element) startPreview(element)
+      if (element) startPreview(element).catch(err => {
+        console.error('[App] startPreview failed:', err)
+      })
     } else {
       stopPreview()
     }

@@ -7,11 +7,11 @@ const TestCamera = () => {
   const [previewRef, setPreviewRef] = useState(null);
 
   useEffect(() => {
-    if (previewRef && status.source === 'webcam' && status.active) {
+    if (previewRef && status.source === 'webcam') {
       startPreview(previewRef);
     }
     return () => stopPreview();
-  }, [previewRef, status.source, status.active]);
+  }, [previewRef, status.source]);
 
   const handleCaptureTest = async () => {
     try {

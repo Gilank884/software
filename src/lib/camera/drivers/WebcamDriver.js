@@ -85,13 +85,26 @@ export class WebcamDriver {
     };
 
     if (this.selectedDeviceId) {
-      constraints.video.deviceId = { exact: this.selectedDeviceId };
+      constraints.video.deviceId = { ideal: this.selectedDeviceId };
     } else {
       constraints.video.facingMode = 'user';
     }
 
     console.log("[WebcamDriver] Starting hardware stream...");
-    this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (err) {
+      if ((err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') && this.selectedDeviceId) {
+        console.warn("[WebcamDriver] Device ID not found, clearing saved ID and retrying...");
+        this.selectedDeviceId = null;
+        localStorage.removeItem('pb_webcam_device_id');
+        delete constraints.video.deviceId;
+        constraints.video.facingMode = 'user';
+        this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } else {
+        throw err;
+      }
+    }
     return this.stream;
   }
 

@@ -33,7 +33,11 @@ export function useCamera() {
   };
 
   const setCameraSource = async (source) => {
-    await camera.setSource(source);
+    try {
+      await camera.setSource(source);
+    } catch (err) {
+      console.error('[useCamera] setCameraSource failed:', err);
+    }
   };
 
   const setWebcamDevice = async (deviceId) => {

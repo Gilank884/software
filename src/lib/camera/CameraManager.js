@@ -89,7 +89,7 @@ export class CameraManager {
   async startPreview(element) {
     this.previewElement = element;
     if (!this.isInitialized) await this.init();
-    
+
     try {
       await this.drivers[this.currentSource].startPreview(element);
     } catch (err) {
