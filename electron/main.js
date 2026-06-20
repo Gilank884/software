@@ -169,14 +169,18 @@ const getMacPrinters = async () => {
 };
 
 // ─── Windows Printer Discovery (online only) ─────────────────────────────────
+
+// Gunakan -EncodedCommand (Base64) untuk menghindari masalah quoting di cmd.exe
 const runPS = (command) => {
-  const cmd = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; ${command}`;
-  return execWithTimeout(`powershell -ExecutionPolicy Bypass -NoProfile -Command "${cmd}"`)
-    .catch(() => execWithTimeout(`"${POWERSHELL_PATH}" -ExecutionPolicy Bypass -NoProfile -Command "${cmd}"`));
+  const fullCmd = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8; ${command}`;
+  const encoded = Buffer.from(fullCmd, 'utf16le').toString('base64');
+  return execWithTimeout(`powershell -ExecutionPolicy Bypass -NoProfile -EncodedCommand ${encoded}`, 10000)
+    .catch(() => execWithTimeout(`"${POWERSHELL_PATH}" -ExecutionPolicy Bypass -NoProfile -EncodedCommand ${encoded}`, 10000));
 };
 
 const parsePSJson = (stdout) => {
-  const text = stdout?.trim();
+  // Strip BOM jika ada (Windows PowerShell kadang menambahkan BOM di output)
+  const text = stdout?.replace(/^﻿/, '').trim();
   if (!text || text === 'null') return [];
   try {
     const parsed = JSON.parse(text);
@@ -187,11 +191,11 @@ const parsePSJson = (stdout) => {
 const getWindowsPrinters = async () => {
   const result = new Map();
 
-  // Method A: Get-Printer — hanya WorkOffline=$false
+  // Method A: Get-Printer dengan filter WorkOffline=$false
   // PrinterStatus TIDAK dipakai karena WMI statusnya tidak reliable
   try {
     const { stdout } = await runPS(
-      "Get-Printer | Select-Object Name,IsDefault,WorkOffline | ConvertTo-Json -Compress"
+      "Get-Printer | Select-Object Name,IsDefault,WorkOffline | ConvertTo-Json -Compress -Depth 2"
     );
     const printers = parsePSJson(stdout);
     printers.forEach(p => {
@@ -200,14 +204,13 @@ const getWindowsPrinters = async () => {
       }
     });
     console.log(`[Printer] Get-Printer: ${printers.length} total, ${result.size} online`);
-    if (result.size > 0) return result; // sukses & ada printer → return
+    if (result.size > 0) return result;
   } catch (e) { console.warn('[Printer] Get-Printer failed:', e.message); }
 
-  // Method B: WMI fallback — HANYA filter WorkOffline, bukan PrinterStatus
-  // PrinterStatus WMI bisa salah (online printer bisa muncul status 7)
+  // Method B: WMI — filter WorkOffline saja, PrinterStatus tidak reliable
   try {
     const { stdout } = await runPS(
-      "Get-WmiObject Win32_Printer | Select-Object Name,Default,WorkOffline | ConvertTo-Json -Compress"
+      "Get-WmiObject Win32_Printer | Select-Object Name,Default,WorkOffline | ConvertTo-Json -Compress -Depth 2"
     );
     const printers = parsePSJson(stdout);
     printers.forEach(p => {
@@ -216,7 +219,23 @@ const getWindowsPrinters = async () => {
       }
     });
     console.log(`[Printer] WMI: ${printers.length} total, ${result.size} online`);
+    if (result.size > 0) return result;
   } catch (e) { console.warn('[Printer] WMI fallback failed:', e.message); }
+
+  // Method C: tanpa filter WorkOffline — tampilkan semua printer yang terinstall
+  // (fallback jika Windows salah melaporkan WorkOffline=true untuk printer yang sebenarnya ON)
+  try {
+    const { stdout } = await runPS(
+      "Get-Printer | Select-Object Name,IsDefault,WorkOffline | ConvertTo-Json -Compress -Depth 2"
+    );
+    const printers = parsePSJson(stdout);
+    printers.forEach(p => {
+      if (p?.Name) {
+        result.set(p.Name.trim(), { name: p.Name.trim(), displayName: p.Name.trim(), isDefault: !!p.IsDefault, status: 0 });
+      }
+    });
+    console.log(`[Printer] Get-Printer (no filter): ${printers.length} total`);
+  } catch (e) { console.warn('[Printer] Get-Printer no-filter failed:', e.message); }
 
   return result;
 };
@@ -283,7 +302,8 @@ const MOBILE_PAGE_HTML = `<!DOCTYPE html>
   <script>
     let ws,stream,prev=document.createElement('canvas'),pctx=prev.getContext('2d'),
         cap=document.createElement('canvas'),cctx=cap.getContext('2d'),
-        si=null,face='environment',capturing=false,retryT=null;
+        si=null,face='environment',capturing=false,retryT=null,captureId=0;
+    const MAX_CAP_W=2048,MAX_CAP_H=1536; // batas resolusi foto — cukup tinggi tapi tidak terlalu besar
     const vid=document.getElementById('video');
     const shutterEl=document.getElementById('shutter');
     function st(type,txt){document.getElementById('dot').className='dot '+type;document.getElementById('stxt').textContent=txt;}
@@ -300,8 +320,8 @@ const MOBILE_PAGE_HTML = `<!DOCTYPE html>
       if(retryT){clearTimeout(retryT);retryT=null;}
       ws=new WebSocket('wss://'+location.host);
       ws.onopen=()=>{ws.send(JSON.stringify({type:'role',role:'phone'}));st('live','Terhubung');setShutter(true);startSend();};
-      ws.onmessage=(e)=>{try{const m=JSON.parse(e.data);if(m.type==='capture')doCapture();}catch(_){}};
-      ws.onclose=()=>{st('err','Terputus...');setShutter(false);stopSend();retryT=setTimeout(connect,3000);};
+      ws.onmessage=(e)=>{try{const m=JSON.parse(e.data);if(m.type==='capture')doCapture(m.id);}catch(_){}};
+      ws.onclose=()=>{st('err','Terputus...');setShutter(false);stopSend();capturing=false;retryT=setTimeout(connect,3000);};
       ws.onerror=()=>{st('err','Koneksi gagal');setShutter(false);};
     }
     function startSend(){if(si)return;si=true;scheduleFrame();}
@@ -318,22 +338,31 @@ const MOBILE_PAGE_HTML = `<!DOCTYPE html>
         setTimeout(scheduleFrame,0);
       },'image/jpeg',.85);
     }
-    function doCapture(){
-      if(!stream)return;
-      capturing=true;flash();
-      cap.width=vid.videoWidth;cap.height=vid.videoHeight;
-      cctx.drawImage(vid,0,0);
+    function doCapture(id){
+      if(!stream||capturing)return; // abaikan jika sedang proses foto sebelumnya
+      capturing=true;
+      captureId=id||0;
+      flash();
+      const vw=vid.videoWidth,vh=vid.videoHeight;
+      const scale=Math.min(MAX_CAP_W/vw,MAX_CAP_H/vh,1);
+      cap.width=Math.round(vw*scale);cap.height=Math.round(vh*scale);
+      cctx.drawImage(vid,0,0,cap.width,cap.height);
       cap.toBlob(b=>{
         if(!b){capturing=false;return;}
         const r=new FileReader();
-        r.onload=()=>{if(ws?.readyState===1)ws.send(JSON.stringify({type:'capture_result',data:r.result}));capturing=false;};
+        r.onload=()=>{
+          if(ws?.readyState===1)ws.send(JSON.stringify({type:'capture_result',id:captureId,data:r.result}));
+          capturing=false;
+        };
+        r.onerror=()=>{capturing=false;}; // jangan sampai capturing stuck karena error
         r.readAsDataURL(b);
-      },'image/jpeg',.95);
+      },'image/jpeg',.92);
     }
     async function startCam(){
       if(stream)stream.getTracks().forEach(t=>t.stop());
       try{
-        stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:face,width:{ideal:4096},height:{ideal:3072}},audio:false});
+        // Minta resolusi tinggi tapi tidak 4K — 2048x1536 sudah cukup untuk foto
+        stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:face,width:{ideal:2048},height:{ideal:1536}},audio:false});
         vid.srcObject=stream;st('wait','Kamera aktif...');
       }catch(e){st('err','Kamera error: '+e.message);}
     }
@@ -404,9 +433,9 @@ async function setupPhoneCameraServer() {
               }
             }
           } else if (msg.type === 'capture') {
-            // Desktop requests capture → phone
+            // Desktop requests capture → phone (teruskan capture ID agar bisa dicocokkan)
             for (const p of phoneClients) {
-              if (p.readyState === WS.OPEN) p.send(JSON.stringify({ type: 'capture' }));
+              if (p.readyState === WS.OPEN) p.send(JSON.stringify({ type: 'capture', id: msg.id }));
             }
           } else if (msg.type === 'phone_shutter') {
             // Phone shutter button pressed → notify desktop to trigger capture
@@ -414,9 +443,9 @@ async function setupPhoneCameraServer() {
               if (d.readyState === WS.OPEN) d.send(JSON.stringify({ type: 'phone_shutter' }));
             }
           } else if (msg.type === 'capture_result') {
-            // Full-res photo: phone → desktop
+            // Full-res photo: phone → desktop (teruskan ID untuk matching)
             for (const d of desktopClients) {
-              if (d.readyState === WS.OPEN) d.send(JSON.stringify({ type: 'capture_result', data: msg.data }));
+              if (d.readyState === WS.OPEN) d.send(JSON.stringify({ type: 'capture_result', id: msg.id, data: msg.data }));
             }
           }
         } catch (_) { /* ignore */ }

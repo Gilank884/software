@@ -193,6 +193,8 @@ function App() {
       setIsReviewing(true)
     } catch (err) {
       console.error('Capture Failed:', err)
+      // Reset countdown agar user bisa coba lagi (penting untuk phone camera)
+      setCountdown(null)
     }
   }
 

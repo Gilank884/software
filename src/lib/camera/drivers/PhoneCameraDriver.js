@@ -16,6 +16,8 @@ export class PhoneCameraDriver {
     this.error = null;
     this.pendingCaptureResolve = null;
     this.pendingCaptureReject = null;
+    this._pendingCaptureId = null; // ID unik per capture untuk mencegah hasil lama masuk
+    this._captureSeq = 0;          // counter untuk generate ID
     this._reconnectTimer = null;
     this._stopReconnect = false;
   }
@@ -123,10 +125,15 @@ export class PhoneCameraDriver {
               // Redraw waiting state on both surfaces
               if (this.internalCtx) this._drawWaitingOn(this.internalCtx, this.internalCanvas.width, this.internalCanvas.height);
               if (this.previewCanvas) this._drawWaitingOn(this.previewCanvas.getContext('2d'), this.previewCanvas.width, this.previewCanvas.height);
-            } else if (msg.type === 'capture_result' && this.pendingCaptureResolve) {
-              this.pendingCaptureResolve(msg.data);
-              this.pendingCaptureResolve = null;
-              this.pendingCaptureReject = null;
+            } else if (msg.type === 'capture_result') {
+              // Abaikan jika ID tidak cocok (hasil dari capture yang sudah timeout)
+              if (msg.id !== this._pendingCaptureId) return;
+              if (this.pendingCaptureResolve) {
+                this.pendingCaptureResolve(msg.data);
+                this.pendingCaptureResolve = null;
+                this.pendingCaptureReject = null;
+                this._pendingCaptureId = null;
+              }
             }
           } catch (_) { /* ignore */ }
         }
@@ -212,6 +219,7 @@ export class PhoneCameraDriver {
       this.pendingCaptureReject(new Error('Koneksi terputus.'));
       this.pendingCaptureResolve = null;
       this.pendingCaptureReject = null;
+      this._pendingCaptureId = null;
     }
   }
 
@@ -220,12 +228,24 @@ export class PhoneCameraDriver {
       throw new Error('HP belum terhubung. Scan QR dan izinkan kamera di HP terlebih dahulu.');
     }
 
+    // Jika masih ada capture yang pending, tolak yang baru — jangan overwrite promise lama
+    if (this.pendingCaptureResolve) {
+      throw new Error('Capture sedang berlangsung, tunggu sebentar.');
+    }
+
+    const captureId = ++this._captureSeq;
+    this._pendingCaptureId = captureId;
+
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        this.pendingCaptureResolve = null;
-        this.pendingCaptureReject = null;
-        reject(new Error('Timeout: HP tidak merespons dalam 10 detik.'));
-      }, 10000);
+        // Hanya reject jika ID masih sama (belum ada capture baru)
+        if (this._pendingCaptureId === captureId) {
+          this.pendingCaptureResolve = null;
+          this.pendingCaptureReject = null;
+          this._pendingCaptureId = null;
+          reject(new Error('Timeout: HP tidak merespons dalam 25 detik.'));
+        }
+      }, 25000);
 
       this.pendingCaptureResolve = (dataUrl) => {
         clearTimeout(timeout);
@@ -236,7 +256,7 @@ export class PhoneCameraDriver {
         reject(err);
       };
 
-      this.ws.send(JSON.stringify({ type: 'capture' }));
+      this.ws.send(JSON.stringify({ type: 'capture', id: captureId }));
     });
   }
 

@@ -441,10 +441,8 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                   <ZoomIn size={10} />
                   Zoom Kamera
                 </div>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {[
-                    { label: '0.5x', value: 0.5 },
-                    { label: '0.75x', value: 0.75 },
                     { label: '1x', value: 1.0 },
                     { label: '1.5x', value: 1.5 },
                     { label: '2x', value: 2.0 },

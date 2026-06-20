@@ -206,21 +206,6 @@ export default function DeviceLogin({ onLogin }) {
         ) }
       </div>
 
-      {/* Creator Portal Button in Bottom Left */}
-      <div className="absolute bottom-10 left-10 z-20">
-        <button
-          onClick={() => window.location.href = '/creator'}
-          className="flex items-center gap-3 bg-white/50 backdrop-blur-md border border-white/80 px-5 py-3 rounded-2xl hover:bg-white hover:shadow-xl transition-all group"
-        >
-          <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-slate-900/10">
-            <MonitorSmartphone size={18} />
-          </div>
-          <div className="flex flex-col items-start pr-2">
-            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Administrative</span>
-            <span className="text-[11px] font-black text-slate-800 uppercase tracking-widest">Creator Portal</span>
-          </div>
-        </button>
-      </div>
     </div>
   )
 }
