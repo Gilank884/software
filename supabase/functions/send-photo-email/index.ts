@@ -14,23 +14,26 @@ serve(async (req) => {
   }
 
   try {
-    const { email, photoUrl, userName } = await req.json()
+    const { email, galleryUrl } = await req.json()
 
     const { data, error } = await resend.emails.send({
       from: "Latarcerita Photobooth <photo@latarcerita.com>",
       to: [email],
-      subject: "Your Photobooth Capture is Here! 📸",
+      subject: "Foto kamu dari Latarcerita Photobooth sudah siap! 📸",
       html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; color: #334155;">
-          <h1 style="text-align: center; color: #1e293b;">Captured a Moment!</h1>
-          <p style="font-size: 16px; line-height: 1.6;">Hi there,</p>
-          <p style="font-size: 16px; line-height: 1.6;">Thank you for using Latarcerita Photobooth. Here is your digital copy of the memories you just captured.</p>
-          <div style="text-align: center; margin: 40px 0;">
-            <img src="${photoUrl}" alt="Photobooth Capture" style="max-width: 100%; border-radius: 12px; shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);" />
+        <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color: #334155; background: #f8fafc; padding: 40px 20px;">
+          <div style="background: white; border-radius: 20px; padding: 40px; box-shadow: 0 4px 24px rgba(0,0,0,0.06);">
+            <h1 style="text-align: center; color: #1e293b; font-size: 24px; margin: 0 0 8px;">Kenangan kamu sudah siap! 🎉</h1>
+            <p style="text-align: center; color: #64748b; font-size: 14px; margin: 0 0 32px;">Klik tombol di bawah untuk melihat dan mengunduh fotomu.</p>
+            <div style="text-align: center; margin: 0 0 32px;">
+              <a href="${galleryUrl}" style="display: inline-block; background: #2563eb; color: white; text-decoration: none; font-weight: 700; font-size: 15px; padding: 14px 36px; border-radius: 12px; letter-spacing: 0.02em;">
+                Lihat Foto Saya →
+              </a>
+            </div>
+            <p style="font-size: 12px; color: #94a3b8; text-align: center; margin: 0;">Atau salin link ini:<br/><a href="${galleryUrl}" style="color: #2563eb; word-break: break-all;">${galleryUrl}</a></p>
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 32px 0;" />
+            <p style="font-size: 11px; color: #cbd5e1; text-align: center; margin: 0;">&copy; 2026 Latarcerita. All rights reserved.</p>
           </div>
-          <p style="font-size: 14px; color: #64748b; text-align: center;">If you can't see the image, <a href="${photoUrl}" style="color: #2563eb; text-decoration: none; font-weight: bold;">click here to download</a>.</p>
-          <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 40px 0;" />
-          <p style="font-size: 12px; color: #94a3b8; text-align: center;">&copy; 2026 Latarcerita. All rights reserved.</p>
         </div>
       `,
     })

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity, ChevronRight, ArrowLeft, Download, Eye, Smartphone, ImageIcon, RefreshCcw, Printer, AlertCircle, HardDrive } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity, ChevronRight, ArrowLeft, Download, Eye, Smartphone, ImageIcon, RefreshCcw, Printer, AlertCircle, HardDrive, Mail, Link2 } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 import PageHeader from './PageHeader'
 
@@ -27,6 +28,11 @@ export default function EventsView({ user, events, devices, onRefresh }) {
   // Storage usage state untuk event yang sedang dibuka
   const [eventStorageBytes, setEventStorageBytes] = useState(null) // null=belum dihitung, number=bytes
   const [loadingStorage, setLoadingStorage] = useState(false)
+
+  // Email State
+  const [emailInput, setEmailInput] = useState('')
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
 
   // Printer Settings State
   const [printers, setPrinters] = useState([])
@@ -145,6 +151,32 @@ export default function EventsView({ user, events, devices, onRefresh }) {
     return url
   }
 
+  const handleSendEmail = async (sessionId) => {
+    if (!emailInput || !emailInput.includes('@')) {
+      alert('Masukkan alamat email yang valid.')
+      return
+    }
+    setSendingEmail(true)
+    setEmailSent(false)
+    try {
+      const galleryBase = import.meta.env.VITE_GALLERY_URL || "https://fotoku.latarcerita.com"
+      const galleryUrl = `${galleryBase}/?gallery=${sessionId}`
+      const { error } = await supabase.functions.invoke('send-photo-email', {
+        body: { email: emailInput, galleryUrl },
+      })
+      if (error) throw error
+      setEmailSent(true)
+      setEmailInput('')
+      setTimeout(() => setEmailSent(false), 3000)
+    } catch (err) {
+      const detail = await err?.context?.json?.().catch(() => null)
+      console.error('Send email error:', err, detail)
+      alert(`Gagal mengirim email.\n\n${detail?.error || err?.message || 'Unknown error'}`)
+    } finally {
+      setSendingEmail(false)
+    }
+  }
+
   const handlePrint = async (imageUrl) => {
     alert('Memulai proses cetak... Mohon tunggu.');
     
@@ -190,20 +222,23 @@ export default function EventsView({ user, events, devices, onRefresh }) {
         <head>
           <title>Print - Latarcerita</title>
           <style>
-            body { margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; background: white; }
-            img { width: 100%; height: auto; }
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            html, body { width: 100%; height: 100%; overflow: hidden; background: white; }
+            body { display: flex; align-items: center; justify-content: center; }
+            img { max-width: 100%; max-height: 100vh; width: auto; height: auto; display: block; }
             @media print {
               @page { margin: 0; size: auto; }
-              body { margin: 0; }
-              img { width: 100%; }
+              html, body { width: 100%; height: 100%; overflow: hidden; }
+              img { max-width: 100%; max-height: 100vh; width: auto; height: auto; page-break-after: avoid; break-after: avoid; }
             }
           </style>
         </head>
         <body>
-          <img src="${imageUrl}" onload="this.loaded=true;" />
+          <img src="${imageUrl}" />
           <script>
             function tryPrint() {
-              if (document.querySelector('img').complete) {
+              var img = document.querySelector('img');
+              if (img.complete) {
                 window.focus();
                 window.print();
               } else {
@@ -461,116 +496,132 @@ export default function EventsView({ user, events, devices, onRefresh }) {
 
   return (
     <>
-      {selectedCapture && (
-        <div className="fixed inset-0 z-[9999] bg-slate-900 flex flex-col animate-in fade-in zoom-in-95 duration-300">
-          {/* Detail Header */}
-          <div className="p-6 flex items-center justify-between border-b border-white/10 bg-black/20 backdrop-blur-md">
-            <button 
+      {selectedCapture && createPortal(
+        <div className="fixed inset-0 z-[9999] flex flex-col bg-[#f1f5f9] animate-in fade-in duration-200">
+
+          {/* Header */}
+          <div className="shrink-0 flex items-center px-5 h-13 bg-white border-b border-slate-200">
+            <button
               onClick={() => setSelectedCapture(null)}
-              className="flex items-center gap-3 text-white/60 hover:text-white transition-colors"
+              className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors group"
             >
-              <ArrowLeft size={24} />
-              <span className="font-black text-xs uppercase tracking-[0.2em]">Back to Gallery</span>
+              <div className="w-7 h-7 rounded-lg bg-slate-100 group-hover:bg-blue-50 flex items-center justify-center transition-colors">
+                <ArrowLeft size={14} />
+              </div>
+              <span className="font-semibold text-sm text-slate-600 group-hover:text-blue-600 transition-colors">Kembali ke Galeri</span>
             </button>
-            <div className="flex items-center gap-4">
-               <button 
-                  onClick={() => handleDownload(selectedCapture.image_url, `capture-${selectedCapture.id.slice(0,8)}.png`)}
-                  className="w-12 h-12 rounded-2xl bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-all"
-                  title="Download Photo"
-               >
-                  <Download size={20} />
-               </button>
-               <button 
-                  onClick={() => {
-                    const galleryBase = import.meta.env.VITE_GALLERY_URL || "https://fotoku.latarcerita.com";
-                    const galleryUrl = `${galleryBase}/?gallery=${selectedCapture.session_id}`;
-                    navigator.clipboard.writeText(galleryUrl);
-                    alert('Link Galeri berhasil disalin!');
-                  }}
-                  className="px-6 h-12 rounded-2xl bg-white/10 text-white flex items-center gap-3 hover:bg-white/20 transition-all font-black text-[10px] uppercase tracking-widest"
-               >
-                  <Plus className="rotate-45" size={16} />
-                  Copy Link
-               </button>
-            </div>
           </div>
 
-          {/* Detail Content */}
-          <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-            {/* Image Side */}
-            <div className="flex-1 bg-black p-8 flex items-center justify-center relative overflow-hidden group">
-              <img 
-                src={selectedCapture.image_url} 
-                alt="Detail" 
-                className="max-h-full max-w-full object-contain shadow-[0_0_100px_rgba(0,0,0,0.5)] transition-transform duration-700"
-              />
-            </div>
+          {/* Body */}
+          <div className="flex-1 flex items-center justify-center overflow-auto p-6">
+            <div className="w-full max-w-5xl flex flex-col md:flex-row gap-5 items-stretch">
 
-            {/* Action Side */}
-            <div className="w-full md:w-96 bg-white flex flex-col p-10 border-l border-slate-200">
-               <div className="mb-10">
-                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-3 py-1 rounded-full">Photo Identity</span>
-                  <h3 className="text-3xl font-black text-slate-900 mt-4 tracking-tight">
-                    Sesi #{selectedCapture.sessionNumber ?? '—'}
-                  </h3>
-                  <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] mt-2">
-                    Captured at {new Date(selectedCapture.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </p>
-               </div>
-
-               <div className="space-y-6">
-                  <div className="p-6 bg-slate-50 border border-slate-100 rounded-[2rem] space-y-4">
-                     <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Printer Configuration</span>
-                        {isElectron ? (
-                           <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">Connected</span>
-                        ) : (
-                           <span className="text-[8px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">Browser Mode</span>
-                        )}
-                     </div>
-                     
-                     <div className="space-y-3">
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Device</label>
-                          <select 
-                            value={selectedPrinter}
-                            onChange={(e) => { setSelectedPrinter(e.target.value); localStorage.setItem('selectedPrinter', e.target.value); }}
-                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:border-blue-500"
-                          >
-                            <option value="">Default System</option>
-                            {printers.map(p => <option key={p.name} value={p.name}>{p.displayName || p.name}</option>)}
-                          </select>
-                        </div>
-                        <div className="flex flex-col gap-1.5">
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Paper Size</label>
-                          <select 
-                            value={selectedPaperSize}
-                            onChange={(e) => { setSelectedPaperSize(e.target.value); localStorage.setItem('selectedPaperSize', e.target.value); }}
-                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold focus:outline-none focus:border-blue-500"
-                          >
-                            <option value="4r">4R (4x6)</option>
-                            <option value="a4">A4 Standard</option>
-                            <option value="a4_plus">A4 Full</option>
-                          </select>
-                        </div>
-                     </div>
+              {/* Image Card */}
+              <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                <div className="relative flex-1 flex items-center justify-center bg-slate-50 p-6" style={{ minHeight: 420 }}>
+                  <div
+                    className="absolute inset-0"
+                    style={{
+                      backgroundImage: `url(${selectedCapture.image_url})`,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      filter: 'blur(20px)',
+                      opacity: 0.2,
+                      transform: 'scale(1.1)',
+                    }}
+                  />
+                  <img
+                    src={selectedCapture.image_url}
+                    alt="Detail"
+                    className="relative z-10 max-h-[420px] w-auto object-contain rounded-xl shadow-lg"
+                  />
+                </div>
+                <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sesi #{selectedCapture.sessionNumber ?? '—'}</p>
+                    <p className="text-[11px] font-semibold text-slate-500 mt-0.5">
+                      {new Date(selectedCapture.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </p>
                   </div>
-
-                  <button 
-                    onClick={() => handlePrint(selectedCapture.image_url)}
-                    className="w-full py-8 bg-blue-600 hover:bg-blue-700 text-white rounded-[2.5rem] font-black text-xl uppercase tracking-widest transition-all shadow-2xl shadow-blue-500/40 active:scale-95 flex items-center justify-center gap-4 border-b-8 border-blue-800"
+                  <button
+                    onClick={() => handleDownload(selectedCapture.image_url, `capture-${selectedCapture.id.slice(0,8)}.png`)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold text-slate-500 hover:text-blue-600 border border-slate-200 hover:border-blue-300 rounded-lg transition-all uppercase tracking-wider"
                   >
-                    <Printer size={32} />
-                    Print Now
+                    <Download size={12} />
+                    Download
                   </button>
-               </div>
+                </div>
+              </div>
 
-               <div className="mt-auto pt-10 text-center">
-                  <p className="text-[10px] text-slate-300 font-bold uppercase tracking-[0.3em]">Software Photobooth v2.4</p>
-               </div>
+              {/* Actions Card */}
+              <div className="w-full md:w-72 shrink-0 flex flex-col gap-3">
+
+                {/* Print */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Cetak Foto</p>
+                  <button
+                    onClick={() => handlePrint(selectedCapture.image_url)}
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-sm uppercase tracking-widest transition-all shadow-sm shadow-blue-500/30 active:scale-[0.98] flex items-center justify-center gap-2"
+                  >
+                    <Printer size={16} />
+                    Print Sekarang
+                  </button>
+                </div>
+
+                {/* Share */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Bagikan</p>
+                  <button
+                    onClick={() => {
+                      const galleryBase = import.meta.env.VITE_GALLERY_URL || "https://fotoku.latarcerita.com"
+                      const galleryUrl = `${galleryBase}/?gallery=${selectedCapture.session_id}`
+                      navigator.clipboard.writeText(galleryUrl)
+                      alert('Link Galeri berhasil disalin!')
+                    }}
+                    className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                  >
+                    <Link2 size={14} />
+                    Salin Link
+                  </button>
+                </div>
+
+                {/* Email */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Kirim Link ke Email</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      placeholder="contoh@email.com"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSendEmail(selectedCapture.session_id)}
+                      className="flex-1 min-w-0 px-3 py-2.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:border-blue-400 font-medium bg-slate-50"
+                    />
+                    <button
+                      onClick={() => handleSendEmail(selectedCapture.session_id)}
+                      disabled={sendingEmail}
+                      className="shrink-0 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5"
+                    >
+                      {sendingEmail
+                        ? <Loader2 size={13} className="animate-spin" />
+                        : emailSent
+                        ? <><Check size={13} /> Terkirim</>
+                        : <><Mail size={13} /> Kirim</>
+                      }
+                    </button>
+                  </div>
+                  {emailSent && (
+                    <p className="text-[10px] text-emerald-600 font-semibold mt-2 flex items-center gap-1">
+                      <Check size={11} /> Email berhasil dikirim!
+                    </p>
+                  )}
+                </div>
+
+              </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {selectedEvent ? (
