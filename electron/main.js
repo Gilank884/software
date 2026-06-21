@@ -612,6 +612,103 @@ app.whenReady().then(() => {
     return false;
   };
 
+  // ─── Windows Direct Print via System.Drawing.Printing ────────────────────────
+  // Uses PowerShell to print borderless. Searches for a "Borderless" paper size
+  // variant in the printer driver first, then compensates hardware margins.
+  const printWithWindows = async (imageUrl, printerName, pageSize, copies) => {
+    if (process.platform !== 'win32') return false;
+
+    const tempDir = os.tmpdir();
+    const ts = Date.now();
+    const imgFile = path.join(tempDir, `pb_print_${ts}.png`);
+    const psFile  = path.join(tempDir, `pb_print_${ts}.ps1`);
+
+    try {
+      // Save base64 data URL to a PNG temp file
+      const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, '');
+      await writeFileAsync(imgFile, base64Data, 'base64');
+
+      const isA4 = pageSize.toLowerCase() === 'a4';
+      // PaperSize unit = hundredths of an inch  (4x6in = 400x600, A4 = 827x1169)
+      const paperW = isA4 ? 827 : 400;
+      const paperH = isA4 ? 1169 : 600;
+
+      // PowerShell single-quoted strings: backslashes are LITERAL (no escaping needed).
+      // Only single quotes need to be escaped by doubling them.
+      const safeImg     = imgFile.replace(/'/g, "''");
+      const safePrinter = (printerName || '').replace(/'/g, "''");
+      const safeCopies  = Math.max(1, parseInt(copies, 10) || 1);
+
+      const psScript = `
+Add-Type -AssemblyName System.Drawing
+$img = [System.Drawing.Image]::FromFile('${safeImg}')
+$pd  = New-Object System.Drawing.Printing.PrintDocument
+${safePrinter ? `$pd.PrinterSettings.PrinterName = '${safePrinter}'` : ''}
+$pd.PrinterSettings.Copies = [int16]${safeCopies}
+$pd.DefaultPageSettings.Margins = New-Object System.Drawing.Printing.Margins(0,0,0,0)
+
+# --- Find best paper size: prefer Borderless variant from driver ---
+$targetW = ${paperW}
+$targetH = ${paperH}
+$selected = $null
+
+# Pass 1: look for a borderless paper size close to our target
+foreach ($ps in $pd.PrinterSettings.PaperSizes) {
+    $n = $ps.PaperName.ToLower()
+    $wOk = [Math]::Abs($ps.Width  - $targetW) -lt 100
+    $hOk = [Math]::Abs($ps.Height - $targetH) -lt 100
+    if ($wOk -and $hOk -and ($n -match 'borderless|bleed|full|bl[^a-z]')) {
+        $selected = $ps
+        break
+    }
+}
+
+# Pass 2: closest available size if no borderless found
+if (-not $selected) {
+    $bestDiff = [int]::MaxValue
+    foreach ($ps in $pd.PrinterSettings.PaperSizes) {
+        $diff = [Math]::Abs($ps.Width - $targetW) + [Math]::Abs($ps.Height - $targetH)
+        if ($diff -lt $bestDiff) { $bestDiff = $diff; $selected = $ps }
+    }
+}
+if ($selected) { $pd.DefaultPageSettings.PaperSize = $selected }
+
+$pd.add_PrintPage({
+    param($s, $e)
+    $g = $e.Graphics
+    $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $g.PixelOffsetMode   = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+    $g.SmoothingMode     = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+    # Draw image to fill the entire printable area — no cropping, no extra margins.
+    # PageBounds = the area the printer can actually print on (excludes hardware margins).
+    $g.DrawImage($img, $e.PageBounds)
+    $e.HasMorePages = $false
+})
+$pd.Print()
+$img.Dispose()
+$pd.Dispose()
+`;
+
+      await writeFileAsync(psFile, psScript, 'utf8');
+      await execWithTimeout(
+        `"${POWERSHELL_PATH}" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${psFile}"`,
+        30000
+      );
+
+      console.log('[WinPrint] Success: sent to spooler');
+      setTimeout(() => {
+        try { fs.unlinkSync(imgFile) } catch (_) {}
+        try { fs.unlinkSync(psFile)  } catch (_) {}
+      }, 15000);
+      return true;
+    } catch (err) {
+      console.error('[WinPrint] Failed:', err.message);
+      try { fs.unlinkSync(imgFile) } catch (_) {}
+      try { fs.unlinkSync(psFile)  } catch (_) {}
+      return false;
+    }
+  };
+
   ipcMain.on('print-test-page', async (event, { printerName, autoEpsonMatte = false } = {}) => {
     // Always A4 for test — offscreen:true removed (breaks print() in Electron 28)
     const printWindow = new BrowserWindow({
@@ -716,10 +813,14 @@ app.whenReady().then(() => {
     const lpSuccess = await printWithLp(imageUrl, printerName, pageSize, copies, autoEpsonMatte);
     if (lpSuccess) return;
 
+    const winSuccess = await printWithWindows(imageUrl, printerName, pageSize, copies);
+    if (winSuccess) return;
+
+    // Fallback: Electron BrowserWindow print (used on Mac non-lp path)
+    // offscreen:true removed — breaks print() in Electron 28
     const printWindow = new BrowserWindow({
       show: false,
       webPreferences: {
-        offscreen: true,
         contextIsolation: true,
         sandbox: false
       },
