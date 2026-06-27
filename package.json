@@ -39,6 +39,8 @@
     ],
     "mac": {
       "category": "public.app-category.photography",
+      "minimumSystemVersion": "10.13.0",
+      "hardenedRuntime": true,
       "target": [
         {
           "target": "dmg",
@@ -50,7 +52,27 @@
       "entitlements": "electron/entitlements.mac.plist",
       "entitlementsInherit": "electron/entitlements.mac.plist",
       "extendInfo": {
-        "NSCameraUsageDescription": "Latarcerita Photobooth requires access to your camera to take photos."
+        "NSCameraUsageDescription": "Latarcerita Photobooth requires access to your camera to take photos.",
+        "NSMicrophoneUsageDescription": "Latarcerita Photobooth requires access to your microphone."
+      }
+    },
+    "dmg": {
+      "title": "Latarcerita Photobooth",
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
       }
     },
     "win": {

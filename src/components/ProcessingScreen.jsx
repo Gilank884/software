@@ -28,25 +28,22 @@ const ProcessingScreen = ({
     vibrant: "saturate(1.5)",
   };
 
-  const drawQRCode = (ctx, data, x, y, width, height) => {
+  // Draws QR modules + optional pre-loaded logo Image element in center
+  const drawQRCode = (ctx, data, x, y, width, height, logoImg = null) => {
     try {
-      const qr = qrcode(data); 
+      const qr = qrcode(data);
       const modules = qr.modules;
-      
-      // QR is always square, so use the smaller dimension as the base size
+
       const size = Math.min(width, height);
       const moduleSize = size / modules.length;
-      
-      // Calculate offsets to center the QR in the slot
       const offsetX = (width - size) / 2;
       const offsetY = (height - size) / 2;
-      
+
       ctx.save();
       try {
-        // Draw white background for the QR code to ensure scannability
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(x + offsetX, y + offsetY, size, size);
-        
+
         ctx.fillStyle = '#000000';
         ctx.translate(x + offsetX, y + offsetY);
         modules.forEach((row, rowIndex) => {
@@ -59,9 +56,38 @@ const ProcessingScreen = ({
       } finally {
         ctx.restore();
       }
+
+      // Draw logo in center if provided (must be pre-loaded Image element)
+      if (logoImg) {
+        const logoSize = size * 0.28;
+        const logoX = x + offsetX + (size - logoSize) / 2;
+        const logoY = y + offsetY + (size - logoSize) / 2;
+        const padding = logoSize * 0.1;
+        ctx.save();
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(logoX - padding, logoY - padding, logoSize + padding * 2, logoSize + padding * 2);
+        ctx.drawImage(logoImg, logoX, logoY, logoSize, logoSize);
+        ctx.restore();
+      }
     } catch (err) {
       console.error("QR Draw Error:", err);
     }
+  };
+
+  // Pre-load logo images for QR slots that have one
+  const preloadQrLogos = (slots) => {
+    const promises = slots
+      .filter(s => s.type === 'qr' && s.logoUrl)
+      .map(s => new Promise((res) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => res([s.logoUrl, img]);
+        img.onerror = () => res([s.logoUrl, null]);
+        img.src = s.logoUrl;
+      }));
+    return Promise.all(promises).then(entries =>
+      Object.fromEntries(entries.filter(([, img]) => img !== null))
+    );
   };
 
   useEffect(() => {
@@ -264,10 +290,12 @@ const ProcessingScreen = ({
 
       const drawAll = async () => {
         try {
+          const qrLogoImgs = await preloadQrLogos(selectedFrameData.slots);
           for (const slot of selectedFrameData.slots) {
             if (slot.type === 'qr') {
               const galleryUrl = getGalleryUrl(sessionId);
-              drawQRCode(ctx, galleryUrl, slot.x, slot.y, slot.width, slot.height);
+              const logoImg = slot.logoUrl ? qrLogoImgs[slot.logoUrl] || null : null;
+              drawQRCode(ctx, galleryUrl, slot.x, slot.y, slot.width, slot.height, logoImg);
             } else {
               const photoSrc = compositePhotos[slot.number - 1];
               if (photoSrc) {
@@ -441,6 +469,9 @@ const ProcessingScreen = ({
           });
         }));
 
+        // Pre-load QR logo images
+        const qrLogoImgs = await preloadQrLogos(selectedFrameData.slots);
+
         // Attach canvas to DOM hidden to ensure it's "active" in Electron/Chrome background
         canvas.style.position = 'fixed';
         canvas.style.top = '-9999px';
@@ -473,15 +504,15 @@ const ProcessingScreen = ({
         
         // Cache QR codes to avoid regenerating them every frame
         const qrCache = {};
-        const getQrCanvas = (data, width, height) => {
-          const key = `${data}_${width}_${height}`;
+        const getQrCanvas = (data, width, height, logoImg = null) => {
+          const key = `${data}_${width}_${height}_${logoImg ? 'logo' : 'plain'}`;
           if (qrCache[key]) return qrCache[key];
-          
+
           const qrCanvas = document.createElement('canvas');
           qrCanvas.width = width;
           qrCanvas.height = height;
           const qctx = qrCanvas.getContext('2d');
-          drawQRCode(qctx, data, 0, 0, width, height);
+          drawQRCode(qctx, data, 0, 0, width, height, logoImg);
           qrCache[key] = qrCanvas;
           return qrCanvas;
         };
@@ -514,7 +545,8 @@ const ProcessingScreen = ({
           
           selectedFrameData.slots.forEach((slot) => {
             if (slot.type === 'qr') {
-               const qrCanvas = getQrCanvas(galleryUrl, slot.width, slot.height);
+               const logoImg = slot.logoUrl ? qrLogoImgs[slot.logoUrl] || null : null;
+               const qrCanvas = getQrCanvas(galleryUrl, slot.width, slot.height, logoImg);
                ctx.drawImage(qrCanvas, slot.x, slot.y);
             } else {
               const video = videoElements[slot.number - 1];

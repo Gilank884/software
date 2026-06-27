@@ -9,8 +9,9 @@ const PublicGalleryScreen = ({ galleryId }) => {
   const [copied, setCopied] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false) // foto masih di proses / belum upload
   const [retryCount, setRetryCount] = useState(0)
+  const [fetchTrigger, setFetchTrigger] = useState(0)
   const retryTimerRef = useRef(null)
-  const MAX_RETRIES = 24 // 24 × 5 detik = 2 menit
+  const MAX_RETRIES = 360 // 360 × 5 detik = 30 menit
 
   useEffect(() => {
     document.body.style.overflow = 'auto';
@@ -23,6 +24,14 @@ const PublicGalleryScreen = ({ galleryId }) => {
   }, []);
 
   useEffect(() => {
+    if (!galleryId) return
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current)
+
+    setLoading(true)
+    setError(null)
+    setIsProcessing(false)
+    setRetryCount(0)
+
     const fetchGallery = async (attempt = 0) => {
       try {
         const { data: captureData, error: dbError } = await supabase
@@ -41,7 +50,7 @@ const PublicGalleryScreen = ({ galleryId }) => {
           } else {
             // Sudah terlalu lama, kemungkinan memang tidak ada
             setIsProcessing(false)
-            setError("Foto tidak ditemukan. Coba lagi nanti.")
+            setError("timeout")
             setLoading(false)
           }
           return
@@ -53,14 +62,18 @@ const PublicGalleryScreen = ({ galleryId }) => {
         setData(captureData)
       } catch (err) {
         console.error("Gallery fetch error:", err)
-        setError("Galeri tidak ditemukan atau telah kedaluwarsa.")
+        setError("timeout")
       } finally {
         setLoading(false)
       }
     }
 
-    if (galleryId) fetchGallery(0)
-  }, [galleryId])
+    fetchGallery(0)
+  }, [galleryId, fetchTrigger])
+
+  const handleRetry = () => {
+    setFetchTrigger(t => t + 1)
+  }
 
   const handleDownload = async (url, filename) => {
     try {
@@ -118,26 +131,15 @@ const PublicGalleryScreen = ({ galleryId }) => {
             Foto kamu masih kami proses
           </p>
           <p className="text-slate-400 text-sm mb-8 leading-relaxed">
-            Foto sedang dalam antrian upload. Halaman ini akan otomatis memperbarui setiap 5 detik. Tidak perlu refresh manual.
+            Foto sedang dalam antrian upload. Link ini sudah benar — halaman akan otomatis tampil saat foto selesai dikirim. Tidak perlu refresh manual.
           </p>
 
-          {/* Progress dots */}
-          <div className="flex items-center justify-center gap-2 mb-6">
-            {Array.from({ length: Math.min(retryCount, MAX_RETRIES) }).map((_, i) => (
-              <div
-                key={i}
-                className="w-2 h-2 rounded-full bg-blue-400"
-                style={{ opacity: i === retryCount - 1 ? 1 : 0.3 }}
-              />
-            ))}
-          </div>
-
-          <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-50 border border-blue-200 rounded-full text-blue-600 text-sm font-bold">
+          <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-50 border border-blue-200 rounded-full text-blue-600 text-sm font-bold mb-4">
             <Loader2 size={14} className="animate-spin" />
             Memeriksa ulang dalam 5 detik...
           </div>
 
-          <p className="text-slate-300 text-xs mt-8">Session: {galleryId}</p>
+          <p className="text-slate-300 text-xs mt-4">Link kamu: /gallery={galleryId}</p>
         </div>
       </div>
     )
@@ -151,8 +153,16 @@ const PublicGalleryScreen = ({ galleryId }) => {
               <AlertCircle size={150} />
            </div>
            <AlertCircle size={64} className="text-rose-500 mx-auto mb-8 relative z-10" />
-           <h2 className="text-4xl font-black text-slate-800 mb-4 tracking-tight relative z-10">Oops!</h2>
-           <p className="text-slate-500 font-medium relative z-10">{error}</p>
+           <h2 className="text-4xl font-black text-slate-800 mb-4 tracking-tight relative z-10">Foto Belum Tersedia</h2>
+           <p className="text-slate-500 font-medium relative z-10 mb-8">
+             Foto sedang dalam antrian upload (jaringan mungkin belum tersedia). Link kamu sudah benar — coba buka kembali dalam beberapa menit.
+           </p>
+           <button
+             onClick={handleRetry}
+             className="px-8 py-3 bg-slate-900 text-white rounded-full font-black uppercase tracking-widest text-sm hover:bg-rose-600 transition-all relative z-10"
+           >
+             Coba Lagi
+           </button>
         </div>
       </div>
     )

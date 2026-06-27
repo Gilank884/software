@@ -104,10 +104,17 @@ const DraggableBox = ({ box, onUpdate, onDelete, isSelected, onSelect, isLocked 
         <span className="font-bold text-[10px] pointer-events-none uppercase tracking-widest text-slate-400">Locked</span>
       ) : isQr ? (
         <div
-          className="qr-container p-1 bg-white rounded-sm shadow-inner opacity-80 group-hover:opacity-100 transition-opacity flex items-center justify-center overflow-hidden"
+          className="qr-container p-1 bg-white rounded-sm shadow-inner opacity-80 group-hover:opacity-100 transition-opacity flex items-center justify-center overflow-hidden relative"
           style={{ width: Math.max(10, Math.min(box.width, box.height) - 10), height: Math.max(10, Math.min(box.width, box.height) - 10) }}
         >
-          <QRCode value="https://fotoku.latarcerita.com" size={256} style={{ width: '100%', height: '100%' }} level="L" />
+          <QRCode value="https://fotoku.latarcerita.com" size={256} style={{ width: '100%', height: '100%' }} level="H" />
+          {box.logoUrl && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="bg-white rounded-sm p-0.5" style={{ width: '28%', height: '28%' }}>
+                <img src={box.logoUrl} alt="logo" className="w-full h-full object-contain" />
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <span className={`font-bold text-[10px] pointer-events-none uppercase tracking-widest ${isSelected ? 'text-rose-600' : 'text-red-400 opacity-60'}`}>

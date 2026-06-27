@@ -34,6 +34,8 @@ const CanvasManager = ({ user }) => {
   const [editingSizeId, setEditingSizeId] = useState(null)
   const [editingWidth, setEditingWidth] = useState('')
   const [editingHeight, setEditingHeight] = useState('')
+  const [showQrModal, setShowQrModal] = useState(false)
+  const [qrLogoUploading, setQrLogoUploading] = useState(false)
 
   const startEditSize = (id, w, h) => {
     setEditingSizeId(id)
@@ -339,7 +341,7 @@ const CanvasManager = ({ user }) => {
     setSelectedLayerId(newId)
   }
 
-  const addQrSlot = () => {
+  const addQrSlot = (logoUrl = null) => {
     if (!activeFrameId) {
       alert('Upload atau Pilih Frame terlebih dahulu!')
       return
@@ -348,17 +350,36 @@ const CanvasManager = ({ user }) => {
     const newBox = {
       id: newId,
       type: 'qr',
-      number: 0, // QR doesn't need a photo number
+      number: 0,
       x: 50,
       y: 50,
       width: 150,
-      height: 150
+      height: 150,
+      ...(logoUrl ? { logoUrl } : {})
     }
 
     pushToHistory(frames.map(f =>
       f.id === activeFrameId ? { ...f, slots: [...f.slots, newBox] } : f
     ))
     setSelectedLayerId(newId)
+  }
+
+  const handleQrLogoUpload = async (file) => {
+    if (!file) return
+    setQrLogoUploading(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const fileName = `logos/${user?.id}/${Date.now()}_qrlogo.${ext}`
+      const { error } = await supabase.storage.from('frames').upload(fileName, file)
+      if (error) throw error
+      const { data: { publicUrl } } = supabase.storage.from('frames').getPublicUrl(fileName)
+      addQrSlot(publicUrl)
+      setShowQrModal(false)
+    } catch (err) {
+      alert('Gagal upload logo: ' + err.message)
+    } finally {
+      setQrLogoUploading(false)
+    }
   }
 
   const updateBox = (id, updates) => {
@@ -411,7 +432,8 @@ const CanvasManager = ({ user }) => {
       x: Math.round(box.x),
       y: Math.round(box.y),
       width: Math.round(box.width),
-      height: Math.round(box.height)
+      height: Math.round(box.height),
+      ...(box.logoUrl ? { logoUrl: box.logoUrl } : {})
     }))
 
     const photoSlots = slotsForDb.filter(s => s.type !== 'qr' && s.number > 0)
@@ -819,7 +841,10 @@ const CanvasManager = ({ user }) => {
               </button>
 
               <button
-                onClick={addQrSlot}
+                onClick={() => {
+                  if (!activeFrameId) { alert('Upload atau Pilih Frame terlebih dahulu!'); return }
+                  setShowQrModal(true)
+                }}
                 className="w-full flex items-center gap-3 px-4 py-3 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
               >
                 <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center text-white">
@@ -827,6 +852,61 @@ const CanvasManager = ({ user }) => {
                 </div>
                 Add Target QR
               </button>
+
+              {/* QR Logo Modal */}
+              {showQrModal && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm" onClick={() => setShowQrModal(false)}>
+                  <div className="bg-white rounded-3xl shadow-2xl p-8 w-80 flex flex-col gap-4 relative animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => setShowQrModal(false)} className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-100 transition-all">
+                      <X size={16} />
+                    </button>
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="w-10 h-10 bg-indigo-100 rounded-2xl flex items-center justify-center">
+                        <QrCode size={20} className="text-indigo-600" />
+                      </div>
+                      <div>
+                        <p className="font-black text-slate-800 text-sm">Pilih Jenis QR</p>
+                        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Tambah Target QR</p>
+                      </div>
+                    </div>
+
+                    {/* Option 1: Tanpa Logo */}
+                    <button
+                      onClick={() => { addQrSlot(null); setShowQrModal(false) }}
+                      className="w-full flex items-center gap-4 px-5 py-4 bg-slate-50 border-2 border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 rounded-2xl transition-all group"
+                    >
+                      <div className="w-10 h-10 bg-white rounded-xl border-2 border-slate-200 flex items-center justify-center shrink-0 shadow-sm group-hover:border-indigo-300">
+                        <QrCode size={20} className="text-slate-400 group-hover:text-indigo-600" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-black text-slate-700 text-[11px] uppercase tracking-widest group-hover:text-indigo-700">Tanpa Logo</p>
+                        <p className="text-slate-400 text-[9px] font-medium mt-0.5">QR polos tanpa gambar</p>
+                      </div>
+                    </button>
+
+                    {/* Option 2: Dengan Logo */}
+                    <label className="w-full flex items-center gap-4 px-5 py-4 bg-slate-50 border-2 border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 rounded-2xl transition-all group cursor-pointer">
+                      <div className="w-10 h-10 bg-white rounded-xl border-2 border-slate-200 flex items-center justify-center shrink-0 shadow-sm group-hover:border-indigo-300">
+                        {qrLogoUploading
+                          ? <Loader2 size={20} className="text-indigo-500 animate-spin" />
+                          : <Upload size={20} className="text-slate-400 group-hover:text-indigo-600" />
+                        }
+                      </div>
+                      <div className="text-left">
+                        <p className="font-black text-slate-700 text-[11px] uppercase tracking-widest group-hover:text-indigo-700">Dengan Logo</p>
+                        <p className="text-slate-400 text-[9px] font-medium mt-0.5">Upload gambar logo di tengah QR</p>
+                      </div>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept="image/*"
+                        disabled={qrLogoUploading}
+                        onChange={e => { if (e.target.files[0]) handleQrLogoUpload(e.target.files[0]) }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
 
               <button
                 onClick={handleSave}
