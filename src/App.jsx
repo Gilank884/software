@@ -7,11 +7,12 @@ import ProcessingScreen from './components/ProcessingScreen'
 import OutputScreen from './components/OutputScreen'
 import PhotoAssignmentScreen from './components/PhotoAssignmentScreen'
 import PublicGalleryScreen from './components/PublicGalleryScreen'
+import EventGalleryScreen from './components/EventGalleryScreen'
 import AppBackground from './components/AppBackground'
 import DeviceLogin from './components/DeviceLogin'
 import CreatorApp from './creator/App'
 import RemoteController from './components/RemoteController'
-import { Maximize2, Minimize2, WifiOff, CheckCircle } from 'lucide-react'
+import { WifiOff, CheckCircle } from 'lucide-react'
 import SettingsPage from './components/SettingsPage'
 import { useCamera } from './hooks/useCamera'
 import { syncQueue, queueCount } from './lib/offlineQueue'
@@ -54,7 +55,7 @@ function App() {
 
   const [loading, setLoading] = useState(() => {
     const params = new URLSearchParams(window.location.search)
-    return !params.get('gallery')
+    return !params.get('gallery') && !params.get('event')
   })
   const [isCreatorMode, setIsCreatorMode] = useState(false)
   const [deviceSession, setDeviceSession] = useState(null)
@@ -69,6 +70,11 @@ function App() {
   const [galleryId] = useState(() => {
     const params = new URLSearchParams(window.location.search)
     return params.get('gallery') || null
+  })
+
+  const [eventGalleryId] = useState(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('event') || null
   })
 
   useEffect(() => {
@@ -105,7 +111,7 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (galleryId) { setLoading(false); return }
+    if (galleryId || eventGalleryId) { setLoading(false); return }
 
     const host = window.location.hostname
     const path = window.location.pathname
@@ -273,6 +279,7 @@ function App() {
   }
 
   if (galleryId) return <PublicGalleryScreen galleryId={galleryId} />
+  if (eventGalleryId) return <EventGalleryScreen eventId={eventGalleryId} />
 
   const urlParams = new URLSearchParams(window.location.search)
   const remoteSessionFromUrl = urlParams.get('remoteSession')
@@ -300,7 +307,9 @@ function App() {
   }
 
   return (
-    <div className="h-screen relative overflow-hidden selection:bg-rose-100 selection:text-rose-900 bg-white transition-colors duration-1000">
+    <div
+      className="h-screen relative overflow-hidden selection:bg-rose-100 selection:text-rose-900 bg-white transition-colors duration-1000"
+    >
       <AppBackground isHidden={step === STEPS.OUTPUT || step === STEPS.CUSTOMIZE_FRAME || step === STEPS.CUSTOMIZE_FILTER || step === STEPS.PHOTO_ASSIGN} />
 
       <div className="relative z-10 w-full min-h-screen flex flex-col">
@@ -429,13 +438,6 @@ function App() {
         </div>
       )}
 
-      <button
-        onClick={toggleFullscreen}
-        className="fixed top-3 left-3 z-50 p-2 rounded-lg bg-black/20 hover:bg-black/40 text-white backdrop-blur-sm transition-all duration-200"
-        title={isFullscreen ? 'Minimize' : 'Maximize'}
-      >
-        {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
-      </button>
     </div>
   )
 }

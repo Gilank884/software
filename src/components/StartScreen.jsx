@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Camera, LogOut, Settings, Printer, X, Monitor, RefreshCw, Settings2, AlertCircle, CheckCircle2, Minimize2, Smartphone, ZoomIn, Calendar, Wifi, WifiOff } from 'lucide-react'
+import { Sparkles, Camera, LogOut, Settings, Printer, X, Monitor, RefreshCw, Settings2, AlertCircle, CheckCircle2, Smartphone, ZoomIn, Calendar, Wifi, WifiOff, Minimize2 } from 'lucide-react'
 import { QRCode } from 'react-qr-code'
 import { useCamera } from '../hooks/useCamera'
 import ScreenDefault from './ScreenDefault'
@@ -113,16 +113,52 @@ const StartScreen = ({ onStart, user, onLogout }) => {
         </div>
       </div>
 
-      {/* Minimize Button in Top Left */}
-      <div className="absolute top-10 left-10 z-[150]">
-        <button
-          onClick={(e) => { e.stopPropagation(); window.electronAPI?.minimizeWindow(); }}
-          className="w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-lg border border-white/20 active:scale-90 bg-white/10 backdrop-blur-md text-white/40 hover:text-white/80 hover:bg-white/20"
-          title="Minimize"
-        >
-          <Minimize2 size={26} />
-        </button>
-      </div>
+      {/* Camera & Printer Status — pojok kanan bawah */}
+      <AnimatePresence>
+        {!showExit && (() => {
+          let cameraLabel = 'Tidak Terdeteksi'
+          let cameraOk = false
+          if (status.source === 'phone') {
+            cameraOk = status.isConnected
+            cameraLabel = status.isConnected ? 'iPhone — Terhubung' : 'iPhone — Menunggu...'
+          } else if (status.source === 'webcam') {
+            const activeDevice = status.webcamDevices?.find(d => d.id === status.currentWebcamId) || status.webcamDevices?.[0]
+            cameraOk = !!activeDevice
+            cameraLabel = activeDevice?.label || (status.webcamDevices?.length ? 'Webcam Aktif' : 'Tidak Terdeteksi')
+          } else if (status.source === 'dslr') {
+            cameraOk = status.isAvailable
+            cameraLabel = 'DSLR Folder Watch'
+          } else if (status.source === 'mock') {
+            cameraOk = true
+            cameraLabel = 'Mock Mode'
+          }
+
+          const printerConfigured = !!selectedPrinter
+          const printerLabel = selectedPrinter || 'Belum dikonfigurasi'
+
+          return (
+            <motion.div
+              key="hw-status"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.2 }}
+              className="absolute bottom-6 right-6 z-[150] pointer-events-none flex flex-col items-end gap-2"
+            >
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all duration-500 ${cameraOk ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`}>
+                <span className="truncate max-w-[180px]">{cameraLabel}</span>
+                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cameraOk ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
+                <Camera size={10} className="flex-shrink-0" />
+              </div>
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all duration-500 ${printerConfigured ? 'bg-slate-500/20 text-slate-400 border border-slate-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}`}>
+                <span className="truncate max-w-[180px]">{printerLabel}</span>
+                <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${printerConfigured ? 'bg-slate-400' : 'bg-amber-400 animate-pulse'}`} />
+                <Printer size={10} className="flex-shrink-0" />
+              </div>
+            </motion.div>
+          )
+        })()}
+      </AnimatePresence>
 
       {/* Settings Button in Top Right */}
       <div className="absolute top-10 right-10 z-[150]">
@@ -180,31 +216,80 @@ const StartScreen = ({ onStart, user, onLogout }) => {
 
             {/* Test Utilities Card */}
             <div className="bg-white/90 backdrop-blur-2xl border-2 border-slate-100 p-3 rounded-[24px] shadow-2xl flex flex-col gap-2">
-              <button
-                onClick={(e) => { e.stopPropagation(); setShowCameraModal(true); }}
-                className="flex items-center gap-3 hover:bg-blue-50 p-1.5 pr-4 rounded-xl transition-all duration-300 group/btn"
-              >
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 group-hover/btn:bg-blue-600 group-hover/btn:text-white transition-all">
-                  <Camera size={18} />
-                </div>
-                <div className="flex flex-col items-start px-1">
-                  <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Diagnostic</span>
-                  <span className="text-[11px] font-black text-slate-700">Camera Test</span>
-                </div>
-              </button>
+              {(() => {
+                // Resolve actual camera device label
+                let cameraLabel = 'Tidak Terdeteksi'
+                let cameraOk = false
+                if (status.source === 'phone') {
+                  cameraOk = status.isConnected
+                  cameraLabel = status.isConnected ? 'iPhone — Terhubung' : 'iPhone — Menunggu...'
+                } else if (status.source === 'webcam') {
+                  const activeDevice = status.webcamDevices?.find(d => d.id === status.currentWebcamId) || status.webcamDevices?.[0]
+                  cameraOk = !!activeDevice
+                  cameraLabel = activeDevice?.label || (status.webcamDevices?.length ? 'Webcam Aktif' : 'Tidak Terdeteksi')
+                } else if (status.source === 'dslr') {
+                  cameraOk = status.isAvailable
+                  cameraLabel = 'DSLR Folder Watch'
+                } else if (status.source === 'mock') {
+                  cameraOk = true
+                  cameraLabel = 'Mock Mode'
+                }
 
-              <button
-                onClick={(e) => { e.stopPropagation(); setShowPrinterModal(true); }}
-                className="flex items-center gap-3 hover:bg-indigo-50 p-1.5 pr-4 rounded-xl transition-all duration-300 group/btn"
-              >
-                <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600 group-hover/btn:bg-indigo-600 group-hover/btn:text-white transition-all">
-                  <Settings2 size={18} />
-                </div>
-                <div className="flex flex-col items-start px-1">
-                  <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Configuration</span>
-                  <span className="text-[11px] font-black text-slate-700">Printer Settings</span>
-                </div>
-              </button>
+                // Printer — hanya tunjukkan apakah sudah dikonfigurasi, bukan "online/offline"
+                // OS tidak bisa secara akurat membedakan printer dengan driver terinstall vs fisik tersambung
+                const printerConfigured = !!selectedPrinter
+                const printerLabel = selectedPrinter || 'Belum dikonfigurasi'
+
+                return (
+                  <>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowCameraModal(true); }}
+                      className="flex items-center gap-3 hover:bg-blue-50 p-1.5 pr-4 rounded-xl transition-all duration-300 group/btn"
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${cameraOk ? 'bg-blue-100 text-blue-600 group-hover/btn:bg-blue-600 group-hover/btn:text-white' : 'bg-rose-100 text-rose-500 group-hover/btn:bg-rose-500 group-hover/btn:text-white'}`}>
+                        <Camera size={18} />
+                      </div>
+                      <div className="flex flex-col items-start px-1 min-w-0">
+                        <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Diagnostic</span>
+                        <span className="text-[11px] font-black text-slate-700">Camera Test</span>
+                        <span className={`text-[9px] font-bold truncate max-w-[160px] ${cameraOk ? 'text-emerald-500' : 'text-rose-400'}`}>
+                          {`● ${cameraLabel}`}
+                        </span>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowPrinterModal(true); }}
+                      className="flex items-center gap-3 hover:bg-indigo-50 p-1.5 pr-4 rounded-xl transition-all duration-300 group/btn"
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${printerConfigured ? 'bg-indigo-100 text-indigo-600 group-hover/btn:bg-indigo-600 group-hover/btn:text-white' : 'bg-amber-100 text-amber-500 group-hover/btn:bg-amber-500 group-hover/btn:text-white'}`}>
+                        <Settings2 size={18} />
+                      </div>
+                      <div className="flex flex-col items-start px-1 min-w-0">
+                        <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Configuration</span>
+                        <span className="text-[11px] font-black text-slate-700">Printer Settings</span>
+                        <span className={`text-[9px] font-bold truncate max-w-[160px] ${printerConfigured ? 'text-slate-500' : 'text-amber-500'}`}>
+                          {`● ${printerLabel}`}
+                        </span>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={(e) => { e.stopPropagation(); window.electronAPI?.minimizeWindow?.(); }}
+                      className="flex items-center gap-3 hover:bg-slate-50 p-1.5 pr-4 rounded-xl transition-all duration-300 group/btn"
+                    >
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center transition-all bg-slate-100 text-slate-500 group-hover/btn:bg-slate-600 group-hover/btn:text-white">
+                        <Minimize2 size={18} />
+                      </div>
+                      <div className="flex flex-col items-start px-1 min-w-0">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Window</span>
+                        <span className="text-[11px] font-black text-slate-700">Minimize</span>
+                        <span className="text-[9px] font-bold text-slate-400">● Kecilkan jendela</span>
+                      </div>
+                    </button>
+                  </>
+                )
+              })()}
 
               <div className="h-px bg-slate-100 my-1 mx-2"></div>
 

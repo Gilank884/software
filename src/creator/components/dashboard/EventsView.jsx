@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity, ChevronRight, ArrowLeft, Download, Eye, Smartphone, ImageIcon, RefreshCcw, Printer, AlertCircle, HardDrive, Mail, Link2 } from 'lucide-react'
+import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity, ChevronRight, ArrowLeft, Download, Eye, Smartphone, ImageIcon, RefreshCcw, Printer, AlertCircle, HardDrive, Mail, Link2, Copy } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 import PageHeader from './PageHeader'
 
@@ -28,6 +28,8 @@ export default function EventsView({ user, events, devices, onRefresh }) {
   // Storage usage state untuk event yang sedang dibuka
   const [eventStorageBytes, setEventStorageBytes] = useState(null) // null=belum dihitung, number=bytes
   const [loadingStorage, setLoadingStorage] = useState(false)
+
+  const [copiedEventId, setCopiedEventId] = useState(null)
 
   // Email State
   const [emailInput, setEmailInput] = useState('')
@@ -948,14 +950,32 @@ export default function EventsView({ user, events, devices, onRefresh }) {
                         </td>
                         <td className="px-10 py-7">
                            <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                             <button 
+                             <button
+                               onClick={(e) => {
+                                 e.stopPropagation()
+                                 const galleryBase = import.meta.env.VITE_GALLERY_URL || "https://fotoku.latarcerita.com"
+                                 navigator.clipboard.writeText(`${galleryBase}/?event=${event.id}`)
+                                 setCopiedEventId(event.id)
+                                 setTimeout(() => setCopiedEventId(null), 2000)
+                               }}
+                               className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
+                                 copiedEventId === event.id
+                                   ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                                   : 'bg-white hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 border-slate-100 hover:border-emerald-100'
+                               }`}
+                               title="Salin Link Galeri Event"
+                             >
+                               {copiedEventId === event.id ? <Check size={13} /> : <Copy size={13} />}
+                               {copiedEventId === event.id ? 'Tersalin!' : 'Salin Link'}
+                             </button>
+                             <button
                                onClick={(e) => startEdit(e, event)}
                                className="p-3 bg-white hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-xl border border-slate-100 hover:border-blue-100 transition-all"
                                title="Edit Event"
                              >
                                <Edit2 size={16} />
                              </button>
-                             <button 
+                             <button
                                onClick={(e) => deleteEvent(e, event)}
                                className="p-3 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl border border-slate-100 hover:border-rose-100 transition-all"
                                title="Delete Event"

@@ -31,28 +31,30 @@ const AuthScreen = ({ onAuthSuccess, initialIsLogin = true }) => {
           id: profile.id,
           email: profile.email,
           user_metadata: { full_name: profile.full_name },
-          isAdmin: true // Allow bypass-user to act as admin
-        };
-      } else {
-        // New user or dummy mode
-        // If not login mode, we could theoretically insert into profiles here
-        // but for a simple bypass, we just use a dummy UUID
-        userData = {
-          id: '00000000-0000-0000-0000-000000000000',
-          email: email,
-          user_metadata: { full_name: fullName || 'Guest User' },
           isAdmin: true
         };
-        
-        if (!isLogin) {
-          // Attempt to create a profile if it's "Register" mode
-          // Note: This might fail if the dummy ID is already taken or if FKs are strict
-          await supabase.from('profiles').insert({
-            id: userData.id,
-            email: email,
-            full_name: fullName
-          });
+      } else if (!isLogin) {
+        // Register mode: generate a proper unique UUID for this new user
+        const newId = crypto.randomUUID();
+        userData = {
+          id: newId,
+          email: email,
+          user_metadata: { full_name: fullName || 'User' },
+          isAdmin: true
+        };
+
+        const { error: insertError } = await supabase.from('profiles').insert({
+          id: newId,
+          email: email,
+          full_name: fullName || 'User'
+        });
+
+        if (insertError) {
+          throw new Error('Gagal membuat akun: ' + insertError.message);
         }
+      } else {
+        // Login mode but email not found in profiles
+        throw new Error('Email tidak terdaftar. Silakan daftar terlebih dahulu.');
       }
 
       // Store in localStorage for persistence (since we're bypassing Supabase Auth)

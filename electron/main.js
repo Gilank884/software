@@ -46,11 +46,17 @@ app.commandLine.appendSwitch('disable-webgl2');
 app.commandLine.appendSwitch('disable-features', 'TranslateUI,AutofillServerCommunication,MediaRouter,PasswordGeneration');
 
 let mainWindow;
+let isMinimizing = false;
 
 const doMinimize = () => {
-  if (!mainWindow) return;
+  if (!mainWindow || isMinimizing) return;
   if (mainWindow.isFullScreen()) {
-    mainWindow.setFullScreen(false); // keluar fullscreen → muncul frame dengan tombol X - □
+    isMinimizing = true;
+    mainWindow.once('leave-full-screen', () => {
+      mainWindow.minimize();
+      isMinimizing = false;
+    });
+    mainWindow.setFullScreen(false);
   } else {
     mainWindow.minimize();
   }
@@ -108,9 +114,11 @@ function createWindow() {
     }
   });
 
-  // Double-click title bar → kembali fullscreen
+  // Double-click title bar atau maximize button → kembali fullscreen
   mainWindow.on('maximize', () => {
-    mainWindow.setFullScreen(true);
+    if (!isMinimizing) {
+      mainWindow.setFullScreen(true);
+    }
   });
 
   return mainWindow;
