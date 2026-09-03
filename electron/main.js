@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'url';
 import isDev from 'electron-is-dev';
 import { CameraManagerBackend } from './camera/cameraManager.js';
 import { FolderBridge } from './camera/FolderBridge.js';
+import { UniversalCanonDriver } from './camera/UniversalCanonDriver.js';
 import { exec } from 'child_process';
 import fs from 'fs';
 import os from 'os';
@@ -100,7 +101,7 @@ function createWindow() {
   });
 
   const startUrl = isDev
-    ? 'http://localhost:3000'
+    ? (process.env.ELECTRON_START_URL || 'http://localhost:3000')
     : pathToFileURL(path.join(__dirname, '../dist/index.html')).href;
 
   mainWindow.loadURL(startUrl);
@@ -477,13 +478,17 @@ async function setupPhoneCameraServer() {
     client.on('error', () => { /* ignore */ });
   });
 
+  httpsServer.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log('[PhoneCam] Port 3456 already in use — phone camera feature skipped.');
+    } else {
+      console.error('[PhoneCam] Server error:', err.message);
+    }
+  });
+
   httpsServer.listen(PHONE_CAM_PORT, '0.0.0.0', () => {
     phoneCamServerUrl = `https://${localIP}:${PHONE_CAM_PORT}`;
     console.log(`[PhoneCam] Ready at ${phoneCamServerUrl}`);
-  });
-
-  httpsServer.on('error', (err) => {
-    console.error('[PhoneCam] Server error:', err.message);
   });
 }
 
@@ -506,6 +511,38 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('get-phone-camera-url', () => phoneCamServerUrl);
+
+  // ─── Canon / gphoto2 IPC handlers ────────────────────────────────────────
+  const gphoto2 = new UniversalCanonDriver();
+
+  ipcMain.handle('canon:detect', async () => {
+    return await gphoto2.detect();
+  });
+
+  ipcMain.handle('canon:capturePhoto', async () => {
+    return await gphoto2.capturePhoto();
+  });
+
+  ipcMain.handle('canon:startPreview', async () => {
+    gphoto2.startPreviewStream((frameBase64) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('canon:previewFrame', frameBase64);
+      }
+    });
+    return { success: true };
+  });
+
+  ipcMain.handle('canon:stopPreview', async () => {
+    gphoto2.stopPreviewStream();
+    return { success: true };
+  });
+
+  ipcMain.handle('canon:getStatus', async () => {
+    return gphoto2.getStatus();
+  });
+
+  // Stop preview when app quits to release USB lock
+  app.on('will-quit', () => gphoto2.stopPreviewStream());
 
   // Initialize Automated Hot Folder Bridge
   // Use userData (writable) in packaged app; project root in dev

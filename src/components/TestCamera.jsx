@@ -1,17 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Camera, Monitor, RefreshCw, AlertCircle, CheckCircle2, Settings2 } from 'lucide-react';
 import { useCamera } from '../hooks/useCamera';
+import { camera } from '../lib/camera/CameraManager';
 
 const TestCamera = () => {
   const { status, startPreview, stopPreview, setCameraSource, setWebcamDevice, refreshWebcamDevices } = useCamera();
-  const [previewRef, setPreviewRef] = useState(null);
+  const videoRef = useRef(null);
+  const canonImgRef = useRef(null);
 
   useEffect(() => {
-    if (previewRef && status.source === 'webcam') {
-      startPreview(previewRef);
+    if (status.source === 'webcam' && videoRef.current) {
+      startPreview(videoRef.current);
+    } else if (status.source === 'canon' && canonImgRef.current) {
+      startPreview(canonImgRef.current);
     }
     return () => stopPreview();
-  }, [previewRef, status.source]);
+  }, [status.source]);
 
   const handleCaptureTest = async () => {
     try {
@@ -53,11 +57,19 @@ const TestCamera = () => {
         <div className="aspect-video bg-slate-900 rounded-3xl overflow-hidden relative shadow-inner border-4 border-slate-100">
           {status.source === 'webcam' ? (
             <video
-              ref={(el) => setPreviewRef(el)}
+              ref={videoRef}
               autoPlay
               playsInline
               muted
               className="w-full h-full object-cover"
+              style={status.cameraZoom && status.cameraZoom !== 1 ? { transform: `scale(${status.cameraZoom})` } : undefined}
+            />
+          ) : status.source === 'canon' ? (
+            <img
+              ref={canonImgRef}
+              alt="Canon Live View"
+              className="w-full h-full object-cover"
+              src={status.lastCapturedImage || undefined}
               style={status.cameraZoom && status.cameraZoom !== 1 ? { transform: `scale(${status.cameraZoom})` } : undefined}
             />
           ) : (status.lastCapturedImage || status.source === 'mock') ? (
@@ -67,11 +79,6 @@ const TestCamera = () => {
                 alt="Camera Preview"
                 className="w-full h-full object-cover"
               />
-              {status.source === 'mock' && !status.lastCapturedImage && (
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                  <p className="text-[10px] font-black text-white uppercase tracking-[0.2em]">Mock Preview Active</p>
-                </div>
-              )}
             </div>
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500 gap-4">
@@ -90,9 +97,10 @@ const TestCamera = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-5 gap-3">
           {[
             { id: 'auto', label: 'Auto', icon: RefreshCw },
+            { id: 'canon', label: 'Canon USB', icon: Camera },
             { id: 'dslr', label: 'DSLR Folder', icon: Camera },
             { id: 'webcam', label: 'Webcam', icon: Monitor },
             { id: 'mock', label: 'Mock', icon: Settings2 }
@@ -158,11 +166,10 @@ const TestCamera = () => {
           Test Hardware Capture
         </button>
 
-        {/* Help text */}
         <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 flex gap-3 text-blue-600">
           <RefreshCw size={16} className="shrink-0 mt-0.5" />
           <p className="text-[10px] font-bold leading-relaxed">
-            Sistem secara otomatis mendeteksi perangkat terbaik. Gunakan mode DSLR untuk hasil profesional dalam mode Electron, atau Webcam untuk kemudahan akses browser.
+            Gunakan Canon USB untuk kontrol langsung via gphoto2. Preview berjalan ~5fps via USB PTP.
           </p>
         </div>
       </div>

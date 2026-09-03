@@ -38,6 +38,7 @@ const CaptureScreen = ({
   previewCanvasRef,
   cameraStatus,
   countdown,
+  isCapturing,
   currentShotIndex,
   maxCaptures,
   photos,
@@ -47,6 +48,7 @@ const CaptureScreen = ({
   onContinue,
   onRetake,
   cameraError = null,
+  captureError = null,
   selectedFrameData,
   user,
   isSpecialMode,
@@ -179,14 +181,14 @@ const CaptureScreen = ({
       }
     }
 
-    if (isReviewing) {
+    if (isReviewing && isSpecialMode) {
       if (detectedGesture === 'THUMBS_UP') {
         onContinue();
       } else if (detectedGesture === 'PEACE') {
         onRetake();
       }
     }
-  }, [isAwaitingLockConfirmation, isReviewing, detectedGesture, gestureCooldown, onContinue, onRetake]);
+  }, [isAwaitingLockConfirmation, isReviewing, isSpecialMode, detectedGesture, gestureCooldown, onContinue, onRetake]);
 
   useEffect(() => {
     // Video recording is temporarily disabled
@@ -196,9 +198,10 @@ const CaptureScreen = ({
 
     if (targetCountdown !== null && targetCountdown > 0 && !isReviewing && !mediaRecorderRef.current) {
       let stream = null;
-      if (cameraStatus.source === 'dslr') {
+      if (cameraStatus.source === 'dslr' || cameraStatus.source === 'phone') {
         stream = previewCanvasRef.current?.captureStream(30);
-      } else {
+      } else if (cameraStatus.source !== 'canon') {
+        // Canon uses JPEG frames — no video stream available for recording
         stream = videoRef.current?.srcObject;
       }
 
@@ -301,7 +304,22 @@ const CaptureScreen = ({
                 </button>
               </div>
             ) : (
-              (cameraStatus.source === 'dslr' || cameraStatus.source === 'phone') ? (
+              cameraStatus.source === 'canon' ? (
+                <img
+                  ref={previewCanvasRef}
+                  alt="Canon Live View"
+                  className="w-full h-full object-cover z-10"
+                  src={cameraStatus.lastCapturedImage || undefined}
+                  style={cameraStatus?.cameraZoom && cameraStatus.cameraZoom !== 1 ? { transform: `scale(${cameraStatus.cameraZoom})` } : undefined}
+                />
+              ) : cameraStatus.source === 'mock' ? (
+                <img
+                  ref={previewCanvasRef}
+                  alt="Preview"
+                  className="w-full h-full object-cover z-10"
+                  src={cameraStatus.lastCapturedImage || undefined}
+                />
+              ) : (cameraStatus.source === 'dslr' || cameraStatus.source === 'phone') ? (
                 <canvas
                   ref={previewCanvasRef}
                   className="w-full h-full object-cover z-10"
@@ -319,6 +337,16 @@ const CaptureScreen = ({
                   style={cameraStatus?.cameraZoom && cameraStatus.cameraZoom !== 1 ? { transform: `scale(${cameraStatus.cameraZoom})` } : undefined}
                 />
               )
+            )}
+
+            {/* Capture failure message */}
+            {captureError && !isReviewing && (
+              <div className="absolute inset-x-0 bottom-6 z-[60] flex justify-center px-4">
+                <div className="flex items-center gap-3 bg-red-600/90 text-white px-5 py-3 rounded-2xl shadow-xl max-w-lg">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-sm font-bold">Gagal mengambil foto: {captureError}</span>
+                </div>
+              </div>
             )}
 
             {/* Phone camera connection indicator */}
@@ -357,7 +385,7 @@ const CaptureScreen = ({
                 <HandTrackerOverlay
                   videoRef={videoRef}
                   canvasRef={trackerCanvasRef}
-                  isActive={isSpecialMode || isReviewing}
+                  isActive={isSpecialMode}
                   onStatusChange={onStatusChange}
                   ghosts={ghosts}
                   activePortal={activePortal}
@@ -441,7 +469,7 @@ const CaptureScreen = ({
 
             {!hasStartedSession && (
               <div
-                className="absolute inset-0 flex flex-col items-center justify-center bg-rose-950/60 backdrop-blur-3xl z-30 cursor-pointer"
+                className="absolute inset-0 flex flex-col items-center justify-center bg-rose-950/40 backdrop-blur-sm z-30 cursor-pointer"
                 onClick={onStartSession}
               >
                 <div className="flex flex-col items-center gap-10 max-w-lg text-center animate-in zoom-in-95 duration-700">
@@ -480,6 +508,30 @@ const CaptureScreen = ({
                     </span>
                   </div>
                 )}
+
+                {/* Cheese!! overlay — shown while camera is processing the shot */}
+                {isCapturing && countdown === null && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center z-30 animate-in fade-in duration-150">
+                    {/* Flash effect */}
+                    <div className="absolute inset-0 bg-white/30 backdrop-blur-sm" />
+                    <div className="relative flex flex-col items-center gap-4">
+                      <span
+                        className="font-black text-white font-caveat leading-none select-none"
+                        style={{
+                          fontSize: 'clamp(6rem, 20vw, 18rem)',
+                          textShadow: '0 0 60px rgba(255,255,255,0.8), 0 0 120px rgba(255,255,255,0.4)',
+                          animation: 'pulse 0.4s ease-in-out infinite alternate'
+                        }}
+                      >
+                        Cheese!!
+                      </span>
+                      <span className="text-white/80 text-xl font-black uppercase tracking-[0.4em] animate-pulse">
+                        📸 Mengambil foto...
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {specialCountdown !== null && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-pink-500/10 backdrop-blur-[1px] z-50 font-mono">
                     <span className="text-[120px] font-bold text-yellow-400 animate-bounce leading-none drop-shadow-[0_0_30px_rgba(250,204,21,0.5)]">

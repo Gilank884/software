@@ -20,13 +20,6 @@ export default function CreatorApp() {
   }, []);
 
   useEffect(() => {
-    // Check for mock session first
-    const savedMock = localStorage.getItem('pb_mock_session');
-    if (savedMock) {
-      setSession(JSON.parse(savedMock));
-      return;
-    }
-
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
     })
@@ -37,7 +30,6 @@ export default function CreatorApp() {
   }, [])
 
   const handleSignOut = async () => {
-    localStorage.removeItem('pb_mock_session');
     await supabase.auth.signOut();
     setSession(null);
   };

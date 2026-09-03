@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dokumentasi Software Photobooth — Latarcerita</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --rose:   #e11d48;
+    --rose-l: #fff1f2;
+    --rose-m: #fecdd3;
+    --slate:  #0f172a;
+    --slate2: #1e293b;
+    --muted:  #64748b;
+    --line:   #e2e8f0;
+    --green:  #10b981;
+    --amber:  #f59e0b;
+    --blue:   #3b82f6;
+    --blue-l: #eff6ff;
+  }
+
+  html { font-size: 13px; }
+  body {
+    font-family: 'Inter', sans-serif;
+    color: var(--slate);
+    background: #fff;
+    line-height: 1.65;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ── Cover Page ── */
+  .cover {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 60px 72px;
+    background: var(--slate);
+    color: #fff;
+    page-break-after: always;
+  }
+  .cover-logo {
+    display: flex; align-items: center; gap: 12px;
+    font-weight: 900; font-size: 15px; letter-spacing: -0.02em;
+    color: #fff; opacity: 0.8;
+  }
+  .cover-logo-dot {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: var(--rose); display: flex; align-items: center; justify-content: center;
+  }
+  .cover-logo-dot svg { width: 16px; height: 16px; fill: #fff; }
+
+  .cover-main { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+  .cover-tag {
+    font-size: 9px; font-weight: 800; letter-spacing: 0.25em;
+    text-transform: uppercase; color: var(--rose); margin-bottom: 20px;
+  }
+  .cover-title {
+    font-size: 52px; font-weight: 900; letter-spacing: -0.04em;
+    line-height: 1.05; margin-bottom: 24px;
+  }
+  .cover-title span { color: var(--rose); }
+  .cover-desc {
+    font-size: 14px; color: rgba(255,255,255,0.55); max-width: 480px; line-height: 1.7;
+  }
+  .cover-meta {
+    display: flex; gap: 40px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: rgba(255,255,255,0.3);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding-top: 28px;
+  }
+  .cover-meta strong { display: block; color: rgba(255,255,255,0.7); font-size: 12px; margin-bottom: 3px; font-weight: 800; letter-spacing: 0; text-transform: none; }
+
+  /* ── Table of Contents ── */
+  .toc-page {
+    padding: 72px;
+    page-break-after: always;
+    min-height: 100vh;
+  }
+  .toc-title { font-size: 28px; font-weight: 900; letter-spacing: -0.03em; margin-bottom: 40px; }
+  .toc-title span { color: var(--rose); }
+  .toc-list { list-style: none; }
+  .toc-list li {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 10px 0; border-bottom: 1px dashed var(--line);
+    font-weight: 600; font-size: 12px;
+  }
+  .toc-list li span { color: var(--muted); font-weight: 400; font-size: 11px; }
+  .toc-section { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2em; color: var(--rose); margin: 24px 0 6px; }
+
+  /* ── Content Pages ── */
+  .page {
+    padding: 64px 72px;
+    page-break-after: always;
+    min-height: 100vh;
+    position: relative;
+  }
+  .page:last-child { page-break-after: auto; }
+
+  .page-tag {
+    font-size: 8px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.25em; color: var(--rose); margin-bottom: 8px;
+  }
+  h1 { font-size: 30px; font-weight: 900; letter-spacing: -0.03em; margin-bottom: 32px; line-height: 1.1; }
+  h1 em { font-style: normal; color: var(--rose); }
+  h2 { font-size: 17px; font-weight: 800; letter-spacing: -0.02em; margin: 36px 0 12px; }
+  h3 { font-size: 13px; font-weight: 700; margin: 24px 0 8px; }
+  p  { margin-bottom: 12px; color: #334155; }
+  ul, ol { padding-left: 20px; margin-bottom: 12px; }
+  li { margin-bottom: 5px; color: #334155; }
+
+  /* ── Cards ── */
+  .card {
+    border: 1.5px solid var(--line); border-radius: 14px;
+    padding: 20px 24px; margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 11px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: 0.15em; margin-bottom: 10px;
+  }
+  .card.green  { border-color: #a7f3d0; background: #f0fdf4; }
+  .card.green  .card-title { color: #059669; }
+  .card.amber  { border-color: #fde68a; background: #fffbeb; }
+  .card.amber  .card-title { color: #d97706; }
+  .card.rose   { border-color: var(--rose-m); background: var(--rose-l); }
+  .card.rose   .card-title { color: var(--rose); }
+  .card.blue   { border-color: #bfdbfe; background: var(--blue-l); }
+  .card.blue   .card-title { color: #1d4ed8; }
+  .card.slate  { border-color: #334155; background: var(--slate2); color: #e2e8f0; }
+  .card.slate  .card-title { color: #94a3b8; }
+  .card.slate p, .card.slate li { color: #cbd5e1; }
+
+  /* ── Code ── */
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; background: #f1f5f9;
+    padding: 2px 6px; border-radius: 5px; color: var(--rose);
+  }
+  pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; background: var(--slate2); color: #e2e8f0;
+    padding: 18px 20px; border-radius: 12px; margin: 14px 0;
+    line-height: 1.8; white-space: pre-wrap; overflow-wrap: break-word;
+  }
+  pre .comment { color: #64748b; }
+  pre .keyword { color: #f472b6; }
+  pre .string  { color: #86efac; }
+  pre .var     { color: #93c5fd; }
+
+  /* ── Table ── */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 11.5px; }
+  th {
+    background: var(--slate); color: #fff;
+    padding: 10px 14px; text-align: left;
+    font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.15em;
+  }
+  th:first-child { border-radius: 8px 0 0 0; }
+  th:last-child  { border-radius: 0 8px 0 0; }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) td { background: #f8fafc; }
+
+  /* ── Step list ── */
+  .steps { list-style: none; padding: 0; counter-reset: step; }
+  .steps li {
+    counter-increment: step;
+    display: flex; gap: 14px; margin-bottom: 16px; align-items: flex-start;
+  }
+  .steps li::before {
+    content: counter(step);
+    flex-shrink: 0; width: 26px; height: 26px; border-radius: 8px;
+    background: var(--rose); color: #fff;
+    font-size: 11px; font-weight: 900;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 1px;
+  }
+  .steps li p { margin: 0; }
+
+  /* ── Badge ── */
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 99px;
+    font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em;
+  }
+  .badge.green { background: #dcfce7; color: #16a34a; }
+  .badge.amber { background: #fef3c7; color: #d97706; }
+  .badge.rose  { background: var(--rose-m); color: var(--rose); }
+  .badge.blue  { background: #dbeafe; color: #1d4ed8; }
+  .badge.slate { background: #f1f5f9; color: #475569; }
+
+  /* ── Two columns ── */
+  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+
+  /* ── Arch diagram ── */
+  .arch { display: flex; align-items: center; gap: 0; margin: 24px 0; }
+  .arch-box {
+    flex: 1; padding: 14px 16px; border-radius: 10px;
+    font-size: 10px; font-weight: 700; text-align: center;
+  }
+  .arch-arrow {
+    flex-shrink: 0; width: 32px; text-align: center;
+    color: var(--muted); font-size: 16px; font-weight: 300;
+  }
+
+  /* ── Footer ── */
+  .page-footer {
+    position: absolute; bottom: 28px; left: 72px; right: 72px;
+    display: flex; justify-content: space-between;
+    font-size: 9px; font-weight: 600; color: var(--line);
+    border-top: 1px solid var(--line); padding-top: 12px;
+  }
+
+  /* ── Print ── */
+  @media print {
+    body { font-size: 12px; }
+    .page, .cover, .toc-page { page-break-after: always; }
+    @page { size: A4; margin: 0; }
+  }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 1.5px solid var(--line); margin: 28px 0; }
+
+  /* ── Inline icon label ── */
+  .icon-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-weight: 700; }
+  .icon-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  .tag-win  { color: #0078d4; font-weight: 800; }
+  .tag-mac  { color: #555; font-weight: 800; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════
+     COVER
+══════════════════════════════════════════════════════ -->
+<div class="cover">
+  <div class="cover-logo">
+    <div class="cover-logo-dot">
+      <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+    </div>
+    Latarcerita Photobooth
+  </div>
+
+  <div class="cover-main">
+    <div class="cover-tag">Technical Documentation · v2.0</div>
+    <div class="cover-title">
+      Software<br/><span>Photobooth</span><br/>Documentation
+    </div>
+    <div class="cover-desc">
+      Panduan teknis lengkap mencakup arsitektur sistem, integrasi kamera Canon tanpa EOS Webcam Utility, setup cross-platform, dan panduan operasional.
+    </div>
+  </div>
+
+  <div class="cover-meta">
+    <div><strong>Platform</strong>Electron · React · Supabase</div>
+    <div><strong>Kamera Didukung</strong>Canon DSLR · Webcam · iPhone</div>
+    <div><strong>OS</strong>macOS · Windows 10/11</div>
+    <div><strong>Versi Dokumen</strong>Agustus 2026</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TABLE OF CONTENTS
+══════════════════════════════════════════════════════ -->
+<div class="toc-page">
+  <div class="toc-title">Daftar <span>Isi</span></div>
+  <ul class="toc-list">
+    <li class="toc-section">Ikhtisar Sistem</li>
+    <li>1. Gambaran Umum Sistem <span>Hal 3</span></li>
+    <li>2. Arsitektur Teknis <span>Hal 4</span></li>
+
+    <li class="toc-section">Kamera Canon</li>
+    <li>3. Masalah &amp; Solusi EOS Webcam Utility <span>Hal 5</span></li>
+    <li>4. Kabel yang Dibutuhkan (Canon 700D) <span>Hal 6</span></li>
+    <li>5. Setup Mac — gphoto2 <span>Hal 7</span></li>
+    <li>6. Setup Windows — digiCamControl <span>Hal 8</span></li>
+    <li>7. Alur Kerja Driver Universal Canon <span>Hal 9</span></li>
+
+    <li class="toc-section">Fitur Sistem</li>
+    <li>8. Mode Kamera yang Didukung <span>Hal 10</span></li>
+    <li>9. Sistem Upload &amp; Offline Queue <span>Hal 11</span></li>
+    <li>10. Panduan Penggunaan &amp; Troubleshooting <span>Hal 12</span></li>
+  </ul>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE 3 — GAMBARAN UMUM
+══════════════════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-tag">Bab 1 · Ikhtisar</div>
+  <h1>Gambaran Umum <em>Sistem</em></h1>
+
+  <p>Latarcerita Photobooth adalah software booth berbasis <strong>Electron + React</strong> yang memungkinkan pengoperasian kamera DSLR/webcam, penyuntingan frame, dan pengunggahan otomatis hasil foto ke cloud (Supabase) dengan dukungan mode offline.</p>
+
+  <div class="cols3" style="margin-top:24px">
+    <div class="card rose">
+      <div class="card-title">📸 Capture</div>
+      <p>Menangkap foto dari berbagai sumber kamera dengan countdown, filter, dan overlay frame.</p>
+    </div>
+    <div class="card blue">
+      <div class="card-title">☁️ Upload</div>
+      <p>Auto-upload ke Supabase Storage. Jika offline, foto disimpan lokal dan dikirim otomatis saat koneksi kembali.</p>
+    </div>
+    <div class="card green">
+      <div class="card-title">🖨️ Print</div>
+      <p>Cetak langsung ke printer fisik (4R / A4) via Electron PrintAPI atau browser dialog.</p>
+    </div>
+  </div>
+
+  <h2>Komponen Utama</h2>
+  <table>
+    <thead>
+      <tr><th>Komponen</th><th>Teknologi</th><th>Fungsi</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Frontend (Renderer)</strong></td><td>React + Vite + Tailwind</td><td>UI utama photobooth &amp; creator dashboard</td></tr>
+      <tr><td><strong>Backend (Main Process)</strong></td><td>Electron + Node.js</td><td>Camera driver, printer, file system</td></tr>
+      <tr><td><strong>Database &amp; Storage</strong></td><td>Supabase (PostgreSQL)</td><td>Simpan metadata sesi &amp; file foto</td></tr>
+      <tr><td><strong>Offline Queue</strong></td><td>IndexedDB (lokal)</td><td>Antrian upload saat tidak ada internet</td></tr>
+      <tr><td><strong>Creator Dashboard</strong></td><td>React (build terpisah)</td><td>Manajemen event, frame, dan galeri</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Alur Sesi Foto</h2>
+  <div class="arch">
+    <div class="arch-box" style="background:#f1f5f9">Start Screen</div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box" style="background:#fef3c7">Pilih Frame</div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box" style="background:#dbeafe">Capture</div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box" style="background:#dcfce7">Processing</div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-box" style="background:#ffe4e6">Output &amp; Print</div>
+  </div>
+
+  <div class="page-footer">
+    <span>Latarcerita Photobooth — Dokumentasi Teknis</span>
+    <span>Hal. 3</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE 4 — ARSITEKTUR
+══════════════════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-tag">Bab 2 · Arsitektur</div>
+  <h1>Arsitektur <em>Teknis</em></h1>
+
+  <div class="card slate" style="margin-bottom:24px">
+    <div class="card-title">Struktur Folder Utama</div>
+<pre>
+softwarephotobooth/
+├── <span class="var">electron/</span>           ← Main process (Node.js)
+│   ├── main.js         ← Entry point, IPC handlers
+│   ├── preload.cjs     ← Secure bridge renderer ↔ main
+│   └── camera/
+│       ├── <span class="string">UniversalCanonDriver.js</span>  ← Canon USB (gphoto2 / digiCamControl)
+│       ├── FolderBridge.js          ← Hot-folder API (localhost:3001)
+│       └── cameraManager.js        ← Canon EDSDK skeleton
+├── <span class="var">src/</span>                ← Renderer process (React)
+│   ├── App.jsx
+│   ├── components/     ← UI screens
+│   ├── lib/camera/     ← Camera drivers (frontend)
+│   │   └── drivers/
+│   │       ├── CanonGPhoto2Driver.js
+│   │       ├── WebcamDriver.js
+│   │       ├── DSLRFolderDriver.js
+│   │       └── PhoneCameraDriver.js
+│   └── lib/offlineQueue.js
+└── <span class="var">creator/</span>            ← Dashboard creator (build terpisah)
+</pre>
+  </div>
+
+  <h2>Alur IPC (Komunikasi Renderer ↔ Main)</h2>
+  <div class="arch">
+    <div class="arch-box" style="background:#eff6ff;border:1.5px solid #bfdbfe">
+      <div style="font-size:9px;color:#1d4ed8;font-weight:800;margin-bottom:4px">RENDERER</div>
+      CanonGPhoto2Driver.js
+    </div>
+    <div class="arch-arrow" style="font-size:12px;text-align:center;line-height:1.3;color:#64748b">
+      →<br/><span style="font-size:8px">IPC invoke</span><br/>←
+    </div>
+    <div class="arch-box" style="background:#f0fdf4;border:1.5px solid #a7f3d0">
+      <div style="font-size:9px;color:#059669;font-weight:800;margin-bottom:4px">PRELOAD</div>
+      preload.cjs
+    </div>
+    <div class="arch-arrow" style="font-size:12px;text-align:center;line-height:1.3;color:#64748b">
+      →<br/><span style="font-size:8px">expose</span><br/>←
+    </div>
+    <div class="arch-box" style="background:#fff1f2;border:1.5px solid #fecdd3">
+      <div style="font-size:9px;color:#e11d48;font-weight:800;margin-bottom:4px">MAIN</div>
+      UniversalCanonDriver.js
+    </div>
+    <div class="arch-arrow" style="font-size:12px;text-align:center;line-height:1.3;color:#64748b">
+      →<br/><span style="font-size:8px">USB/HTTP</span>
+    </div>
+    <div class="arch-box" style="background:#1e293b;color:#e2e8f0;border:1.5px solid #334155">
+      <div style="font-size:9px;color:#94a3b8;font-weight:800;margin-bottom:4px">HARDWARE</div>
+      Kamera Canon
+    </div>
+  </div>
+
+  <h2>Channel IPC — Canon</h2>
+  <table>
+    <thead><tr><th>Channel</th><th>Arah</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>canon:detect</code></td><td>invoke</td><td>Deteksi kamera Canon yang terhubung</td></tr>
+      <tr><td><code>canon:startPreview</code></td><td>invoke</td><td>Mulai streaming frame live view (~5fps)</td></tr>
+      <tr><td><code>canon:previewFrame</code></td><td>send (push)</td><td>Main → Renderer: JPEG frame base64</td></tr>
+      <tr><td><code>canon:capturePhoto</code></td><td>invoke</td><td>Trigger shutter, return foto base64</td></tr>
+      <tr><td><code>canon:stopPreview</code></td><td>invoke</td><td>Hentikan streaming preview</td></tr>
+    </tbody>
+  </table>
+
+  <div class="page-footer">
+    <span>Latarcerita Photobooth — Dokumentasi Teknis</span>
+    <span>Hal. 4</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE 5 — MASALAH EOS WEBCAM UTILITY
+══════════════════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-tag">Bab 3 · Kamera Canon</div>
+  <h1>Masalah &amp; Solusi <em>EOS Webcam Utility</em></h1>
+
+  <div class="card amber">
+    <div class="card-title">⚠️ Masalah Sebelumnya</div>
+    <p>Mode <strong>Webcam</strong> menggunakan <code>getUserMedia()</code> (WebRTC browser). Tanpa EOS Webcam Utility terpasang, kamera Canon <strong>tidak muncul</strong> sebagai perangkat UVC (USB Video Class) di sistem operasi, sehingga tidak bisa dideteksi oleh browser.</p>
+  </div>
+
+  <h2>Kenapa EOS Webcam Utility Bermasalah?</h2>
+  <ul>
+    <li>Harus diinstall dan aktif sebelum membuka photobooth</li>
+    <li>Kadang konflik dengan update Canon atau driver Windows</li>
+    <li>Resolusi preview terbatas (biasanya 720p)</li>
+    <li>Tidak tersedia untuk semua model Canon lama</li>
+    <li>Hanya di Mac &amp; Windows — tidak ada di Linux</li>
+  </ul>
+
+  <h2>Solusi yang Diimplementasikan</h2>
+  <p>Menambahkan mode kamera baru <strong>"Canon"</strong> yang berkomunikasi langsung ke kamera via USB (protokol PTP) tanpa memerlukan EOS Webcam Utility:</p>
+
+  <div class="cols2">
+    <div class="card green">
+      <div class="card-title">✅ Mac / Linux</div>
+      <p><strong>gphoto2</strong> — library open-source yang mendukung lebih dari 2.000 model kamera termasuk seluruh seri Canon EOS.</p>
+      <p style="margin-top:8px"><span class="badge green">Gratis</span> <span class="badge slate">1 perintah install</span></p>
+    </div>
+    <div class="card blue">
+      <div class="card-title">✅ Windows</div>
+      <p><strong>digiCamControl</strong> — software open-source Windows yang expose REST API lokal untuk kontrol kamera.</p>
+      <p style="margin-top:8px"><span class="badge green">Gratis</span> <span class="badge slate">Install + buka</span></p>
+    </div>
+  </div>
+
+  <h2>Perbandingan Pendekatan</h2>
+  <table>
+    <thead><tr><th>Aspek</th><th>EOS Webcam Utility (lama)</th><th>Driver Universal Canon (baru)</th></tr></thead>
+    <tbody>
+      <tr><td>Instalasi</td><td>Wajib, rentan update</td><td>Opsional, sekali install</td></tr>
+      <tr><td>Preview</td><td>Real-time 30fps</td><td>~5fps (cukup untuk photobooth)</td></tr>
+      <tr><td>Foto capture</td><td>Via webcam (720p)</td><td>Full resolution dari kamera</td></tr>
+      <tr><td>Resolusi foto</td><td>Terbatas resolusi webcam</td><td>Full RAW/JPEG kamera asli</td></tr>
+      <tr><td>Cross-platform</td><td>Terbatas</td><td>Mac + Windows + Linux</td></tr>
+      <tr><td>Biaya</td><td>Gratis (Canon)</td><td>Gratis (open-source)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="page-footer">
+    <span>Latarcerita Photobooth — Dokumentasi Teknis</span>
+    <span>Hal. 5</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE 6 — KABEL
+══════════════════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-tag">Bab 4 · Hardware</div>
+  <h1>Kabel yang Dibutuhkan <em>Canon 700D</em></h1>
+
+  <div class="card rose">
+    <div class="card-title">🔌 Hanya 1 Kabel yang Diperlukan</div>
+    <p>Canon EOS 700D (Rebel T5i) menggunakan port <strong>USB Mini-B</strong> di sisi kamera. Kabel ini sudah termasuk dalam paket pembelian kamera baru.</p>
+  </div>
+
+  <h2>Spesifikasi Kabel</h2>
+  <table>
+    <thead><tr><th>Sisi Kamera</th><th>Sisi Komputer</th><th>Kode Canon</th><th>Tersedia di</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>USB Mini-B (5-pin)</strong><br/><span style="color:#64748b;font-size:11px">Port kecil trapesium di body kamera</span></td>
+        <td><strong>USB-A</strong> atau <strong>USB-C</strong><br/><span style="color:#64748b;font-size:11px">Sesuaikan dengan port laptop/PC</span></td>
+        <td><code>IFC-130U</code><br/><code>IFC-400PCU</code></td>
+        <td>Toko elektronik<br/>Rp 15.000 – 40.000</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin:24px 0; padding:20px 24px; background:#f8fafc; border-radius:14px; border:1.5px solid #e2e8f0">
+    <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.2em;color:#64748b;margin-bottom:12px">Ilustrasi Koneksi</div>
+    <div style="display:flex;align-items:center;gap:0;font-size:12px;font-weight:700">
+      <div style="padding:12px 20px;background:#1e293b;color:#e2e8f0;border-radius:10px 0 0 10px;text-align:center">
+        <div style="font-size:9px;color:#94a3b8;margin-bottom:4px">KAMERA</div>
+        Canon EOS 700D<br/><span style="font-size:10px;color:#64748b">Port: USB Mini-B</span>
+      </div>
+      <div style="padding:12px;background:#e2e8f0;color:#475569;font-size:11px;text-align:center">
+        ────────────<br/>Kabel USB<br/>Mini-B → A<br/>────────────
+      </div>
+      <div style="padding:12px 20px;background:#1e293b;color:#e2e8f0;border-radius:0 10px 10px 0;text-align:center">
+        <div style="font-size:9px;color:#94a3b8;margin-bottom:4px">KOMPUTER</div>
+        Mac / PC<br/><span style="font-size:10px;color:#64748b">Port: USB-A / USB-C</span>
+      </div>
+    </div>
+  </div>
+
+  <h2>Pengaturan Kamera Sebelum Menghubungkan</h2>
+  <ol class="steps">
+    <li><p>Nyalakan Canon EOS 700D</p></li>
+    <li><p>Tekan tombol <strong>Menu</strong> → masuk ke tab <strong>Set Up 3</strong> (ikon kunci pas)</p></li>
+    <li><p>Pilih <strong>PC Connection</strong> → ubah ke <strong>PTP</strong><br/><span style="color:#64748b;font-size:11px">Jangan pilih "MTP" atau "Mass Storage" — tidak akan terdeteksi oleh driver</span></p></li>
+    <li><p>Hubungkan kabel USB ke komputer</p></li>
+    <li><p>Di photobooth: buka <strong>Settings → Camera Diagnostic → klik tombol Canon</strong></p></li>
+  </ol>
+
+  <div class="card amber" style="margin-top:24px">
+    <div class="card-title">⚠️ Perhatian — Mode Kamera</div>
+    <p>Pastikan mode kamera di Canon 700D diatur ke <strong>P, Av, Tv, atau M</strong> (bukan Auto/Scene). Live view tidak berfungsi di mode Auto pada beberapa model Canon.</p>
+  </div>
+
+  <div class="page-footer">
+    <span>Latarcerita Photobooth — Dokumentasi Teknis</span>
+    <span>Hal. 6</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE 7 — SETUP MAC
+══════════════════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-tag">Bab 5 · Setup Mac</div>
+  <h1>Setup <em>Mac</em> — gphoto2</h1>
+
+  <div class="card green">
+    <div class="card-title">✅ gphoto2 — Open Source Camera Control</div>
+    <p>Mendukung lebih dari 2.500 model kamera via protokol USB/PTP. Tersedia gratis melalui Homebrew package manager.</p>
+  </div>
+
+  <h2>Instalasi (Sekali Saja)</h2>
+  <ol class="steps">
+    <li>
+      <p>Buka <strong>Terminal</strong> (Applications → Utilities → Terminal)</p>
+    </li>
+    <li>
+      <p>Install Homebrew jika belum ada:</p>
+      <pre>/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</pre>
+    </li>
+    <li>
+      <p>Install gphoto2:</p>
+      <pre>brew install gphoto2</pre>
+    </li>
+    <li>
+      <p>Verifikasi instalasi:</p>
+      <pre>gphoto2 --version
+<span class="comment"># Output: gphoto2 2.5.x ...</span></pre>
+    </li>
+    <li>
+      <p>Hubungkan kamera, lalu test deteksi:</p>
+      <pre>gphoto2 --auto-detect
+<span class="comment"># Output: Canon EOS 700D    usb:020,011</span></pre>
+    </li>
+  </ol>
+
+  <h2>Cara Kerja di Background</h2>
+  <p>Saat mode Canon aktif di photobooth, sistem melakukan:</p>
+  <div class="card slate">
+    <div class="card-title">Command yang dijalankan Electron</div>
+<pre><span class="comment"># Live preview (~5fps)</span>
+gphoto2 --capture-preview --filename="/tmp/pb_prev.jpg" --force-overwrite
+
+<span class="comment"># Capture foto full-resolution</span>
+gphoto2 --capture-image-and-download --filename="/tmp/pb_shot.jpg" --force-overwrite
+
+<span class="comment"># Deteksi kamera</span>
+gphoto2 --auto-detect</pre>
+  </div>
+
+  <h2>Troubleshooting Mac</h2>
+  <table>
+    <thead><tr><th>Masalah</th><th>Solusi</th></tr></thead>
+    <tbody>
+      <tr><td>Kamera tidak terdeteksi</td><td>Pastikan mode PC Connection = PTP, bukan Mass Storage</td></tr>
+      <tr><td>"Could not claim interface"</td><td>Tutup aplikasi lain yang memakai kamera (Image Capture, Photos)</td></tr>
+      <tr><td>Preview lambat / gagal</td><td>Normal jika baterai rendah. Charge kamera atau gunakan AC adapter</td></tr>
+      <tr><td>gphoto2: command not found</td><td>Jalankan ulang: <code>brew install gphoto2</code></td></tr>
+    </tbody>
+  </table>
+
+  <div class="page-footer">
+    <span>Latarcerita Photobooth — Dokumentasi Teknis</span>
+    <span>Hal. 7</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE 8 — SETUP WINDOWS
+══════════════════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-tag">Bab 6 · Setup Windows</div>
+  <h1>Setup <em>Windows</em> — digiCamControl</h1>
+
+  <div class="card blue">
+    <div class="card-title">✅ digiCamControl — Free Camera Control for Windows</div>
+    <p>Software open-source Windows yang mendukung ratusan kamera DSLR Canon, Nikon, Sony, dll. Expose REST API di <code>localhost:5513</code> yang diakses langsung oleh Electron.</p>
+  </div>
+
+  <h2>Instalasi (Sekali Saja)</h2>
+  <ol class="steps">
+    <li>
+      <p>Download digiCamControl dari <strong>digicamcontrol.com</strong> → klik <em>Download</em></p>
+    </li>
+    <li>
+      <p>Jalankan installer (<code>digiCamControl_Setup_x.x.x.exe</code>) dan ikuti wizard instalasi</p>
+    </li>
+    <li>
+      <p>Buka digiCamControl — aplikasi akan berjalan di System Tray</p>
+    </li>
+    <li>
+      <p>Hubungkan kamera Canon 700D via kabel USB</p>
+    </li>
+    <li>
+      <p>digiCamControl otomatis mendeteksi kamera dan mengaktifkan web server di <code>localhost:5513</code></p>
+    </li>
+    <li>
+      <p>Buka photobooth → Camera Diagnostic → klik tombol <strong>Canon</strong></p>
+    </li>
+  </ol>
+
+  <h2>API Endpoints yang Digunakan</h2>
+  <table>
+    <thead><tr><th>Endpoint</th><th>Method</th><th>Fungsi</th></tr></thead>
+    <tbody>
+      <tr><td><code>localhost:5513/api/camera</code></td><td>GET</td><td>Cek koneksi &amp; model kamera</td></tr>
+      <tr><td><code>localhost:5513/liveview.jpg</code></td><td>GET</td><td>Ambil frame live view (JPEG)</td></tr>
+      <tr><td><code>localhost:5513/capture</code></td><td>GET</td><td>Trigger shutter &amp; download foto</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Pengaturan digiCamControl yang Disarankan</h2>
+  <ul>
+    <li>Session → <strong>Auto save</strong>: aktifkan</li>
+    <li>Web server port: biarkan default <strong>5513</strong></li>
+    <li>Live view: pastikan sudah aktif (tombol Live View di toolbar)</li>
+    <li>Aktifkan <strong>"Start with Windows"</strong> di Settings supaya tidak perlu buka manual</li>
+  </ul>
+
+  <h2>Troubleshooting Windows</h2>
+  <table>
+    <thead><tr><th>Masalah</th><th>Solusi</th></tr></thead>
+    <tbody>
+      <tr><td>Photobooth tidak bisa detect Canon</td><td>Pastikan digiCamControl sudah berjalan (cek system tray)</td></tr>
+      <tr><td>Live view kosong / hitam</td><td>Aktifkan live view manual di digiCamControl → tombol kamera</td></tr>
+      <tr><td>Port 5513 sudah dipakai</td><td>Settings → Web Server → ubah port, update konstanta di kode</td></tr>
+      <tr><td>Kamera tidak muncul di digiCamControl</td><td>Ganti kabel USB, pastikan driver Canon sudah terinstall</td></tr>
+    </tbody>
+  </table>
+
+  <div class="page-footer">
+    <span>Latarcerita Photobooth — Dokumentasi Teknis</span>
+    <span>Hal. 8</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE 9 — ALUR DRIVER CANON
+══════════════════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-tag">Bab 7 · Driver Canon</div>
+  <h1>Alur Kerja <em>Driver Universal Canon</em></h1>
+
+  <h2>Deteksi Otomatis OS</h2>
+  <div class="card slate">
+    <div class="card-title">UniversalCanonDriver.js — Auto-detect Platform</div>
+<pre><span class="keyword">const</span> <span class="var">IS_WIN</span> = process.platform === <span class="string">'win32'</span>;
+
+<span class="keyword">async</span> detect() {
+  <span class="keyword">if</span> (IS_WIN) <span class="keyword">return</span> <span class="var">this</span>._detectWindows();  <span class="comment">// digiCamControl REST</span>
+  <span class="keyword">return</span> <span class="var">this</span>._detectMac();                    <span class="comment">// gphoto2 CLI</span>
+}
+
+<span class="keyword">async</span> capturePhoto() {
+  <span class="keyword">if</span> (IS_WIN) <span class="keyword">return</span> <span class="var">this</span>._captureWindows();
+  <span class="keyword">return</span> <span class="var">this</span>._captureMac();
+}</pre>
+  </div>
+
+  <h2>Alur Lengkap — Klik Tombol Canon di UI</h2>
+  <ol class="steps">
+    <li><p>User klik tombol <strong>Canon</strong> di Camera Diagnostic modal</p></li>
+    <li><p>Frontend memanggil <code>window.electronAPI.canonDetect()</code></p></li>
+    <li><p>Electron main process menjalankan deteksi (gphoto2 atau digiCamControl)</p></li>
+    <li><p>Jika berhasil: CameraManager set <code>source = 'canon'</code>, status berubah hijau</p></li>
+    <li><p>Electron mulai streaming preview frame ~5fps via <code>canon:previewFrame</code> IPC event</p></li>
+    <li><p>Frame JPEG ditampilkan di elemen <code>&lt;img&gt;</code> di preview area</p></li>
+  </ol>
+
+  <h2>Alur Capture Foto</h2>
+  <ol class="steps">
+    <li><p>Countdown selesai → App memanggil <code>camera.capture()</code></p></li>
+    <li><p>Driver sementara <strong>menghentikan preview stream</strong> supaya USB tidak konflik</p></li>
+    <li><p><strong>Mac</strong>: jalankan <code>gphoto2 --capture-image-and-download</code> → simpan ke <code>/tmp/pb_shot.jpg</code></p></li>
+    <li><p><strong>Windows</strong>: GET <code>localhost:5513/capture</code> → digiCamControl simpan ke session folder</p></li>
+    <li><p>File dibaca, dikonversi ke <strong>base64 data URL</strong></p></li>
+    <li><p>Driver <strong>melanjutkan preview stream</strong></p></li>
+    <li><p>Data URL dikirim kembali ke App untuk render dan upload ke Supabase</p></li>
+  </ol>
+
+  <h2>File yang Terlibat</h2>
+  <table>
+    <thead><tr><th>File</th><th>Layer</th><th>Peran</th></tr></thead>
+    <tbody>
+      <tr><td><code>electron/camera/UniversalCanonDriver.js</code></td><td>Main Process</td><td>Core logic gphoto2 + digiCamControl</td></tr>
+      <tr><td><code>electron/main.js</code></td><td>Main Process</td><td>IPC handlers canon:*</td></tr>
+      <tr><td><code>electron/preload.cjs</code></td><td>Bridge</td><td>Expose canonDetect, canonCapture, dll</td></tr>
+      <tr><td><code>src/lib/camera/drivers/CanonGPhoto2Driver.js</code></td><td>Renderer</td><td>Driver sisi frontend, update &lt;img&gt;</td></tr>
+      <tr><td><code>src/lib/camera/CameraManager.js</code></td><td>Renderer</td><td>Registrasi source 'canon'</td></tr>
+      <tr><td><code>src/components/StartScreen.jsx</code></td><td>Renderer</td><td>Tombol Canon + info box setup</td></tr>
+      <tr><td><code>src/components/CaptureScreen.jsx</code></td><td>Renderer</td><td>Render &lt;img&gt; preview untuk mode canon</td></tr>
+    </tbody>
+  </table>
+
+  <div class="page-footer">
+    <span>Latarcerita Photobooth — Dokumentasi Teknis</span>
+    <span>Hal. 9</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE 10 — MODE KAMERA
+══════════════════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-tag">Bab 8 · Kamera</div>
+  <h1>Mode Kamera yang <em>Didukung</em></h1>
+
+  <table>
+    <thead>
+      <tr><th>Mode</th><th>Source ID</th><th>Cara Kerja</th><th>Platform</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Canon (Baru)</strong> <span class="badge rose">Disarankan</span></td>
+        <td><code>canon</code></td>
+        <td>USB langsung via gphoto2 (Mac) atau digiCamControl (Windows)</td>
+        <td>Mac + Windows</td>
+      </tr>
+      <tr>
+        <td><strong>Webcam</strong></td>
+        <td><code>webcam</code></td>
+        <td>getUserMedia() — kamera apapun yang muncul sebagai webcam, termasuk EOS Webcam Utility</td>
+        <td>Semua</td>
+      </tr>
+      <tr>
+        <td><strong>DSLR Hot-Folder</strong></td>
+        <td><code>dslr</code></td>
+        <td>Polling folder <code>captures/</code> via localhost:3001. Cocok untuk tethering manual.</td>
+        <td>Semua</td>
+      </tr>
+      <tr>
+        <td><strong>Phone Camera</strong></td>
+        <td><code>phone</code></td>
+        <td>iPhone / Android via WebRTC + WebSocket. Scan QR di HP untuk connect.</td>
+        <td>Semua (Electron)</td>
+      </tr>
+      <tr>
+        <td><strong>Mock</strong></td>
+        <td><code>mock</code></td>
+        <td>Foto placeholder untuk testing UI tanpa hardware</td>
+        <td>Semua</td>
+      </tr>
+      <tr>
+        <td><strong>Auto</strong></td>
+        <td><code>auto</code></td>
+        <td>Deteksi otomatis: coba DSLR hot-folder → Webcam → Mock</td>
+        <td>Semua</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Selector Mode Kamera di UI</h2>
+  <p>Buka photobooth → klik ikon ⚙️ pojok kanan atas → <strong>Camera Diagnostic</strong>. Tersedia 6 tombol mode:</p>
+
+  <div class="cols3" style="margin-top:12px">
+    <div class="card" style="text-align:center;padding:16px 12px">
+      <div style="font-size:20px;margin-bottom:6px">🔄</div>
+      <div style="font-weight:800;font-size:11px">Auto</div>
+      <div style="color:#64748b;font-size:10px;margin-top:4px">Deteksi otomatis</div>
+    </div>
+    <div class="card" style="text-align:center;padding:16px 12px">
+      <div style="font-size:20px;margin-bottom:6px">📷</div>
+      <div style="font-weight:800;font-size:11px">DSLR</div>
+      <div style="color:#64748b;font-size:10px;margin-top:4px">Hot-folder</div>
+    </div>
+    <div class="card" style="text-align:center;padding:16px 12px">
+      <div style="font-size:20px;margin-bottom:6px">🖥️</div>
+      <div style="font-weight:800;font-size:11px">Webcam</div>
+      <div style="color:#64748b;font-size:10px;margin-top:4px">USB Webcam</div>
+    </div>
+    <div class="card rose" style="text-align:center;padding:16px 12px">
+      <div style="font-size:20px;margin-bottom:6px">🎯</div>
+      <div style="font-weight:800;font-size:11px">Canon</div>
+      <div style="color:#e11d48;font-size:10px;margin-top:4px">USB Direct (Baru)</div>
+    </div>
+    <div class="card" style="text-align:center;padding:16px 12px">
+      <div style="font-size:20px;margin-bottom:6px">📱</div>
+      <div style="font-weight:800;font-size:11px">Phone</div>
+      <div style="color:#64748b;font-size:10px;margin-top:4px">iPhone / Android</div>
+    </div>
+    <div class="card" style="text-align:center;padding:16px 12px">
+      <div style="font-size:20px;margin-bottom:6px">🧪</div>
+      <div style="font-weight:800;font-size:11px">Mock</div>
+      <div style="color:#64748b;font-size:10px;margin-top:4px">Testing</div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>Latarcerita Photobooth — Dokumentasi Teknis</span>
+    <span>Hal. 10</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE 11 — UPLOAD & OFFLINE
+══════════════════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-tag">Bab 9 · Upload &amp; Offline</div>
+  <h1>Sistem Upload &amp; <em>Offline Queue</em></h1>
+
+  <p>Software dirancang untuk beroperasi bahkan tanpa koneksi internet. Sesi foto tetap tersimpan lokal dan dikirim otomatis saat jaringan kembali.</p>
+
+  <h2>Alur Upload Normal (Online)</h2>
+  <ol class="steps">
+    <li><p><strong>Pre-upload background</strong>: setiap foto yang diambil langsung diupload ke Supabase Storage di background (belum menunggu selesai semua foto)</p></li>
+    <li><p><strong>ProcessingScreen</strong>: generate composite layout dari semua foto + frame</p></li>
+    <li><p><strong>Upload composite</strong>: gambar gabungan diupload ke bucket <code>frames</code></p></li>
+    <li><p><strong>Skip foto pre-uploaded</strong>: foto yang sudah terupload di langkah 1 tidak diupload ulang</p></li>
+    <li><p><strong>Simpan ke database</strong>: insert ke tabel <code>captures</code> dengan metadata sesi</p></li>
+  </ol>
+
+  <h2>Alur Offline (Tidak Ada Internet)</h2>
+  <div class="card amber">
+    <div class="card-title">📦 Offline Queue — IndexedDB</div>
+    <p>Saat upload gagal karena tidak ada jaringan, seluruh data sesi (foto + composite + metadata) disimpan ke <strong>IndexedDB</strong> lokal. Data tidak hilang walau aplikasi ditutup atau komputer restart.</p>
+  </div>
+
+  <ol class="steps">
+    <li><p>Upload ke Supabase gagal → deteksi sebagai error jaringan</p></li>
+    <li><p>Data disimpan ke antrian lokal (<code>offlineQueue</code>)</p></li>
+    <li><p>Status berubah ke "Tersimpan — Akan dikirim otomatis saat online"</p></li>
+    <li><p>Background listener memantau <code>window.online</code> event</p></li>
+    <li><p>Saat online: antrian diproses otomatis satu per satu</p></li>
+  </ol>
+
+  <h2>Manajemen Pending Upload</h2>
+  <p>Buka Settings → <strong>Pending Upload</strong> untuk melihat sesi yang menunggu dan memicu sync manual:</p>
+  <ul>
+    <li>Lihat daftar sesi pending beserta preview foto dan waktu</li>
+    <li>Klik <strong>"Kirim Sekarang"</strong> untuk sync manual (harus online)</li>
+    <li>Badge angka di tombol menunjukkan jumlah sesi pending</li>
+  </ul>
+
+  <h2>Tabel Database — captures</h2>
+  <table>
+    <thead><tr><th>Kolom</th><th>Tipe</th><th>Keterangan</th></tr></thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>UUID</td><td>Primary key</td></tr>
+      <tr><td><code>session_id</code></td><td>text</td><td>UUID unik per sesi foto</td></tr>
+      <tr><td><code>user_id</code></td><td>UUID</td><td>ID device/user yang mengambil</td></tr>
+      <tr><td><code>event_id</code></td><td>UUID</td><td>Event terkait (opsional)</td></tr>
+      <tr><td><code>image_url</code></td><td>text</td><td>URL composite photo di Supabase Storage</td></tr>
+      <tr><td><code>raw_photos</code></td><td>text[]</td><td>Array URL foto individual</td></tr>
+      <tr><td><code>frame_id</code></td><td>UUID</td><td>Frame yang digunakan</td></tr>
+      <tr><td><code>device_id</code></td><td>text</td><td>ID perangkat fisik</td></tr>
+      <tr><td><code>created_at</code></td><td>timestamptz</td><td>Waktu sesi</td></tr>
+    </tbody>
+  </table>
+
+  <div class="page-footer">
+    <span>Latarcerita Photobooth — Dokumentasi Teknis</span>
+    <span>Hal. 11</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     PAGE 12 — PANDUAN & TROUBLESHOOTING
+══════════════════════════════════════════════════════ -->
+<div class="page">
+  <div class="page-tag">Bab 10 · Operasional</div>
+  <h1>Panduan Penggunaan &amp; <em>Troubleshooting</em></h1>
+
+  <h2>Checklist Sebelum Event</h2>
+  <table>
+    <thead><tr><th>Item</th><th>Mac</th><th>Windows</th></tr></thead>
+    <tbody>
+      <tr><td>gphoto2 terinstall</td><td>✅ <code>brew install gphoto2</code></td><td>— (tidak diperlukan)</td></tr>
+      <tr><td>digiCamControl berjalan</td><td>— (tidak diperlukan)</td><td>✅ Cek system tray</td></tr>
+      <tr><td>Canon 700D mode PTP</td><td>✅ Menu → Set Up 3 → PTP</td><td>✅ Menu → Set Up 3 → PTP</td></tr>
+      <tr><td>Kabel USB tersambung</td><td>✅ Mini-B ke USB-A/C</td><td>✅ Mini-B ke USB-A/C</td></tr>
+      <tr><td>Mode kamera Canon</td><td>✅ P / Av / Tv / M</td><td>✅ P / Av / Tv / M</td></tr>
+      <tr><td>Baterai / AC adapter</td><td>✅ Min. 50%</td><td>✅ Min. 50%</td></tr>
+      <tr><td>Printer dikonfigurasi</td><td>✅ Settings → Printer</td><td>✅ Settings → Printer</td></tr>
+      <tr><td>Koneksi internet / test offline</td><td>✅ Cek badge Online</td><td>✅ Cek badge Online</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Troubleshooting Umum</h2>
+  <table>
+    <thead><tr><th>Gejala</th><th>Kemungkinan Penyebab</th><th>Solusi</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Tombol Canon tidak aktif</td>
+        <td>Bukan di Electron</td>
+        <td>Jalankan lewat <code>npm run electron</code>, bukan browser biasa</td>
+      </tr>
+      <tr>
+        <td>Preview hitam / kosong</td>
+        <td>Live view belum aktif</td>
+        <td>Windows: aktifkan live view di digiCamControl. Mac: cek mode kamera (bukan Auto)</td>
+      </tr>
+      <tr>
+        <td>Capture timeout</td>
+        <td>Kamera sibuk / baterai lemah</td>
+        <td>Restart kamera, pastikan baterai penuh, coba cabut-pasang USB</td>
+      </tr>
+      <tr>
+        <td>Upload gagal terus</td>
+        <td>Supabase key / network issue</td>
+        <td>Cek <code>.env</code> → <code>VITE_SUPABASE_URL</code> dan <code>VITE_SUPABASE_ANON_KEY</code></td>
+      </tr>
+      <tr>
+        <td>Foto tidak muncul di galeri</td>
+        <td>RLS policy Supabase</td>
+        <td>Jalankan <code>supabase_disable_rls.sql</code> atau set policy yang benar</td>
+      </tr>
+      <tr>
+        <td>Printer tidak terdeteksi</td>
+        <td>Hanya bisa di Electron</td>
+        <td>Settings → Printer Settings → klik refresh. Pastikan printer aktif.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="cols2" style="margin-top:24px">
+    <div class="card green">
+      <div class="card-title">📞 Kontak Developer</div>
+      <p>Untuk bug report atau pertanyaan teknis, hubungi tim developer Latarcerita.</p>
+    </div>
+    <div class="card slate">
+      <div class="card-title">📄 Versi Dokumen</div>
+      <p>Dokumen ini dibuat Agustus 2026 berdasarkan kode versi terkini di branch <code>main</code>.</p>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>Latarcerita Photobooth — Dokumentasi Teknis</span>
+    <span>Hal. 12</span>
+  </div>
+</div>
+
+</body>
+</html>

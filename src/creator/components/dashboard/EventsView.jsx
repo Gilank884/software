@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity, ChevronRight, ArrowLeft, Download, Eye, Smartphone, ImageIcon, RefreshCcw, Printer, AlertCircle, HardDrive, Mail, Link2, Copy } from 'lucide-react'
+import { Plus, Calendar, Trash2, Loader2, Edit2, Check, X, Activity, ChevronRight, ArrowLeft, Download, Eye, Smartphone, ImageIcon, RefreshCcw, Printer, AlertCircle, HardDrive, Mail, Link2, Copy, CheckSquare } from 'lucide-react'
 import { supabase } from '../../../lib/supabaseClient'
 import PageHeader from './PageHeader'
 
@@ -30,6 +30,11 @@ export default function EventsView({ user, events, devices, onRefresh }) {
   const [loadingStorage, setLoadingStorage] = useState(false)
 
   const [copiedEventId, setCopiedEventId] = useState(null)
+
+  // Select & delete state
+  const [isSelectMode, setIsSelectMode] = useState(false)
+  const [selectedCaptureIds, setSelectedCaptureIds] = useState(new Set())
+  const [isDeletingSelected, setIsDeletingSelected] = useState(false)
 
   // Email State
   const [emailInput, setEmailInput] = useState('')
@@ -284,6 +289,7 @@ export default function EventsView({ user, events, devices, onRefresh }) {
 
   const handlePageChange = (page) => {
     setCurrentPage(page)
+    setSelectedCaptureIds(new Set())
     fetchEventCaptures(selectedEvent.id, page)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -474,13 +480,59 @@ export default function EventsView({ user, events, devices, onRefresh }) {
       if (!error) {
         fetchEventCaptures(event.id)
         fetchAllCaptures()
-        setEventStorageBytes(0) // storage jadi 0 setelah semua file dihapus
+        setEventStorageBytes(0)
+        setTotalCaptures(0)
+        setSelectedCaptureIds(new Set())
       } else {
         alert('Gagal membersihkan event: ' + error.message)
       }
     } catch (err) {
       console.error('Clear event failed:', err)
       alert('Terjadi kesalahan saat membersihkan event.')
+    }
+  }
+
+  const toggleCaptureSelection = (captureId) => {
+    setSelectedCaptureIds(prev => {
+      const next = new Set(prev)
+      if (next.has(captureId)) next.delete(captureId)
+      else next.add(captureId)
+      return next
+    })
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selectedCaptureIds.size === 0) return
+    if (!confirm(`Hapus ${selectedCaptureIds.size} foto yang dipilih?\n\nFoto akan dihapus permanen dari database dan storage.`)) return
+
+    setIsDeletingSelected(true)
+    try {
+      const ids = [...selectedCaptureIds]
+
+      const { data: captures } = await supabase
+        .from('captures')
+        .select('id, image_url, raw_photos')
+        .in('id', ids)
+
+      if (captures?.length) await deleteCapureFilesFromStorage(captures)
+
+      const { error } = await supabase.from('captures').delete().in('id', ids)
+
+      if (!error) {
+        setSelectedCaptureIds(new Set())
+        setIsSelectMode(false)
+        setTotalCaptures(prev => prev - ids.length)
+        fetchEventCaptures(selectedEvent.id, currentPage)
+        fetchAllCaptures()
+        calculateEventStorage(selectedEvent.id)
+      } else {
+        alert('Gagal menghapus foto: ' + error.message)
+      }
+    } catch (err) {
+      console.error('Delete selected failed:', err)
+      alert('Terjadi kesalahan saat menghapus foto.')
+    } finally {
+      setIsDeletingSelected(false)
     }
   }
 
@@ -630,8 +682,8 @@ export default function EventsView({ user, events, devices, onRefresh }) {
         <div className="space-y-8 animate-in fade-in slide-in-from-right-4 duration-500 overflow-y-auto pr-6 pb-20 custom-scrollbar">
           <div className="flex items-center gap-4 border-b border-slate-100 pb-8">
              <div className="flex-1 flex items-center gap-4">
-                <button 
-                  onClick={() => setSelectedEvent(null)}
+                <button
+                  onClick={() => { setSelectedEvent(null); setIsSelectMode(false); setSelectedCaptureIds(new Set()) }}
                   className="flex items-center gap-2 text-slate-400 hover:text-blue-600 font-black text-[10px] uppercase tracking-widest transition-colors mr-4"
                 >
                   <ArrowLeft size={16} />
@@ -716,6 +768,33 @@ export default function EventsView({ user, events, devices, onRefresh }) {
                Delete Event
              </button>
 
+             {/* Select mode toggle */}
+             <button
+               onClick={() => { setIsSelectMode(p => !p); setSelectedCaptureIds(new Set()) }}
+               className={`px-6 py-3 border rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all shadow-sm ${
+                 isSelectMode
+                   ? 'bg-blue-50 border-blue-400 text-blue-600'
+                   : 'bg-white border-slate-200 text-slate-500 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200'
+               }`}
+             >
+               <CheckSquare size={14} />
+               {isSelectMode ? 'Batal Pilih' : 'Pilih Foto'}
+             </button>
+
+             {isSelectMode && (
+               <button
+                 onClick={handleDeleteSelected}
+                 disabled={selectedCaptureIds.size === 0 || isDeletingSelected}
+                 className="px-6 py-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 transition-all shadow-sm shadow-rose-500/30"
+               >
+                 {isDeletingSelected
+                   ? <Loader2 size={14} className="animate-spin" />
+                   : <Trash2 size={14} />
+                 }
+                 Hapus {selectedCaptureIds.size > 0 ? `${selectedCaptureIds.size} ` : ''}Foto
+               </button>
+             )}
+
              {/* Storage badge */}
              <div className={`ml-auto flex items-center gap-2 px-4 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${
                eventStorageBytes !== null && eventStorageBytes > 50 * 1024 * 1024
@@ -757,11 +836,14 @@ export default function EventsView({ user, events, devices, onRefresh }) {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
                 {eventCaptures.map((capture, index) => {
                   const sessionNumber = totalCaptures - ((currentPage - 1) * PHOTOS_PER_PAGE + index)
+                  const isSelected = selectedCaptureIds.has(capture.id)
                   return (
                     <div
                       key={capture.id}
-                      onClick={() => setSelectedCapture({ ...capture, sessionNumber })}
-                      className="group bg-white/60 backdrop-blur-xl border border-white/40 rounded-none p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.08)] transition-all duration-700 cursor-pointer"
+                      onClick={() => isSelectMode ? toggleCaptureSelection(capture.id) : setSelectedCapture({ ...capture, sessionNumber })}
+                      className={`group bg-white/60 backdrop-blur-xl border rounded-none p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(0,0,0,0.08)] transition-all duration-700 cursor-pointer ${
+                        isSelectMode && isSelected ? 'border-blue-500 ring-2 ring-blue-400/30' : 'border-white/40'
+                      }`}
                     >
                       <div className="relative aspect-[2/3] rounded-none overflow-hidden bg-slate-100 mb-4">
                         <img
@@ -776,12 +858,21 @@ export default function EventsView({ user, events, devices, onRefresh }) {
                         <div className="absolute top-2 left-2 bg-slate-900/70 backdrop-blur-sm text-white px-2.5 py-1 rounded-lg">
                           <span className="text-[10px] font-black tracking-widest">Sesi #{sessionNumber}</span>
                         </div>
-                        <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col items-center justify-center gap-4">
-                          <div className="bg-white/20 backdrop-blur-md border border-white/20 p-4 rounded-full text-white">
-                             <Eye size={32} />
+
+                        {isSelectMode ? (
+                          <div className={`absolute inset-0 transition-colors duration-200 flex items-center justify-center ${isSelected ? 'bg-blue-600/25' : 'bg-transparent group-hover:bg-slate-900/20'}`}>
+                            <div className={`w-9 h-9 rounded-full border-2 flex items-center justify-center shadow-md transition-all ${isSelected ? 'bg-blue-600 border-blue-600' : 'bg-white/80 border-white'}`}>
+                              {isSelected && <Check size={18} className="text-white" strokeWidth={3} />}
+                            </div>
                           </div>
-                          <p className="text-white font-black text-[10px] uppercase tracking-[0.2em] animate-pulse">View & Print</p>
-                        </div>
+                        ) : (
+                          <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex flex-col items-center justify-center gap-4">
+                            <div className="bg-white/20 backdrop-blur-md border border-white/20 p-4 rounded-full text-white">
+                               <Eye size={32} />
+                            </div>
+                            <p className="text-white font-black text-[10px] uppercase tracking-[0.2em] animate-pulse">View & Print</p>
+                          </div>
+                        )}
                       </div>
                       <div className="px-2 pb-2 text-center">
                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] leading-none">

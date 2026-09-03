@@ -115,6 +115,7 @@ export class WebcamDriver {
       const stream = await this._ensureStream();
       if (this.videoElement) {
         this.videoElement.srcObject = stream;
+        try { await this.videoElement.play(); } catch { /* autoplay already running */ }
       }
     } catch (err) {
       console.error("Webcam Error:", err);
@@ -158,6 +159,9 @@ export class WebcamDriver {
   async capture() {
     if (!this.videoElement || !this.stream) {
       throw new Error("Kamera belum aktif.");
+    }
+    if (!this.videoElement.videoWidth || !this.videoElement.videoHeight) {
+      throw new Error("Preview kamera belum siap — tidak ada gambar untuk diambil.");
     }
 
     const canvas = document.createElement('canvas');

@@ -14,4 +14,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteCaptures: () => ipcRenderer.invoke('delete-captures'),
   minimizeWindow: () => ipcRenderer.send('minimize-window'),
   getPhoneCameraUrl: () => ipcRenderer.invoke('get-phone-camera-url'),
+
+  // Canon / gphoto2 — direct USB control, no EOS Webcam Utility needed
+  canonDetect: () => ipcRenderer.invoke('canon:detect'),
+  canonCapturePhoto: () => ipcRenderer.invoke('canon:capturePhoto'),
+  canonStartPreview: () => ipcRenderer.invoke('canon:startPreview'),
+  canonStopPreview: () => ipcRenderer.invoke('canon:stopPreview'),
+  canonGetStatus: () => ipcRenderer.invoke('canon:getStatus'),
+  onCanonPreviewFrame: (callback) => ipcRenderer.on('canon:previewFrame', (_, frame) => callback(frame)),
+  offCanonPreviewFrame: () => ipcRenderer.removeAllListeners('canon:previewFrame'),
 });

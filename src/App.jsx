@@ -33,7 +33,10 @@ function App() {
   const [currentShotIndex, setCurrentShotIndex] = useState(0)
   const [maxCaptures, setMaxCaptures] = useState(3)
   const [isReviewing, setIsReviewing] = useState(false)
+  const [isCapturing, setIsCapturing] = useState(false)
+  const isCapturingRef = useRef(false)  // sync ref — never stale unlike state
   const [hasStartedSession, setHasStartedSession] = useState(false)
+  const [captureError, setCaptureError] = useState(null)
   const [selectedFrame, setSelectedFrame] = useState('classic')
   const [selectedFrameData, setSelectedFrameData] = useState(null)
   const [selectedFilter, setSelectedFilter] = useState('none')
@@ -43,6 +46,8 @@ function App() {
   const [videoClips, setVideoClips] = useState([])
   const [galleryData, setGalleryData] = useState(null)
   const [isReprint, setIsReprint] = useState(false)
+  const [uploadedRawUrls, setUploadedRawUrls] = useState([])
+  const sessionIdRef = useRef(null)
 
   useEffect(() => {
     if (!isSpecialMode) {
@@ -158,8 +163,10 @@ function App() {
 
   useEffect(() => {
     if (step === STEPS.CAPTURE) {
-      // Phone & DSLR both use canvas directly (no captureStream latency)
-      const element = (status.source === 'dslr' || status.source === 'phone')
+      // Canon & Mock use <img> (JPEG frames), DSLR/Phone use <canvas>, webcam uses <video>
+      const element = (status.source === 'canon' || status.source === 'mock')
+        ? previewCanvasRef.current  // CaptureScreen reuses previewCanvasRef as img ref for canon/mock
+        : (status.source === 'dslr' || status.source === 'phone')
         ? previewCanvasRef.current
         : videoRef.current
       if (element) startPreview(element).catch(err => {
@@ -170,29 +177,28 @@ function App() {
     }
   }, [step, status.source])
 
+  // Effect 1: Decrement countdown each second; capture right after showing "1"
   useEffect(() => {
-    let timer
-    if (step === STEPS.CAPTURE && hasStartedSession && !isReviewing && !isSpecialMode && countdown !== null) {
-      timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) { clearInterval(timer); capturePhoto(); return null }
-          return prev - 1
-        })
-      }, 1000)
-    } else if (isSpecialMode || isReviewing || step !== STEPS.CAPTURE) {
-      setCountdown(null)
+    if (step !== STEPS.CAPTURE || !hasStartedSession || isReviewing || isSpecialMode || isCapturing || countdown === null) return
+    if (countdown <= 1) {
+      // Show "1" briefly, then capture (Cheese overlay appears while grabbing)
+      const flash = setTimeout(() => {
+        setCountdown(null)
+        capturePhotoRef.current()  // always-fresh ref — no stale closure
+      }, 350)
+      return () => clearTimeout(flash)
     }
-    return () => { if (timer) clearInterval(timer) }
-  }, [step, hasStartedSession, isReviewing, isSpecialMode, countdown === null])
-
-  useEffect(() => {
-    if (step === STEPS.CAPTURE && hasStartedSession && !isReviewing && !isSpecialMode && countdown === null) {
-      const timeout = setTimeout(() => setCountdown(5), 1000)
-      return () => clearTimeout(timeout)
-    }
-  }, [step, hasStartedSession, isReviewing, isSpecialMode, currentShotIndex, countdown === null])
+    const timer = setTimeout(() => {
+      setCountdown(c => c - 1)
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [countdown, step, hasStartedSession, isReviewing, isSpecialMode, isCapturing])
 
   const capturePhoto = async (manualDataUrl = null) => {
+    if (isCapturingRef.current) return
+    isCapturingRef.current = true  // set synchronously — blocks any effect from restarting countdown
+    setIsCapturing(true)
+    setCaptureError(null)
     try {
       const dataUrl = manualDataUrl || await captureCamPhoto()
       const newPhotos = [...photos]
@@ -201,8 +207,13 @@ function App() {
       setIsReviewing(true)
     } catch (err) {
       console.error('Capture Failed:', err)
-      // Reset countdown agar user bisa coba lagi (penting untuk phone camera)
+      // JANGAN auto-restart countdown. Sebelumnya setCountdown(5) di sini membuat
+      // loop tak berujung (5-4-3-2-1 → gagal → 5 lagi...). Stop agar tidak gulung-gulung.
       setCountdown(null)
+      setCaptureError(err?.message || String(err))
+    } finally {
+      isCapturingRef.current = false
+      setIsCapturing(false)
     }
   }
 
@@ -221,23 +232,55 @@ function App() {
     })
   }, [status.source, camera, hasStartedSession, isReviewing])
 
+  const uploadRawPhotoBackground = async (dataUrl, index, userId) => {
+    if (!dataUrl || !sessionIdRef.current || !userId) return
+    try {
+      const res = await fetch(dataUrl)
+      const blob = await res.blob()
+      const fileName = `captures/${userId}/${sessionIdRef.current}_raw_${index}.jpg`
+      const { error } = await supabase.storage.from('frames').upload(fileName, blob, { upsert: true })
+      if (!error) {
+        const { data: { publicUrl } } = supabase.storage.from('frames').getPublicUrl(fileName)
+        setUploadedRawUrls(prev => {
+          const next = [...prev]
+          next[index] = publicUrl
+          return next
+        })
+      }
+    } catch {
+      // Silent fail — ProcessingScreen akan upload ulang saat Cetak
+    }
+  }
+
   const handleContinue = () => {
+    const photoToUpload = photos[currentShotIndex]
+    if (navigator.onLine) {
+      uploadRawPhotoBackground(photoToUpload, currentShotIndex, currentUser?.id)
+    }
     if (currentShotIndex + 1 >= maxCaptures) {
       setStep(STEPS.PHOTO_ASSIGN)
       setIsReviewing(false)
     } else {
       setCurrentShotIndex(prev => prev + 1)
       setIsReviewing(false)
+      setCountdown(5)
     }
     setGhosts([])
     setActivePortal(null)
   }
 
   const handleRetake = () => {
+    setCaptureError(null)
     const newPhotos = [...photos]
     newPhotos[currentShotIndex] = null
     setPhotos(newPhotos)
+    setUploadedRawUrls(prev => {
+      const next = [...prev]
+      next[currentShotIndex] = null
+      return next
+    })
     setIsReviewing(false)
+    setCountdown(5)
     setGhosts([])
     setActivePortal(null)
   }
@@ -252,6 +295,7 @@ function App() {
     setCurrentShotIndex(0)
     setIsReviewing(false)
     setHasStartedSession(false)
+    setCountdown(null)
     setSelectedFrame('classic')
     setSelectedFilter('none')
     setIsReprint(false)
@@ -259,6 +303,8 @@ function App() {
     setGhosts([])
     setActivePortal(null)
     setVideoClips([])
+    setUploadedRawUrls([])
+    sessionIdRef.current = null
   }
 
   const toggleFullscreen = () => {
@@ -316,7 +362,11 @@ function App() {
 
         {step === STEPS.START && (
           <StartScreen
-            onStart={() => setStep(STEPS.CUSTOMIZE_FRAME)}
+            onStart={() => {
+              sessionIdRef.current = crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+              setUploadedRawUrls([])
+              setStep(STEPS.CUSTOMIZE_FRAME)
+            }}
             user={currentUser}
             onLogout={() => { localStorage.removeItem('pb_device_session'); setDeviceSession(null) }}
           />
@@ -347,15 +397,21 @@ function App() {
             previewCanvasRef={previewCanvasRef}
             cameraStatus={status}
             countdown={countdown}
+            isCapturing={isCapturing}
             currentShotIndex={currentShotIndex}
             maxCaptures={maxCaptures}
             photos={photos}
             isReviewing={isReviewing}
             hasStartedSession={hasStartedSession}
-            onStartSession={() => setHasStartedSession(true)}
+            onStartSession={() => {
+              setCaptureError(null)
+              setHasStartedSession(true)
+              setCountdown(5)
+            }}
             onContinue={handleContinue}
             onRetake={handleRetake}
             cameraError={status.error}
+            captureError={captureError}
             user={currentUser}
             selectedFrameData={selectedFrameData}
             isSpecialMode={isSpecialMode}
@@ -405,6 +461,8 @@ function App() {
             selectedMode="photobooth"
             isReprint={isReprint}
             videoClips={videoClips}
+            preUploadedRawUrls={uploadedRawUrls}
+            preGeneratedSessionId={sessionIdRef.current}
             onFinish={(data) => {
               if (data) setGalleryData(data)
               setStep(STEPS.OUTPUT)

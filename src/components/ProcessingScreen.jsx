@@ -1,20 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import { RefreshCcw, WifiOff, CheckCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { WifiOff, CheckCircle2, ImageIcon, Upload, Layers } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { queueAdd, isNetworkError } from '../lib/offlineQueue';
 import qrcode from 'qr.js';
 
-const ProcessingScreen = ({ 
-  rawPhotos, 
-  compositePhotos, 
-  selectedFrameData, 
-  selectedFilter, 
-  user, 
-  printQuantity = 1, 
-  selectedMode, 
+const ProcessingScreen = ({
+  rawPhotos,
+  compositePhotos,
+  selectedFrameData,
+  selectedFilter,
+  user,
+  printQuantity = 1,
+  selectedMode,
   onFinish,
   isReprint = false,
-  videoClips = []
+  videoClips = [],
+  preUploadedRawUrls = [],
+  preGeneratedSessionId = null,
 }) => {
   const [progress, setProgress] = useState("Preparing Layout...");
   const [savedOffline, setSavedOffline] = useState(false);
@@ -105,7 +108,7 @@ const ProcessingScreen = ({
             return v.toString(16);
           });
         };
-        const sessionId = generateUUID();
+        const sessionId = preGeneratedSessionId || generateUUID();
 
         setProgress("Generating layout...");
         const compositeBlob = await generateCompositeImage(sessionId);
@@ -166,18 +169,22 @@ const ProcessingScreen = ({
           if (compErr) throw compErr;
           const { data: { publicUrl: compositeUrl } } = supabase.storage.from('frames').getPublicUrl(compositeFileName);
 
-          // 2. Upload Raw Photos
-          const rawPhotoUrls = [];
+          // 2. Upload Raw Photos (skip yang sudah pre-uploaded di background)
+          const rawPhotoUrls = [...preUploadedRawUrls];
+          const needUpload = rawPhotos.filter((p, i) => p && !rawPhotoUrls[i]);
+          if (needUpload.length > 0) {
+            setProgress(`Mengunggah foto...`);
+          }
           for (let i = 0; i < rawPhotos.length; i++) {
-            if (!rawPhotos[i]) continue;
+            if (!rawPhotos[i] || rawPhotoUrls[i]) continue;
             setProgress(`Mengunggah foto ${i + 1}/${rawPhotos.length}...`);
             const res = await fetch(rawPhotos[i]);
             const blob = await res.blob();
             const rawFileName = `captures/${user?.id}/${sessionId}_raw_${i}.jpg`;
-            const { error: rawErr } = await supabase.storage.from('frames').upload(rawFileName, blob);
+            const { error: rawErr } = await supabase.storage.from('frames').upload(rawFileName, blob, { upsert: true });
             if (!rawErr) {
               const { data: { publicUrl: rawUrl } } = supabase.storage.from('frames').getPublicUrl(rawFileName);
-              rawPhotoUrls.push(rawUrl);
+              rawPhotoUrls[i] = rawUrl;
             }
           }
 
@@ -188,7 +195,7 @@ const ProcessingScreen = ({
             user_id: user?.id,
             frame_id: selectedFrameData?.id,
             image_url: compositeUrl,
-            raw_photos: rawPhotoUrls,
+            raw_photos: rawPhotoUrls.filter(Boolean),
             session_id: sessionId,
             device_id: user?.deviceId,
             device_name: user?.deviceName,
@@ -197,7 +204,7 @@ const ProcessingScreen = ({
           if (insertError) throw insertError;
 
           setProgress("Selesai!");
-          setTimeout(() => onFinish({ sessionId, compositeUrl, rawPhotos: rawPhotoUrls }), 500);
+          setTimeout(() => onFinish({ sessionId, compositeUrl, rawPhotos: rawPhotoUrls.filter(Boolean) }), 500);
 
         } catch (uploadErr) {
           // Jaringan terputus di tengah jalan → simpan ke antrian lokal
@@ -613,59 +620,194 @@ const ProcessingScreen = ({
     });
   };
 
+  const PARTICLES = [
+    { x: '15%', delay: 0,    dur: 2.8, color: 'bg-rose-200' },
+    { x: '30%', delay: 0.5,  dur: 3.2, color: 'bg-pink-200' },
+    { x: '50%', delay: 0.2,  dur: 2.5, color: 'bg-rose-300' },
+    { x: '65%', delay: 0.9,  dur: 3.0, color: 'bg-pink-300' },
+    { x: '80%', delay: 0.4,  dur: 2.7, color: 'bg-rose-200' },
+    { x: '22%', delay: 1.1,  dur: 3.4, color: 'bg-pink-100' },
+    { x: '72%', delay: 0.7,  dur: 2.9, color: 'bg-rose-100' },
+  ];
+
   return (
-    <div className="flex-1 flex flex-col items-center justify-center font-caveat relative overflow-hidden">
-      <div className="z-10 text-center scale-90 md:scale-100">
-        <div className="w-48 h-48 relative mb-12 mx-auto">
-          {savedOffline ? (
-            <>
-              <div className="absolute inset-0 border-[12px] border-amber-100 rounded-full"></div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <WifiOff size={64} className="text-amber-500" />
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="absolute inset-0 border-[12px] border-rose-50 rounded-full"></div>
-              <div className="absolute inset-0 border-[12px] border-rose-600 rounded-full border-t-transparent animate-spin"></div>
-              <div className="absolute inset-0 flex items-center justify-center text-gradient-red pb-2">
-                <RefreshCcw size={64} className="animate-pulse" />
-              </div>
-            </>
-          )}
-        </div>
+    <div className="flex-1 flex flex-col items-center justify-center relative overflow-hidden bg-white select-none">
 
-        <h2 className="text-7xl font-black text-slate-800 mb-6 animate-bounce tracking-tighter leading-none">
-          {savedOffline ? "Tersimpan!" : isReprint ? "Reprinting..." : "Printing..."}
-        </h2>
+      {/* Background glow */}
+      <motion.div
+        className="absolute w-[500px] h-[500px] rounded-full pointer-events-none"
+        style={{ background: savedOffline ? 'radial-gradient(circle, rgba(251,191,36,0.12) 0%, transparent 70%)' : 'radial-gradient(circle, rgba(225,29,72,0.1) 0%, transparent 70%)' }}
+        animate={{ scale: [1, 1.15, 1] }}
+        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+      />
 
-        {savedOffline && (
-          <p className="text-amber-500 text-base font-bold font-sans mb-4 flex items-center justify-center gap-2">
-            <WifiOff size={16} /> Foto disimpan lokal — akan otomatis terkirim saat online
-          </p>
-        )}
-
-        <div className="flex items-center justify-center gap-3">
-          <div className={`h-1 w-10 rounded-full overflow-hidden ${savedOffline ? 'bg-amber-100' : 'bg-rose-100'}`}>
-            <div className={`h-full w-full animate-[progress_1.5s_infinite_linear] ${savedOffline ? 'bg-amber-400' : 'bg-rose-600'}`}></div>
+      {/* Floating polaroid particles */}
+      {!savedOffline && PARTICLES.map((p, i) => (
+        <motion.div
+          key={i}
+          className="absolute bottom-10 pointer-events-none"
+          style={{ left: p.x }}
+          animate={{ y: [0, -220, 0], opacity: [0, 0.7, 0], rotate: [0, i % 2 === 0 ? 12 : -12, 0] }}
+          transition={{ duration: p.dur, repeat: Infinity, delay: p.delay, ease: 'easeInOut' }}
+        >
+          <div className={`w-5 h-6 ${p.color} rounded-sm shadow-sm flex items-end justify-center pb-0.5`}>
+            <div className="w-3 h-3 bg-white/60 rounded-sm" />
           </div>
-          <p className="text-slate-400 text-sm font-black uppercase tracking-[0.2em] font-sans">
-             {progress}
-          </p>
-          <div className={`h-1 w-10 rounded-full overflow-hidden ${savedOffline ? 'bg-amber-100' : 'bg-rose-100'}`}>
-            <div className={`h-full w-full animate-[progress_1.5s_infinite_linear] ${savedOffline ? 'bg-amber-400' : 'bg-rose-600'}`}></div>
+        </motion.div>
+      ))}
+
+      {savedOffline ? (
+        /* ── OFFLINE STATE ── */
+        <motion.div
+          className="z-10 flex flex-col items-center gap-6"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 200, damping: 18 }}
+        >
+          <motion.div
+            className="w-28 h-28 bg-amber-50 border-4 border-amber-200 rounded-full flex items-center justify-center shadow-2xl shadow-amber-200/50"
+            animate={{ scale: [1, 1.06, 1] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            <WifiOff size={48} className="text-amber-500" />
+          </motion.div>
+          <div className="text-center">
+            <h2 className="text-6xl font-black text-slate-800 tracking-tighter font-caveat">Tersimpan!</h2>
+            <p className="text-amber-500 text-sm font-bold font-sans mt-3 flex items-center justify-center gap-2">
+              <WifiOff size={14} /> Akan otomatis terkirim saat online
+            </p>
           </div>
+        </motion.div>
+      ) : (
+        /* ── PRINTING STATE ── */
+        <div className="z-10 flex flex-col items-center">
+
+          {/* Printer illustration */}
+          <div className="relative mb-16">
+
+            {/* Glow under printer */}
+            <motion.div
+              className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-40 h-6 bg-rose-400/20 rounded-full blur-xl"
+              animate={{ opacity: [0.4, 0.9, 0.4], scaleX: [0.8, 1.1, 0.8] }}
+              transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+            />
+
+            {/* Printer body */}
+            <motion.div
+              className="relative w-52 bg-slate-800 rounded-2xl shadow-2xl shadow-slate-900/40 border border-slate-700 overflow-hidden"
+              style={{ height: '88px' }}
+              animate={{ y: [0, -2, 0] }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              {/* Top ridge */}
+              <div className="absolute top-0 left-0 right-0 h-1 bg-slate-600 rounded-t-2xl" />
+              {/* Paper input slot top */}
+              <div className="absolute top-5 left-8 right-8 h-2 bg-slate-900 rounded-full" />
+              {/* Brand label */}
+              <div className="absolute top-4 left-0 right-0 flex justify-center pt-4">
+                <span className="text-slate-500 text-[7px] font-black uppercase tracking-[0.35em]">Photobooth</span>
+              </div>
+              {/* LED strip */}
+              <div className="absolute top-3 right-5 flex gap-1.5">
+                <motion.div
+                  className="w-2 h-2 rounded-full bg-rose-500 shadow-lg shadow-rose-500/60"
+                  animate={{ opacity: [1, 0.3, 1] }}
+                  transition={{ duration: 0.8, repeat: Infinity }}
+                />
+                <div className="w-2 h-2 rounded-full bg-slate-600" />
+              </div>
+              {/* Body texture lines */}
+              <div className="absolute bottom-8 left-6 right-6 flex flex-col gap-1">
+                <div className="h-px bg-slate-700/50" />
+                <div className="h-px bg-slate-700/50" />
+              </div>
+              {/* Output slot */}
+              <div className="absolute bottom-0 left-0 right-0 h-5 bg-slate-900 rounded-b-2xl flex items-center justify-center">
+                <div className="w-32 h-1 bg-slate-800 rounded-full" />
+              </div>
+            </motion.div>
+
+            {/* Paper coming out */}
+            <div className="absolute -bottom-16 left-0 right-0 flex justify-center" style={{ height: '72px', overflow: 'visible' }}>
+              <motion.div
+                className="w-36 bg-white rounded-b-xl shadow-xl border border-slate-100 flex flex-col gap-1.5 px-4 pt-3 pb-3 origin-top"
+                animate={{ y: ['0px', '18px', '0px'] }}
+                transition={{ duration: 1.6, repeat: Infinity, ease: [0.4, 0, 0.2, 1] }}
+              >
+                {/* Scan lines simulating photo printing */}
+                <motion.div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <motion.div className="h-full bg-rose-300 rounded-full" animate={{ width: ['0%', '100%', '100%'] }} transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }} />
+                </motion.div>
+                <motion.div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <motion.div className="h-full bg-pink-200 rounded-full" animate={{ width: ['0%', '100%', '100%'] }} transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut', delay: 0.1 }} />
+                </motion.div>
+                <motion.div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <motion.div className="h-full bg-rose-200 rounded-full" animate={{ width: ['0%', '100%', '100%'] }} transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut', delay: 0.2 }} />
+                </motion.div>
+                <motion.div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <motion.div className="h-full bg-pink-300 rounded-full" animate={{ width: ['0%', '85%', '85%'] }} transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut', delay: 0.3 }} />
+                </motion.div>
+              </motion.div>
+            </div>
+          </div>
+
+          {/* Title */}
+          <motion.h2
+            className="text-7xl font-black text-slate-800 tracking-tighter font-caveat leading-none mb-4"
+            animate={{ scale: [1, 1.03, 1] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          >
+            {isReprint ? 'Reprinting...' : 'Printing...'}
+          </motion.h2>
+
+          {/* Progress steps */}
+          <div className="flex items-center gap-3 mb-6">
+            {[
+              { label: 'Layout', icon: Layers },
+              { label: 'Upload', icon: Upload },
+              { label: 'Galeri', icon: ImageIcon },
+            ].map(({ label, icon: Icon }, i) => {
+              const progressStep = (() => {
+                if (progress === 'Menyimpan ke galeri...') return 2;
+                if (progress === 'Selesai!') return 3;
+                if (progress.startsWith('Mengunggah foto') || progress === 'Mengirim ke server...') return 1;
+                return 0;
+              })();
+              const isActive = progressStep === i;
+              const isDone = progressStep > i;
+              return (
+                <div key={label} className="flex items-center gap-3">
+                  <motion.div
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all ${isDone ? 'bg-emerald-100 text-emerald-600' : isActive ? 'bg-rose-600 text-white shadow-lg shadow-rose-500/30' : 'bg-slate-100 text-slate-400'}`}
+                    animate={isActive ? { scale: [1, 1.06, 1] } : {}}
+                    transition={{ duration: 1, repeat: Infinity }}
+                  >
+                    {isDone ? <CheckCircle2 size={10} /> : <Icon size={10} />}
+                    {label}
+                  </motion.div>
+                  {i < 2 && <div className={`w-4 h-px rounded-full ${isDone ? 'bg-emerald-300' : 'bg-slate-200'}`} />}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Progress text */}
+          <AnimatePresence mode="wait">
+            <motion.p
+              key={progress}
+              className="text-slate-400 text-xs font-black uppercase tracking-[0.2em] font-sans"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.25 }}
+            >
+              {progress}
+            </motion.p>
+          </AnimatePresence>
         </div>
-      </div>
+      )}
 
       <canvas ref={canvasRef} style={{ display: 'none' }} />
-
-      <style>{`
-        @keyframes progress {
-          from { transform: translateX(-100%); }
-          to { transform: translateX(100%); }
-        }
-      `}</style>
     </div>
   );
 };

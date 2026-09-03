@@ -2,6 +2,7 @@ import { WebcamDriver } from './drivers/WebcamDriver';
 import { DSLRFolderDriver } from './drivers/DSLRFolderDriver';
 import { MockDriver } from './drivers/MockDriver';
 import { PhoneCameraDriver } from './drivers/PhoneCameraDriver';
+import { CanonGPhoto2Driver } from './drivers/CanonGPhoto2Driver';
 
 export class CameraManager {
   static INSTANCE = null;
@@ -12,6 +13,7 @@ export class CameraManager {
       dslr: new DSLRFolderDriver(),
       mock: new MockDriver(),
       phone: new PhoneCameraDriver(() => this.notify()),
+      canon: new CanonGPhoto2Driver(),
     };
     this.currentSource = 'webcam'; // Default source
     this.isAutoDetect = true;
@@ -59,18 +61,29 @@ export class CameraManager {
         if (dslrRes && dslrRes.success) {
           this.currentSource = 'dslr';
           console.log("Auto-Detected: DSLR Folder");
-        } 
-        // 2. Try Webcam
+        }
+        // 2. Try Canon via gphoto2 (USB DSLR)
         else {
           try {
-            await this.drivers.webcam.init();
-            this.currentSource = 'webcam';
-            console.log("Auto-Detected: Webcam");
-          } catch (err) {
-            // 3. Final Fallback: Mock
-            console.warn("Webcam failed or not available, falling back to Mock mode.");
-            await this.drivers.mock.init();
-            this.currentSource = 'mock';
+            const canonRes = await this.drivers.canon.init();
+            if (canonRes && canonRes.success) {
+              this.currentSource = 'canon';
+              console.log("Auto-Detected: Canon USB");
+            } else {
+              throw new Error('Canon not found');
+            }
+          } catch {
+            // 3. Try Webcam
+            try {
+              await this.drivers.webcam.init();
+              this.currentSource = 'webcam';
+              console.log("Auto-Detected: Webcam");
+            } catch (err) {
+              // 4. Final Fallback: Mock
+              console.warn("Webcam failed, falling back to Mock mode.");
+              await this.drivers.mock.init();
+              this.currentSource = 'mock';
+            }
           }
         }
       } else {
@@ -91,7 +104,18 @@ export class CameraManager {
     if (!this.isInitialized) await this.init();
 
     try {
-      await this.drivers[this.currentSource].startPreview(element);
+      // Pass notify callback so Canon frame updates propagate to React state
+      const notifyFn = this.currentSource === 'canon' ? () => this.notify() : undefined;
+      await this.drivers[this.currentSource].startPreview(element, notifyFn);
+
+      // Watchdog: a Canon still appears in gphoto2 --auto-detect even when it is
+      // OFF/standby (USB stays alive). If no live-view frame arrives, fall back to
+      // webcam so the screen never stays black with "connected but no preview".
+      // Only arm watchdog during auto-detect — if user manually chose Canon,
+      // never revert. Show "no preview" instead of silently switching sources.
+      if (this.currentSource === 'canon' && this.isAutoDetect) {
+        this._armCanonWatchdog();
+      }
     } catch (err) {
       if (this.isAutoDetect && this.currentSource === 'dslr') {
         console.warn("DSLR Preview failed, switching back to Webcam.");
@@ -106,7 +130,31 @@ export class CameraManager {
     }
   }
 
+  _armCanonWatchdog() {
+    this._clearCanonWatchdog();
+    const canon = this.drivers.canon;
+    const framesAtStart = canon.previewFrames;
+    // 20s: DMG production needs extra time for PTPCamera kill (800ms) + gphoto2 shell startup
+    this._canonWatchdog = setTimeout(async () => {
+      if (this.currentSource !== 'canon' || canon.previewFrames > framesAtStart) return;
+      console.warn("[Camera] Canon produced no live-view frames — camera likely off. Falling back to Webcam.");
+      this.isAutoDetect = false;
+      this.currentSource = 'webcam';
+      try { await this.drivers.canon.stopPreview(); } catch { /* ignore */ }
+      try { await this.drivers.webcam.init(); } catch (err) { console.warn("[Camera] Webcam init failed on fallback:", err); }
+      this.notify();
+    }, 20000);
+  }
+
+  _clearCanonWatchdog() {
+    if (this._canonWatchdog) {
+      clearTimeout(this._canonWatchdog);
+      this._canonWatchdog = null;
+    }
+  }
+
   async stopPreview() {
+    this._clearCanonWatchdog();
     await this.drivers[this.currentSource].stopPreview();
     this.notify();
   }
@@ -139,6 +187,7 @@ export class CameraManager {
         ctx.drawImage(img, (canvas.width - drawW) / 2, (canvas.height - drawH) / 2, drawW, drawH);
         resolve(canvas.toDataURL('image/png'));
       };
+      img.onerror = () => resolve(dataUrl);  // fallback to original if zoom fails
       img.src = dataUrl;
     });
   }
@@ -161,6 +210,8 @@ export class CameraManager {
         statusName = driverStatus.isConnected ? "Phone Camera — Connected" : "Phone Camera — Menunggu HP";
       } else if (this.currentSource === 'mock') {
         statusName = "Mock Mode Active";
+      } else if (this.currentSource === 'canon') {
+        statusName = driverStatus.name || "Canon — USB Connected";
       }
     }
 
@@ -178,6 +229,7 @@ export class CameraManager {
   }
 
   async setSource(source) {
+    this._clearCanonWatchdog();
     const oldSource = this.currentSource;
     
     if (source === 'auto') {

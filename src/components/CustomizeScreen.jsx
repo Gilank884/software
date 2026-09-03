@@ -92,7 +92,7 @@ const CustomizeScreen = ({
           setSelectedFrameData(firstFrame)
           const photoSlots = (firstFrame.slots || []).filter(s => s.number > 0 && s.type !== 'qr')
           const uniqueSlots = [...new Set(photoSlots.map(s => s.number))]
-          const actualCount = uniqueSlots.length || firstFrame.photo_count || 3
+          const actualCount = uniqueSlots.length || firstFrame.photo_count || 1
           if (setMaxCaptures) setMaxCaptures(actualCount)
         }
         setLoadingFrames(false)
@@ -160,7 +160,7 @@ const CustomizeScreen = ({
     // Calculate actual photo count from unique slot numbers to be robust, ignoring QR
     const photoSlots = (frame.slots || []).filter(s => s.number > 0 && s.type !== 'qr')
     const uniqueSlots = [...new Set(photoSlots.map(s => s.number))]
-    const actualCount = uniqueSlots.length || frame.photo_count || 3
+    const actualCount = uniqueSlots.length || frame.photo_count || 1
     if (setMaxCaptures) {
       setMaxCaptures(actualCount)
     }

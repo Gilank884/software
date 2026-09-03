@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, Camera, LogOut, Settings, Printer, X, Monitor, RefreshCw, Settings2, AlertCircle, CheckCircle2, Smartphone, ZoomIn, Calendar, Wifi, WifiOff, Minimize2 } from 'lucide-react'
+import { Sparkles, Camera, LogOut, Settings, Printer, X, Monitor, RefreshCw, Settings2, AlertCircle, CheckCircle2, Smartphone, ZoomIn, Calendar, Wifi, WifiOff, Minimize2, Upload, Clock, Send, Aperture } from 'lucide-react'
 import { QRCode } from 'react-qr-code'
 import { useCamera } from '../hooks/useCamera'
 import ScreenDefault from './ScreenDefault'
+import { queueGetAll, queueCount, syncQueue } from '../lib/offlineQueue'
 
 const StartScreen = ({ onStart, user, onLogout }) => {
   const { status, initCamera, startPreview, stopPreview, setCameraSource, setWebcamDevice, refreshWebcamDevices, setCameraZoom } = useCamera()
@@ -17,6 +18,14 @@ const StartScreen = ({ onStart, user, onLogout }) => {
   const [selectedPaperSize, setSelectedPaperSize] = useState(localStorage.getItem('selectedPaperSize') || '4r')
   const [autoEpsonMatte, setAutoEpsonMatte] = useState(localStorage.getItem('autoEpsonMatte') === 'true')
   const [showPrinterModal, setShowPrinterModal] = useState(false)
+  const [showUploadLogModal, setShowUploadLogModal] = useState(false)
+  const [canonDetecting, setCanonDetecting] = useState(false)
+  const [canonError, setCanonError] = useState(null)
+  const canonImgRef = useRef(null)
+  const [pendingItems, setPendingItems] = useState([])
+  const [pendingCount, setPendingCount] = useState(0)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [syncResult, setSyncResult] = useState(null)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const previewRef = useRef(null)
   const phoneCanvasRef = useRef(null)
@@ -58,7 +67,7 @@ const StartScreen = ({ onStart, user, onLogout }) => {
 
   const handleStart = (e) => {
     // Only trigger onStart if clicking outside the control-card and modals
-    if (e.target.closest('.control-card') === null && !showCameraModal && !showPrinterModal) {
+    if (e.target.closest('.control-card') === null && !showCameraModal && !showPrinterModal && !showUploadLogModal) {
       onStart()
     }
   }
@@ -74,15 +83,46 @@ const StartScreen = ({ onStart, user, onLogout }) => {
   useEffect(() => {
     if (!showCameraModal) return;
     if (status.source === 'phone' && phoneCanvasRef.current) {
-      // Phone: pass the canvas element directly so driver draws frames without captureStream
       startPreview(phoneCanvasRef.current)
     } else if (status.source === 'webcam' && previewRef.current) {
       startPreview(previewRef.current)
+    } else if (status.source === 'canon' && canonImgRef.current) {
+      startPreview(canonImgRef.current)
     }
     return () => {
       if (showCameraModal) stopPreview()
     }
   }, [showCameraModal, status.source])
+
+  const handleSwitchToCanon = async () => {
+    setCanonError(null)
+    setCanonDetecting(true)
+    await setCameraSource('canon')
+    // Give the driver a moment to detect, then check status
+    setTimeout(() => {
+      if (!window.electronAPI?.canonDetect) {
+        setCanonError('Hanya tersedia di aplikasi desktop Electron.')
+      }
+      setCanonDetecting(false)
+    }, 3000)
+  }
+
+  const refreshPendingItems = async () => {
+    const items = await queueGetAll().catch(() => [])
+    setPendingItems(items)
+    setPendingCount(items.length)
+  }
+
+  const handleSyncNow = async () => {
+    if (!isOnline || isSyncing) return
+    setIsSyncing(true)
+    setSyncResult(null)
+    const result = await syncQueue(() => {}).catch(() => ({ synced: 0, failed: 0 }))
+    await refreshPendingItems()
+    setSyncResult(result)
+    setIsSyncing(false)
+    setTimeout(() => setSyncResult(null), 4000)
+  }
 
   // Re-check printers whenever diagnostic menu is opened
   useEffect(() => {
@@ -90,6 +130,16 @@ const StartScreen = ({ onStart, user, onLogout }) => {
       checkPrinters()
     }
   }, [showExit])
+
+  // Load pending count on mount and when online status changes
+  useEffect(() => {
+    refreshPendingItems()
+  }, [isOnline])
+
+  // Load pending items when upload log modal opens
+  useEffect(() => {
+    if (showUploadLogModal) refreshPendingItems()
+  }, [showUploadLogModal])
 
   // Cleanup & Initial Check
   useEffect(() => {
@@ -125,6 +175,9 @@ const StartScreen = ({ onStart, user, onLogout }) => {
             const activeDevice = status.webcamDevices?.find(d => d.id === status.currentWebcamId) || status.webcamDevices?.[0]
             cameraOk = !!activeDevice
             cameraLabel = activeDevice?.label || (status.webcamDevices?.length ? 'Webcam Aktif' : 'Tidak Terdeteksi')
+          } else if (status.source === 'canon') {
+            cameraOk = status.isAvailable
+            cameraLabel = status.isAvailable ? (status.name || 'Canon — USB') : 'Canon — Tidak Terdeteksi'
           } else if (status.source === 'dslr') {
             cameraOk = status.isAvailable
             cameraLabel = 'DSLR Folder Watch'
@@ -227,6 +280,9 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                   const activeDevice = status.webcamDevices?.find(d => d.id === status.currentWebcamId) || status.webcamDevices?.[0]
                   cameraOk = !!activeDevice
                   cameraLabel = activeDevice?.label || (status.webcamDevices?.length ? 'Webcam Aktif' : 'Tidak Terdeteksi')
+                } else if (status.source === 'canon') {
+                  cameraOk = status.isAvailable
+                  cameraLabel = status.isAvailable ? (status.name || 'Canon — USB') : 'Canon — Tidak Terdeteksi'
                 } else if (status.source === 'dslr') {
                   cameraOk = status.isAvailable
                   cameraLabel = 'DSLR Folder Watch'
@@ -272,6 +328,27 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                           {`● ${printerLabel}`}
                         </span>
                       </div>
+                    </button>
+
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setShowUploadLogModal(true); }}
+                      className="flex items-center gap-3 hover:bg-amber-50 p-1.5 pr-4 rounded-xl transition-all duration-300 group/btn relative"
+                    >
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${pendingCount > 0 ? 'bg-amber-100 text-amber-600 group-hover/btn:bg-amber-500 group-hover/btn:text-white' : 'bg-slate-100 text-slate-400 group-hover/btn:bg-slate-500 group-hover/btn:text-white'}`}>
+                        <Upload size={18} />
+                      </div>
+                      <div className="flex flex-col items-start px-1 min-w-0">
+                        <span className="text-[8px] font-black text-amber-400 uppercase tracking-widest">Upload</span>
+                        <span className="text-[11px] font-black text-slate-700">Pending Upload</span>
+                        <span className={`text-[9px] font-bold ${pendingCount > 0 ? 'text-amber-500' : 'text-slate-400'}`}>
+                          {pendingCount > 0 ? `● ${pendingCount} sesi menunggu` : '● Semua terkirim'}
+                        </span>
+                      </div>
+                      {pendingCount > 0 && (
+                        <div className="absolute top-1 right-1 w-4 h-4 bg-amber-500 text-white rounded-full text-[8px] font-black flex items-center justify-center">
+                          {pendingCount}
+                        </div>
+                      )}
                     </button>
 
                     <button
@@ -345,7 +422,15 @@ const StartScreen = ({ onStart, user, onLogout }) => {
               </div>
 
               <div className="aspect-video bg-slate-900 mx-8 mb-8 rounded-[24px] overflow-hidden relative group">
-                {status.source === 'phone' ? (
+                {status.source === 'canon' ? (
+                  <img
+                    ref={canonImgRef}
+                    alt="Canon Live View"
+                    className="w-full h-full object-cover"
+                    style={status.cameraZoom && status.cameraZoom > 1 ? { transform: `scale(${status.cameraZoom})` } : undefined}
+                    src={status.lastCapturedImage || ''}
+                  />
+                ) : status.source === 'phone' ? (
                   <canvas
                     ref={phoneCanvasRef}
                     width={1280}
@@ -395,11 +480,12 @@ const StartScreen = ({ onStart, user, onLogout }) => {
               </div>
 
               {/* Source Selection Buttons */}
-              <div className="px-8 pb-4 grid grid-cols-5 gap-2">
+              <div className="px-8 pb-4 grid grid-cols-6 gap-2">
                 {[
                   { id: 'auto', label: 'Auto', icon: RefreshCw },
                   { id: 'dslr', label: 'DSLR', icon: Camera },
                   { id: 'webcam', label: 'Webcam', icon: Monitor },
+                  { id: 'canon', label: 'Canon', icon: Aperture, electronOnly: true },
                   { id: 'phone', label: 'Phone', icon: Smartphone, electronOnly: true },
                   { id: 'mock', label: 'Mock', icon: Settings2 }
                 ].map(mode => {
@@ -408,7 +494,7 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                   return (
                     <button
                       key={mode.id}
-                      onClick={(e) => { e.stopPropagation(); if (!isDisabled) setCameraSource(mode.id); }}
+                      onClick={(e) => { e.stopPropagation(); if (!isDisabled) { if (mode.id === 'canon') handleSwitchToCanon(); else setCameraSource(mode.id); } }}
                       disabled={isDisabled}
                       title={isDisabled ? 'Hanya tersedia di aplikasi desktop' : undefined}
                       className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl border transition-all relative ${isDisabled
@@ -430,6 +516,65 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                   );
                 })}
               </div>
+
+              {/* Canon gphoto2 Section */}
+              {status.source === 'canon' && !status.isAutoDetect && (
+                <div className="mx-8 mb-6 bg-rose-50 border-2 border-rose-100 rounded-3xl p-5">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Aperture size={20} className="text-rose-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[10px] font-black text-rose-600 uppercase tracking-widest">Canon — USB Direct (gphoto2)</span>
+                      </div>
+                      <p className="text-xs font-bold text-slate-700 leading-snug mb-3">
+                        Kamera terhubung langsung via USB tanpa EOS Webcam Utility.
+                      </p>
+                      {canonDetecting && (
+                        <div className="flex items-center gap-2 text-[10px] font-black text-rose-500 uppercase tracking-widest">
+                          <div className="w-3 h-3 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+                          Mendeteksi kamera...
+                        </div>
+                      )}
+                      {canonError && (
+                        <div className="bg-rose-100 rounded-xl px-3 py-2 mb-3">
+                          <p className="text-[10px] font-bold text-rose-700">{canonError}</p>
+                        </div>
+                      )}
+                      {status.isAvailable && !canonDetecting && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl w-fit bg-emerald-50 border border-emerald-100">
+                          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                          <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700">{status.name}</span>
+                        </div>
+                      )}
+                      {!status.isAvailable && !canonDetecting && !canonError && (() => {
+                        const isWin = navigator.userAgent.includes('Windows')
+                        return (
+                          <div className="bg-amber-50 rounded-xl px-3 py-2 border border-amber-100 space-y-2">
+                            {isWin ? (
+                              <>
+                                <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Windows — Install digiCamControl:</p>
+                                <p className="text-[9px] font-bold text-slate-600 leading-relaxed">
+                                  1. Download gratis: <span className="font-mono text-blue-600">digicamcontrol.com</span><br />
+                                  2. Install & buka digiCamControl<br />
+                                  3. Hubungkan kamera via USB<br />
+                                  4. Klik tombol Canon di atas
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Mac — Install gphoto2:</p>
+                                <code className="text-[10px] font-mono text-slate-700 bg-white px-2 py-1 rounded-lg border border-slate-100 block">brew install gphoto2</code>
+                              </>
+                            )}
+                          </div>
+                        )
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Phone Camera QR Code Section */}
               {status.source === 'phone' && !status.isAutoDetect && (
@@ -752,6 +897,121 @@ const StartScreen = ({ onStart, user, onLogout }) => {
                     Simpan
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Upload Log Modal */}
+      <AnimatePresence>
+        {showUploadLogModal && (
+          <div
+            className="fixed inset-0 z-[250] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md"
+            onPointerUp={(e) => e.stopPropagation()}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="bg-white rounded-[32px] overflow-hidden w-full max-w-md shadow-2xl relative border-2 border-white/20"
+            >
+              {/* Header */}
+              <div className="p-6 pb-4 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-black text-slate-800 font-caveat tracking-tight">Pending Upload</h2>
+                  <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Sesi yang belum terkirim ke server</p>
+                </div>
+                <button
+                  onClick={() => setShowUploadLogModal(false)}
+                  className="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-all"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Status Bar */}
+              <div className={`mx-6 mb-4 px-4 py-3 rounded-2xl flex items-center gap-3 ${isOnline ? 'bg-emerald-50 border border-emerald-100' : 'bg-rose-50 border border-rose-100'}`}>
+                <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                <div className="flex-1 min-w-0">
+                  <p className={`text-[9px] font-black uppercase tracking-widest ${isOnline ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {isOnline ? 'Online' : 'Offline'}
+                  </p>
+                  <p className="text-[10px] font-bold text-slate-600 truncate">
+                    {pendingCount === 0 ? 'Semua sesi sudah terkirim' : `${pendingCount} sesi menunggu jaringan`}
+                  </p>
+                </div>
+                {syncResult && (
+                  <span className="text-[9px] font-black text-emerald-600 bg-emerald-100 px-2 py-1 rounded-lg">
+                    {syncResult.synced} terkirim
+                  </span>
+                )}
+              </div>
+
+              {/* List */}
+              <div className="px-6 max-h-64 overflow-y-auto flex flex-col gap-2 custom-scrollbar">
+                {pendingItems.length === 0 ? (
+                  <div className="py-8 text-center">
+                    <CheckCircle2 size={32} className="mx-auto mb-3 text-emerald-400" />
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tidak ada yang pending</p>
+                  </div>
+                ) : (
+                  pendingItems.map((item) => {
+                    const blobUrl = item.compositeBlob ? URL.createObjectURL(item.compositeBlob) : null
+                    const date = new Date(item.queuedAt)
+                    const timeStr = date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+                    const dateStr = date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+                    return (
+                      <div key={item.sessionId} className="flex items-center gap-3 bg-slate-50 rounded-2xl p-3 border border-slate-100">
+                        {blobUrl ? (
+                          <img
+                            src={blobUrl}
+                            alt="Preview"
+                            className="w-12 h-16 object-cover rounded-xl flex-shrink-0 border border-slate-200"
+                            onLoad={(e) => URL.revokeObjectURL(e.target.src)}
+                            onError={(e) => URL.revokeObjectURL(e.target.src)}
+                          />
+                        ) : (
+                          <div className="w-12 h-16 bg-slate-200 rounded-xl flex-shrink-0 flex items-center justify-center">
+                            <Upload size={16} className="text-slate-400" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[9px] font-black text-amber-500 uppercase tracking-widest mb-0.5">Pending</p>
+                          <p className="text-[10px] font-bold text-slate-700 truncate font-mono">
+                            {item.sessionId?.slice(0, 16)}...
+                          </p>
+                          <div className="flex items-center gap-1 mt-1 text-slate-400">
+                            <Clock size={9} />
+                            <span className="text-[9px] font-bold">{dateStr} {timeStr}</span>
+                          </div>
+                          <p className="text-[9px] text-slate-400 mt-0.5">
+                            {item.rawPhotoDataUrls?.filter(Boolean).length || 0} foto raw
+                          </p>
+                        </div>
+                        <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-5 mt-4 bg-slate-50/50 flex items-center justify-between gap-3">
+                <p className="text-[9px] font-bold text-slate-400 leading-tight">
+                  Akan otomatis dikirim<br />saat jaringan tersedia
+                </p>
+                <button
+                  onClick={handleSyncNow}
+                  disabled={!isOnline || isSyncing || pendingCount === 0}
+                  className="flex items-center gap-2 px-5 py-3 bg-amber-500 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-amber-500/20 hover:bg-amber-600 hover:scale-105 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+                >
+                  {isSyncing ? (
+                    <><div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Mengirim...</>
+                  ) : (
+                    <><Send size={13} /> Kirim Sekarang</>
+                  )}
+                </button>
               </div>
             </motion.div>
           </div>

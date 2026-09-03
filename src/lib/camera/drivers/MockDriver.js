@@ -13,7 +13,9 @@ export class MockDriver {
       'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?q=80&w=1000'
     ];
     this.currentPreviewIndex = 0;
-    this.previewInterval = null;
+    this.previewTimer = null;
+    this.lastCapturedImage = null;
+    this._previewElement = null;
   }
 
   async init() {
@@ -24,19 +26,31 @@ export class MockDriver {
 
   async startPreview(element) {
     this.isPreviewing = true;
-    
-    // For Mock, if element is a video, we can't easily play an image.
-    // However, for the photobooth UI, we can just return a placeholder URL 
-    // that the UI can use in an <img> or just ignore if it expects a stream.
-    // In our system, if it's DSLR or Mock, the UI should use <img> if possible, 
-    // but we'll try to be compatible.
-    
     console.log("Mock Preview Started");
+    // Keep the preview populated so the viewport is never blank
+    if (element && element.tagName === 'IMG') {
+      this._previewElement = element;
+      this._showFrame();
+    }
     return Promise.resolve();
+  }
+
+  _showFrame() {
+    this.currentPreviewIndex = (this.currentPreviewIndex + 1) % this.mockPhotos.length;
+    this.lastCapturedImage = this.mockPhotos[this.currentPreviewIndex];
+    if (this._previewElement) this._previewElement.src = this.lastCapturedImage;
+    if (this.isPreviewing) {
+      this.previewTimer = setTimeout(() => this._showFrame(), 1000);
+    }
   }
 
   async stopPreview() {
     this.isPreviewing = false;
+    if (this.previewTimer) {
+      clearTimeout(this.previewTimer);
+      this.previewTimer = null;
+    }
+    this._previewElement = null;
     console.log("Mock Preview Stopped");
     return Promise.resolve();
   }
@@ -58,7 +72,8 @@ export class MockDriver {
       active: this.isInitialized,
       isAvailable: true,
       error: null,
-      name: 'Mock Mode Active'
+      name: 'Mock Mode Active',
+      lastCapturedImage: this.lastCapturedImage
     };
   }
 }

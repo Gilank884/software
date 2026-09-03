@@ -24,11 +24,13 @@
     "directories": {
       "output": "release"
     },
-    "icon": "public/Logo.png",
+    "icon": "build/icon.png",
     "files": [
       "dist/**/*",
       "electron/**/*",
       "public/**/*",
+      "build/icon.png",
+      "build/icon.icns",
       "package.json",
       "!node_modules/@tailwindcss/oxide-*",
       "!node_modules/lightningcss-*",
@@ -38,6 +40,7 @@
       "!node_modules/autoprefixer"
     ],
     "mac": {
+      "icon": "build/icon.icns",
       "category": "public.app-category.photography",
       "minimumSystemVersion": "10.13.0",
       "hardenedRuntime": true,
@@ -103,7 +106,8 @@
     "react-dom": "^19.2.4",
     "react-qr-code": "^2.0.18",
     "selfsigned": "^5.5.0",
-    "tslib": "^2.8.1"
+    "tslib": "^2.8.1",
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
